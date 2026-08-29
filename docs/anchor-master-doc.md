@@ -109,18 +109,27 @@ A standalone note can be linked to a project. Linking sets `project_id` — the 
 ## Current State
 
 - Electron + React scaffold running (`npm run dev` launches a working desktop window)
-- End-to-end data persistence working: input → save → persist to disk → reload on restart
-- `sql.js` storage layer proven and stable
-- All data model decisions finalised — ready to build real schema
+- Full data layer live: schema, project/column/card CRUD, soft delete, progress calculation
+- Home page built: project list, priority, progress bars, create/delete
+- Kanban board built: columns, cards, points, priority, move between columns
+- Motion animations and sound effects wired in (Motion for React + Web Audio API)
+- Codebase cleaned: typed `Priority` union, removed raw IPC exposure, no dead files
 
 ## Goal / Roadmap
 
 1. ~~Scaffold Electron + React app~~ ✅
 2. ~~Prove local data persistence works end to end~~ ✅
-3. Build out real data model (projects, columns, cards, notes) on top of `sql.js`
-4. Build home page (notes + project list)
-5. Build per-project kanban board with points system
-6. Layer in signature interaction (motion + sound) once core functionality works
+3. ~~Build out real data model (projects, columns, cards, notes)~~ ✅
+4. ~~Build home page (project list with priority + progress bars)~~ ✅
+5. ~~Build per-project kanban board with points system~~ ✅
+6. ~~Layer in signature interaction (motion + sound)~~ ✅
+7. Notes system — vault folder setup, markdown files on disk, link notes to cards/projects
+8. Recycle bin — view and restore soft-deleted projects/cards/notes, auto-purge after 30 days
+9. Archive view — browse and unarchive projects
+10. Polish home page — due date countdown, project sort, empty states
+11. Polish kanban board — drag-and-drop reorder, card detail view (expand to full note)
+12. App shell polish — window chrome, app icon, consistent spacing/typography
+13. Production build — packaging via `electron-builder`, test on Mac + Windows
 
 ## Notes / Learnings
 

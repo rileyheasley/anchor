@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import './types'
 import type { Project } from './types'
 import HomePage from './components/HomePage'
 import ProjectBoard from './components/ProjectBoard'
