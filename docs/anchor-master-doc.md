@@ -33,7 +33,7 @@ A personal (not team) project manager:
 ## Current State
 
 - Electron + React scaffold running successfully (`npm run dev` launches a working desktop window)
-- Repo connected to GitHub, initial push/merge issues resolved
+- Repo connected to GitHub, fully synced, build output properly gitignored
 - First end-to-end data test complete: input → save → persist → read back, using JSON file storage
 - `better-sqlite3` was tried first for structured data but caused a SIGSEGV crash on macOS (native module ABI mismatch with Electron); pivoted to JSON file storage for now
 
@@ -59,6 +59,7 @@ A personal (not team) project manager:
 - Native modules (like `better-sqlite3`) must compile against Electron's bundled Node version, not the system Node — mismatches can cause hard crashes (SIGSEGV) rather than clean errors
 - `npm install-scripts approve <pkg>` may be needed to let Electron's own postinstall script run
 - Cross-platform packaging (Mac/Windows binaries) is a solved problem for later via `electron-builder`, not a concern during local dev
+- `.gitignore` needs to explicitly list every build output folder (`dist`, `dist-electron`, `release`) — a default template can miss ones specific to your Electron build tool. If a large file already got committed before `.gitignore` catches it, `git rm --cached` alone isn't enough: the file stays in older commit history too. If those commits haven't been pushed yet, `git reset --mixed origin/main` cleanly undoes them (keeping your actual file changes) so you can recommit once, clean.
 
 ---
 *Working title: Anchor. Living doc, update as decisions are made.*
