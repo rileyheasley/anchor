@@ -23,4 +23,28 @@ contextBridge.exposeInMainWorld('api', {
     reorder: (data: { column_id: string, card_ids: string[] }) => ipcRenderer.invoke('cards:reorder', data),
     delete: (id: string) => ipcRenderer.invoke('cards:delete', id),
   },
+  settings: {
+    get: (key: string) => ipcRenderer.invoke('settings:get', key),
+    set: (key: string, value: string) => ipcRenderer.invoke('settings:set', key, value),
+  },
+  vault: {
+    getPath: () => ipcRenderer.invoke('vault:getPath'),
+    choose: () => ipcRenderer.invoke('vault:choose'),
+  },
+  notes: {
+    list: (filter?: { project_id?: string, standalone?: boolean }) => ipcRenderer.invoke('notes:list', filter),
+    create: (data: { title: string, project_id?: string, card_id?: string }) => ipcRenderer.invoke('notes:create', data),
+    getContent: (id: string) => ipcRenderer.invoke('notes:getContent', id),
+    saveContent: (id: string, content: string) => ipcRenderer.invoke('notes:saveContent', id, content),
+    delete: (id: string) => ipcRenderer.invoke('notes:delete', id),
+  },
+  recycle: {
+    list: () => ipcRenderer.invoke('recycle:list'),
+    restore: (type: string, id: string) => ipcRenderer.invoke('recycle:restore', type, id),
+    purge: (type: string, id: string) => ipcRenderer.invoke('recycle:purge', type, id),
+  },
+  archive: {
+    list: () => ipcRenderer.invoke('archive:list'),
+    restore: (id: string) => ipcRenderer.invoke('archive:restore', id),
+  },
 })

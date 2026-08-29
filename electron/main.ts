@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs'
@@ -166,6 +166,51 @@ function createSchema() {
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`)
+
+  db.run(`CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT
+  )`)
+}
+
+function getSetting(key: string): string | null {
+  const row = queryOne('SELECT value FROM settings WHERE key = ?', [key])
+  return row ? (row.value as string) : null
+}
+
+function setSetting(key: string, value: string) {
+  execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [key, value])
+  saveDatabase()
+}
+
+function getVaultPath(): string | null {
+  return getSetting('vault_path')
+}
+
+function noteFilePath(filename: string): string | null {
+  const vault = getVaultPath()
+  if (!vault) return null
+  return path.join(vault, filename)
+}
+
+function purgeSoftDeleted() {
+  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+  // Delete notes from disk before purging DB rows
+  const staleNotes = queryAll(
+    'SELECT filename FROM notes WHERE deleted_at IS NOT NULL AND deleted_at < ?',
+    [cutoff]
+  )
+  for (const note of staleNotes) {
+    const fp = noteFilePath(note.filename as string)
+    if (fp && fs.existsSync(fp)) {
+      try { fs.unlinkSync(fp) } catch { /* ignore */ }
+    }
+  }
+  execute('DELETE FROM notes WHERE deleted_at IS NOT NULL AND deleted_at < ?', [cutoff])
+  execute('DELETE FROM cards WHERE deleted_at IS NOT NULL AND deleted_at < ?', [cutoff])
+  execute('DELETE FROM projects WHERE deleted_at IS NOT NULL AND deleted_at < ?', [cutoff])
+  saveDatabase()
+  console.log('Purged soft-deleted items older than 30 days')
 }
 
 function createWindow() {
@@ -210,7 +255,168 @@ app.on('activate', () => {
 app.whenReady().then(async () => {
   try {
     await initializeDatabase()
-    
+
+    // In dev mode, default vault to test-data/ so notes work without setup
+    if (!app.isPackaged && !getVaultPath()) {
+      const devVault = path.join(process.env.APP_ROOT, 'test-data')
+      fs.mkdirSync(path.join(devVault, 'notes'), { recursive: true })
+      fs.mkdirSync(path.join(devVault, 'projects'), { recursive: true })
+      setSetting('vault_path', devVault)
+      console.log('Dev mode — vault set to test-data/')
+    }
+
+    purgeSoftDeleted()
+
+    // ── Settings handlers ──
+
+    ipcMain.handle('settings:get', (_event, key: string) => getSetting(key))
+
+    ipcMain.handle('settings:set', (_event, key: string, value: string) => {
+      setSetting(key, value)
+    })
+
+    // ── Vault handlers ──
+
+    ipcMain.handle('vault:getPath', () => getVaultPath())
+
+    ipcMain.handle('vault:choose', async () => {
+      const result = await dialog.showOpenDialog(win!, {
+        title: 'Choose notes vault folder',
+        properties: ['openDirectory', 'createDirectory'],
+      })
+      if (result.canceled || !result.filePaths[0]) return null
+      const vaultPath = result.filePaths[0]
+      fs.mkdirSync(path.join(vaultPath, 'notes'), { recursive: true })
+      fs.mkdirSync(path.join(vaultPath, 'projects'), { recursive: true })
+      setSetting('vault_path', vaultPath)
+      return vaultPath
+    })
+
+    // ── Notes handlers ──
+
+    ipcMain.handle('notes:list', (_event, filter?: { project_id?: string, standalone?: boolean }) => {
+      if (filter?.project_id) {
+        return queryAll(
+          'SELECT * FROM notes WHERE project_id = ? AND card_id IS NULL AND deleted_at IS NULL ORDER BY updated_at DESC',
+          [filter.project_id]
+        )
+      }
+      if (filter?.standalone) {
+        return queryAll(
+          'SELECT * FROM notes WHERE project_id IS NULL AND card_id IS NULL AND deleted_at IS NULL ORDER BY updated_at DESC'
+        )
+      }
+      return queryAll('SELECT * FROM notes WHERE deleted_at IS NULL ORDER BY updated_at DESC')
+    })
+
+    ipcMain.handle('notes:create', async (_event, data: { title: string, project_id?: string, card_id?: string }) => {
+      const vault = getVaultPath()
+      if (!vault) throw new Error('No vault configured')
+
+      let relDir = 'notes'
+      if (data.card_id) {
+        const card = queryOne('SELECT project_id FROM cards WHERE id = ?', [data.card_id])
+        const project = card ? queryOne('SELECT name FROM projects WHERE id = ?', [card.project_id]) : null
+        const projectName = (project?.name as string | null) ?? 'Unknown'
+        relDir = path.join('projects', projectName.replace(/[<>:"/\\|?*]/g, '-'))
+      } else if (data.project_id) {
+        const project = queryOne('SELECT name FROM projects WHERE id = ?', [data.project_id])
+        const projectName = (project?.name as string | null) ?? 'Unknown'
+        relDir = path.join('projects', projectName.replace(/[<>:"/\\|?*]/g, '-'))
+      }
+
+      fs.mkdirSync(path.join(vault, relDir), { recursive: true })
+
+      const safeTitle = data.title.replace(/[<>:"/\\|?*]/g, '-')
+      const filename = path.join(relDir, `${safeTitle}.md`)
+      const absPath = path.join(vault, filename)
+      fs.writeFileSync(absPath, `# ${data.title}\n`)
+
+      const id = crypto.randomUUID()
+      execute(
+        'INSERT INTO notes (id, title, filename, project_id, card_id) VALUES (?, ?, ?, ?, ?)',
+        [id, data.title, filename, data.project_id ?? null, data.card_id ?? null]
+      )
+      saveDatabase()
+      return queryOne('SELECT * FROM notes WHERE id = ?', [id])
+    })
+
+    ipcMain.handle('notes:getContent', (_event, id: string) => {
+      const note = queryOne('SELECT filename FROM notes WHERE id = ?', [id])
+      if (!note) return null
+      const fp = noteFilePath(note.filename as string)
+      if (!fp || !fs.existsSync(fp)) return null
+      return fs.readFileSync(fp, 'utf-8')
+    })
+
+    ipcMain.handle('notes:saveContent', (_event, id: string, content: string) => {
+      const note = queryOne('SELECT filename FROM notes WHERE id = ?', [id])
+      if (!note) throw new Error('Note not found')
+      const fp = noteFilePath(note.filename as string)
+      if (!fp) throw new Error('No vault configured')
+      fs.writeFileSync(fp, content, 'utf-8')
+      execute("UPDATE notes SET updated_at = datetime('now') WHERE id = ?", [id])
+      saveDatabase()
+    })
+
+    ipcMain.handle('notes:delete', (_event, id: string) => {
+      execute("UPDATE notes SET deleted_at = datetime('now'), updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL", [id])
+      saveDatabase()
+    })
+
+    // ── Recycle bin handlers ──
+
+    ipcMain.handle('recycle:list', () => {
+      const projects = queryAll("SELECT 'project' AS type, id, name AS title, deleted_at FROM projects WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC")
+      const cards = queryAll("SELECT 'card' AS type, id, title, deleted_at FROM cards WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC")
+      const notes = queryAll("SELECT 'note' AS type, id, title, deleted_at FROM notes WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC")
+      return [...projects, ...cards, ...notes].sort((a, b) =>
+        (b.deleted_at as string).localeCompare(a.deleted_at as string)
+      )
+    })
+
+    ipcMain.handle('recycle:restore', (_event, type: string, id: string) => {
+      if (type === 'project') execute('UPDATE projects SET deleted_at = NULL WHERE id = ?', [id])
+      else if (type === 'card') execute('UPDATE cards SET deleted_at = NULL WHERE id = ?', [id])
+      else if (type === 'note') execute('UPDATE notes SET deleted_at = NULL WHERE id = ?', [id])
+      saveDatabase()
+    })
+
+    ipcMain.handle('recycle:purge', (_event, type: string, id: string) => {
+      if (type === 'project') execute('DELETE FROM projects WHERE id = ?', [id])
+      else if (type === 'card') execute('DELETE FROM cards WHERE id = ?', [id])
+      else if (type === 'note') {
+        const note = queryOne('SELECT filename FROM notes WHERE id = ?', [id])
+        if (note) {
+          const fp = noteFilePath(note.filename as string)
+          if (fp && fs.existsSync(fp)) try { fs.unlinkSync(fp) } catch { /* ignore */ }
+        }
+        execute('DELETE FROM notes WHERE id = ?', [id])
+      }
+      saveDatabase()
+    })
+
+    // ── Archive handlers ──
+
+    ipcMain.handle('archive:list', () => {
+      return queryAll(
+        `SELECT p.id, p.name, p.priority, p.due_date, p.archived, p.created_at, p.updated_at,
+          COALESCE(SUM(CASE WHEN kc.is_done = 1 THEN c.points ELSE 0 END), 0) AS done_points,
+          COALESCE(SUM(c.points), 0) AS total_points
+        FROM projects p
+        LEFT JOIN cards c ON c.project_id = p.id AND c.deleted_at IS NULL
+        LEFT JOIN kanban_columns kc ON kc.id = c.column_id
+        WHERE p.deleted_at IS NULL AND p.archived = 1
+        GROUP BY p.id
+        ORDER BY p.name COLLATE NOCASE`
+      )
+    })
+
+    ipcMain.handle('archive:restore', (_event, id: string) => {
+      execute("UPDATE projects SET archived = 0, updated_at = datetime('now') WHERE id = ?", [id])
+      saveDatabase()
+    })
+
     ipcMain.handle('projects:list', async () => {
       const projects = queryAll(`
         SELECT 
