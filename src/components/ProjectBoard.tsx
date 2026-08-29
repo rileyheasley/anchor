@@ -10,7 +10,7 @@ const PRIORITY_BADGES: Record<string, string> = {
   high: 'bg-red-100 text-red-700',
 }
 
-export default function ProjectBoard({ project, onBack }: { project: Project, onBack: () => void }) {
+export default function ProjectBoard({ project, onClose }: { project: Project, onClose: () => void }) {
   const [columns, setColumns] = useState<KanbanColumn[]>([])
   const [cards, setCards] = useState<Card[]>([])
   const [addingTo, setAddingTo] = useState<string | null>(null)
@@ -159,13 +159,6 @@ export default function ProjectBoard({ project, onBack }: { project: Project, on
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <header className="bg-white border-b border-gray-200 px-6 py-4 shrink-0">
-        <div className="flex items-center gap-4">
-          <button onClick={onBack} className="text-gray-500 hover:text-gray-900 transition-colors cursor-pointer text-sm">← Back</button>
-          <h1 className="text-xl font-semibold text-gray-900">{project.name}</h1>
-        </div>
-      </header>
-
       <div className="flex flex-1 overflow-hidden">
         {/* Board */}
         <div className="flex-1 overflow-x-auto p-6">

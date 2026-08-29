@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react'
 import type { Project } from '../types'
 import { clickSound } from '../sounds'
 
-export default function ArchiveView({ onBack, onOpenProject }: { onBack: () => void, onOpenProject: (p: Project) => void }) {
+export default function ArchiveView({ onOpenProject }: { onOpenProject: (p: Project) => void }) {
   const [projects, setProjects] = useState<Project[]>([])
 
   useEffect(() => {
@@ -26,13 +26,6 @@ export default function ArchiveView({ onBack, onOpenProject }: { onBack: () => v
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="max-w-3xl mx-auto flex items-center gap-4">
-          <button onClick={onBack} className="text-gray-500 hover:text-gray-900 transition-colors cursor-pointer text-sm">← Back</button>
-          <h1 className="text-xl font-semibold text-gray-900">Archive</h1>
-        </div>
-      </header>
-
       <main className="max-w-3xl mx-auto px-6 py-8">
         {projects.length === 0 && (
           <div className="text-center py-16 text-gray-400">

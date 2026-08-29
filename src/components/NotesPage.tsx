@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react'
 import type { Note } from '../types'
 import { createSound, deleteSound, clickSound } from '../sounds'
 
-export default function NotesPage({ onBack }: { onBack: () => void }) {
+export default function NotesPage({ startCreating: startCreatingProp = false, onCreateHandled }: { startCreating?: boolean, onCreateHandled?: () => void }) {
   const [vaultPath, setVaultPath] = useState<string | null>(null)
   const [notes, setNotes] = useState<Note[]>([])
   const [activeNote, setActiveNote] = useState<Note | null>(null)
@@ -16,6 +16,13 @@ export default function NotesPage({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     loadVaultAndNotes()
   }, [])
+
+  useEffect(() => {
+    if (startCreatingProp) {
+      setCreating(true)
+      onCreateHandled?.()
+    }
+  }, [startCreatingProp])
 
   const loadVaultAndNotes = async () => {
     const vp = await window.api.vault.getPath()
@@ -74,14 +81,7 @@ export default function NotesPage({ onBack }: { onBack: () => void }) {
 
   if (!vaultPath) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col">
-        <header className="bg-white border-b border-gray-200 px-6 py-4 shrink-0">
-          <div className="flex items-center gap-4">
-            <button onClick={onBack} className="text-gray-500 hover:text-gray-900 transition-colors cursor-pointer text-sm">← Back</button>
-            <h1 className="text-xl font-semibold text-gray-900">Notes</h1>
-          </div>
-        </header>
-        <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-8">
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-4 text-center px-8">
           <p className="text-gray-500 text-lg">Choose a folder to store your notes</p>
           <p className="text-gray-400 text-sm max-w-sm">Notes are saved as markdown files on disk. Pick any folder — Anchor will create a <code className="bg-gray-100 px-1 rounded">notes/</code> and <code className="bg-gray-100 px-1 rounded">projects/</code> subfolder inside it.</p>
           <button
@@ -91,27 +91,11 @@ export default function NotesPage({ onBack }: { onBack: () => void }) {
             Choose folder
           </button>
         </div>
-      </div>
     )
   }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <header className="bg-white border-b border-gray-200 px-6 py-4 shrink-0">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button onClick={onBack} className="text-gray-500 hover:text-gray-900 transition-colors cursor-pointer text-sm">← Back</button>
-            <h1 className="text-xl font-semibold text-gray-900">Notes</h1>
-          </div>
-          <button
-            onClick={() => setCreating(true)}
-            className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors cursor-pointer"
-          >
-            + New Note
-          </button>
-        </div>
-      </header>
-
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
         <div className="w-64 bg-white border-r border-gray-200 flex flex-col shrink-0 overflow-y-auto">

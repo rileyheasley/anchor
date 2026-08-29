@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Project } from './types'
 import TitleBar from './components/TitleBar'
+import Sidebar from './components/Sidebar'
 import HomePage from './components/HomePage'
 import ProjectBoard from './components/ProjectBoard'
 import NotesPage from './components/NotesPage'
@@ -12,20 +13,47 @@ type View = 'home' | 'notes' | 'archive' | 'recycle'
 function App() {
   const [view, setView] = useState<View>('home')
   const [activeProject, setActiveProject] = useState<Project | null>(null)
+  const [startCreatingNote, setStartCreatingNote] = useState(false)
+  const [startCreatingProject, setStartCreatingProject] = useState(false)
 
-  const goHome = () => setView('home')
+  const handleNavigate = (v: View) => {
+    setActiveProject(null)        // always exit any open project
+    setStartCreatingNote(false)
+    setStartCreatingProject(false)
+    setView(v)
+  }
+
+  const handleNewNote = () => {
+    setActiveProject(null)
+    setStartCreatingNote(true)
+    setView('notes')
+  }
+
+  const handleNewProject = () => {
+    setActiveProject(null)
+    setStartCreatingProject(true)
+    setView('home')
+  }
 
   const content = () => {
-    if (activeProject) return <ProjectBoard project={activeProject} onBack={() => setActiveProject(null)} />
-    if (view === 'notes') return <NotesPage onBack={goHome} />
-    if (view === 'recycle') return <RecycleBin onBack={goHome} />
-    if (view === 'archive') return <ArchiveView onBack={goHome} onOpenProject={setActiveProject} />
+    if (activeProject) {
+      return <ProjectBoard project={activeProject} onClose={() => setActiveProject(null)} />
+    }
+    if (view === 'notes') {
+      return (
+        <NotesPage
+          startCreating={startCreatingNote}
+          onCreateHandled={() => setStartCreatingNote(false)}
+        />
+      )
+    }
+    if (view === 'recycle') return <RecycleBin />
+    if (view === 'archive') return <ArchiveView onOpenProject={setActiveProject} />
     return (
       <HomePage
         onOpenProject={setActiveProject}
-        onGoNotes={() => setView('notes')}
-        onGoArchive={() => setView('archive')}
-        onGoRecycle={() => setView('recycle')}
+        startCreating={startCreatingProject}
+        onCreateHandled={() => setStartCreatingProject(false)}
       />
     )
   }
@@ -33,8 +61,17 @@ function App() {
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       <TitleBar />
-      <div className="flex-1 overflow-hidden">
-        {content()}
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar
+          view={view}
+          isInProject={activeProject !== null}
+          onNavigate={handleNavigate}
+          onNewNote={handleNewNote}
+          onNewProject={handleNewProject}
+        />
+        <div className="flex-1 overflow-hidden">
+          {content()}
+        </div>
       </div>
     </div>
   )

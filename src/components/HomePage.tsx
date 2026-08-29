@@ -37,14 +37,12 @@ function dueDateInfo(dateStr: string | null): { label: string; color: string } |
 
 export default function HomePage({
   onOpenProject,
-  onGoNotes,
-  onGoArchive,
-  onGoRecycle,
+  startCreating: startCreatingProp = false,
+  onCreateHandled,
 }: {
   onOpenProject: (project: Project) => void
-  onGoNotes: () => void
-  onGoArchive: () => void
-  onGoRecycle: () => void
+  startCreating?: boolean
+  onCreateHandled?: () => void
 }) {
   const [projects, setProjects] = useState<Project[]>([])
   const [newName, setNewName] = useState('')
@@ -52,6 +50,13 @@ export default function HomePage({
   const [sortBy, setSortBy] = useState<SortMode>('priority')
 
   useEffect(() => { loadProjects() }, [])
+
+  useEffect(() => {
+    if (startCreatingProp) {
+      setCreating(true)
+      onCreateHandled?.()
+    }
+  }, [startCreatingProp])
 
   const loadProjects = async () => {
     try {
@@ -128,23 +133,6 @@ export default function HomePage({
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <h1 className="text-xl font-semibold text-gray-900">Anchor</h1>
-          <div className="flex items-center gap-2">
-            <button onClick={onGoNotes} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">Notes</button>
-            <button onClick={onGoArchive} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">Archive</button>
-            <button onClick={onGoRecycle} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">Bin</button>
-            <button
-              onClick={() => setCreating(true)}
-              className="ml-2 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors cursor-pointer"
-            >
-              + New Project
-            </button>
-          </div>
-        </div>
-      </header>
-
       <main className="max-w-4xl mx-auto px-6 py-8">
         {creating && (
           <div className="mb-6 flex gap-2">
