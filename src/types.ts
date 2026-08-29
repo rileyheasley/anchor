@@ -58,6 +58,12 @@ export interface RecycleItem {
 declare global {
   interface Window {
     api: {
+      window: {
+        minimize: () => Promise<void>
+        maximize: () => Promise<void>
+        close: () => Promise<void>
+        isMaximized: () => Promise<boolean>
+      }
       projects: {
         list: () => Promise<Project[]>
         create: (data: { name: string }) => Promise<Project>

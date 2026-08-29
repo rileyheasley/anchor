@@ -215,21 +215,24 @@ function purgeSoftDeleted() {
 
 function createWindow() {
   win = new BrowserWindow({
-    icon: path.join(process.env.VITE_PUBLIC, 'electron-vite.svg'),
+    width: 1280,
+    height: 800,
+    minWidth: 960,
+    minHeight: 600,
+    titleBarStyle: 'hidden',
+    titleBarOverlay: process.platform === 'win32' ? {
+      color: '#ffffff',
+      symbolColor: '#374151',
+      height: 40,
+    } : false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
     },
   })
 
-  // Test active push message to Renderer-process.
-  win.webContents.on('did-finish-load', () => {
-    win?.webContents.send('main-process-message', (new Date).toLocaleString())
-  })
-
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL)
   } else {
-    // win.loadFile('dist/index.html')
     win.loadFile(path.join(RENDERER_DIST, 'index.html'))
   }
 }
@@ -266,6 +269,16 @@ app.whenReady().then(async () => {
     }
 
     purgeSoftDeleted()
+
+    // ── Window control handlers ──
+
+    ipcMain.handle('window:minimize', () => win?.minimize())
+    ipcMain.handle('window:maximize', () => {
+      if (win?.isMaximized()) win.unmaximize()
+      else win?.maximize()
+    })
+    ipcMain.handle('window:close', () => win?.close())
+    ipcMain.handle('window:isMaximized', () => win?.isMaximized() ?? false)
 
     // ── Settings handlers ──
 

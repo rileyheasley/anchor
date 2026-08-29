@@ -1,6 +1,12 @@
 import { ipcRenderer, contextBridge } from 'electron'
 
 contextBridge.exposeInMainWorld('api', {
+  window: {
+    minimize: () => ipcRenderer.invoke('window:minimize'),
+    maximize: () => ipcRenderer.invoke('window:maximize'),
+    close: () => ipcRenderer.invoke('window:close'),
+    isMaximized: () => ipcRenderer.invoke('window:isMaximized'),
+  },
   projects: {
     list: () => ipcRenderer.invoke('projects:list'),
     create: (data: { name: string }) => ipcRenderer.invoke('projects:create', data),

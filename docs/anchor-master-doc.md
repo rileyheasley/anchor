@@ -108,7 +108,9 @@ A standalone note can be linked to a project. Linking sets `project_id` — the 
 
 ## Current State
 
-- Electron + React scaffold running (`npm run dev` launches a working desktop window)
+- Frameless window with custom drag bar (`titleBarStyle: 'hidden'`), native overlay controls on Windows, native traffic lights on Mac
+- Inter Variable font loaded offline via `@fontsource-variable/inter`; `user-select: none` globally, restored on inputs
+- `createWindow()` has sensible defaults: 1280×800, min 960×600
 - Full data layer live: schema, project/column/card CRUD, soft delete, progress calculation
 - Home page built: project list, priority, progress bars, create/delete
 - Kanban board built: columns, cards, points, priority, move between columns
@@ -128,7 +130,7 @@ A standalone note can be linked to a project. Linking sets `project_id` — the 
 9. Archive view — browse and unarchive projects
 10. Polish home page — due date countdown, project sort, empty states
 11. Polish kanban board — drag-and-drop reorder, card detail view (expand to full note)
-12. App shell polish — window chrome, app icon, consistent spacing/typography
+12. ~~App shell polish — frameless window, Inter font, drag bar, window defaults~~ ✅
 13. Production build — packaging via `electron-builder`, test on Mac + Windows
 
 ## Notes / Learnings
