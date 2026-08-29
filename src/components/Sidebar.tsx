@@ -27,10 +27,10 @@ function NavItem({
       whileTap={{ scale: 0.97 }}
       className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors cursor-pointer ${
         active
-          ? 'bg-gray-100 text-gray-900 font-medium'
+          ? 'bg-surface-muted text-ink font-medium'
           : danger
-          ? 'text-red-400 hover:bg-red-50 hover:text-red-600'
-          : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'
+          ? 'text-danger-hover hover:bg-danger-subtle hover:text-danger-strong'
+          : 'text-ink-muted hover:bg-surface-sunken hover:text-ink-secondary'
       }`}
     >
       {label}
@@ -40,7 +40,7 @@ function NavItem({
 
 export default function Sidebar({ view, isInProject, onNavigate }: SidebarProps) {
   return (
-    <div className="w-48 bg-white border-r border-gray-200 flex flex-col shrink-0 h-full">
+    <div className="w-48 bg-surface border-r border-border flex flex-col shrink-0 h-full">
 
       {/* Nav */}
       <div className="flex flex-1 flex-col px-2 py-3 overflow-hidden space-y-0.5">

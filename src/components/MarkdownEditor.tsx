@@ -97,19 +97,19 @@ export default function MarkdownEditor({
   if (!editor) return null
 
   return (
-    <div className="flex-1 overflow-y-auto bg-white relative" onContextMenu={handleContextMenu}>
+    <div className="flex-1 overflow-y-auto bg-surface relative" onContextMenu={handleContextMenu}>
       <EditorContent editor={editor} className="markdown-editor h-full p-6" />
 
       {menu && (
         <div
           ref={menuRef}
-          className="fixed z-50 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[170px] text-sm"
+          className="fixed z-50 bg-surface border border-border rounded-lg shadow-lg py-1 min-w-[170px] text-sm"
           style={{ top: menu.y, left: menu.x }}
           onClick={(e) => e.stopPropagation()}
         >
           {MENU_ITEMS.map((item, i) =>
             item === 'separator' ? (
-              <div key={i} className="my-1 border-t border-gray-100" />
+              <div key={i} className="my-1 border-t border-border-subtle" />
             ) : (
               <button
                 key={item.label}
@@ -117,8 +117,8 @@ export default function MarkdownEditor({
                   item.action(editor)
                   setMenu(null)
                 }}
-                className={`w-full text-left px-3 py-1.5 hover:bg-gray-50 cursor-pointer transition-colors ${
-                  item.isActive?.(editor) ? 'text-blue-600 font-medium' : 'text-gray-700'
+                className={`w-full text-left px-3 py-1.5 hover:bg-surface-sunken cursor-pointer transition-colors ${
+                  item.isActive?.(editor) ? 'text-accent-hover font-medium' : 'text-ink-secondary'
                 }`}
               >
                 {item.label}

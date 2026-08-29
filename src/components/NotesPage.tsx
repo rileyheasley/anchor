@@ -90,12 +90,12 @@ export default function NotesPage({
 
   if (!vaultPath) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-4 text-center px-8">
-          <p className="text-gray-500 text-lg">Choose a folder to store your notes</p>
-          <p className="text-gray-400 text-sm max-w-sm">Notes are saved as markdown files on disk. Pick any folder — Anchor will create a <code className="bg-gray-100 px-1 rounded">notes/</code> and <code className="bg-gray-100 px-1 rounded">projects/</code> subfolder inside it.</p>
+      <div className="min-h-screen bg-surface-sunken flex flex-col items-center justify-center gap-4 text-center px-8">
+          <p className="text-ink-muted text-lg">Choose a folder to store your notes</p>
+          <p className="text-ink-faint text-sm max-w-sm">Notes are saved as markdown files on disk. Pick any folder — Anchor will create a <code className="bg-surface-muted px-1 rounded">notes/</code> and <code className="bg-surface-muted px-1 rounded">projects/</code> subfolder inside it.</p>
           <button
             onClick={handleChooseVault}
-            className="mt-2 px-6 py-3 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors cursor-pointer"
+            className="mt-2 px-6 py-3 bg-primary text-ink-inverse rounded-lg text-sm font-medium hover:bg-primary-hover transition-colors cursor-pointer"
           >
             Choose folder
           </button>
@@ -104,16 +104,16 @@ export default function NotesPage({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-surface-sunken flex flex-col">
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
-        <div className="w-64 bg-white border-r border-gray-200 flex flex-col shrink-0 overflow-y-auto">
+        <div className="w-64 bg-surface border-r border-border flex flex-col shrink-0 overflow-y-auto">
           {/* Header with New Note button */}
-          <div className="p-3 border-b border-gray-100 flex items-center justify-between gap-2">
-            <span className="text-xs uppercase tracking-wide text-gray-400 font-medium">Notes</span>
+          <div className="p-3 border-b border-border-subtle flex items-center justify-between gap-2">
+            <span className="text-xs uppercase tracking-wide text-ink-faint font-medium">Notes</span>
             <button
               onClick={() => { setCreating(true); onNewNote?.() }}
-              className="px-2 py-1 text-xs bg-gray-900 text-white rounded hover:bg-gray-800 transition-colors cursor-pointer font-medium"
+              className="px-2 py-1 text-xs bg-primary text-ink-inverse rounded hover:bg-primary-hover transition-colors cursor-pointer font-medium"
               title="Create new note"
             >
               +
@@ -121,7 +121,7 @@ export default function NotesPage({
           </div>
 
           {creating && (
-            <div className="p-3 border-b border-gray-100">
+            <div className="p-3 border-b border-border-subtle">
               <input
                 autoFocus
                 type="text"
@@ -132,7 +132,7 @@ export default function NotesPage({
                   if (e.key === 'Escape') { setCreating(false); setNewTitle('') }
                 }}
                 placeholder="Note title..."
-                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                className="w-full px-2 py-1.5 text-sm border border-border-strong rounded focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
               />
             </div>
           )}
@@ -146,14 +146,14 @@ export default function NotesPage({
                 exit={{ opacity: 0, x: -10 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                 onClick={() => handleOpenNote(note)}
-                className={`px-4 py-3 cursor-pointer border-b border-gray-100 group flex items-center justify-between hover:bg-gray-50 transition-colors ${
-                  activeNote?.id === note.id ? 'bg-blue-50 border-l-2 border-l-blue-500' : ''
+                className={`px-4 py-3 cursor-pointer border-b border-border-subtle group flex items-center justify-between hover:bg-surface-sunken transition-colors ${
+                  activeNote?.id === note.id ? 'bg-accent-subtle border-l-2 border-l-accent' : ''
                 }`}
               >
-                <span className="text-sm text-gray-800 truncate">{note.title}</span>
+                <span className="text-sm text-ink-secondary truncate">{note.title}</span>
                 <button
                   onClick={(e) => { e.stopPropagation(); handleDelete(note.id) }}
-                  className="text-gray-300 hover:text-red-500 text-sm opacity-0 group-hover:opacity-100 transition-all cursor-pointer shrink-0"
+                  className="text-ink-faint/70 hover:text-danger text-sm opacity-0 group-hover:opacity-100 transition-all cursor-pointer shrink-0"
                 >
                   ×
                 </button>
@@ -162,7 +162,7 @@ export default function NotesPage({
           </AnimatePresence>
 
           {notes.length === 0 && !creating && (
-            <p className="text-sm text-gray-400 text-center py-8 px-4">No notes yet</p>
+            <p className="text-sm text-ink-faint text-center py-8 px-4">No notes yet</p>
           )}
         </div>
 
@@ -170,9 +170,9 @@ export default function NotesPage({
         <div className="flex-1 flex flex-col overflow-hidden">
           {activeNote ? (
             <>
-              <div className="px-6 py-3 border-b border-gray-200 bg-white flex items-center justify-between">
-                <h2 className="font-medium text-gray-900">{activeNote.title}</h2>
-                {dirty && <span className="text-xs text-gray-400">Saving…</span>}
+              <div className="px-6 py-3 border-b border-border bg-surface flex items-center justify-between">
+                <h2 className="font-medium text-ink">{activeNote.title}</h2>
+                {dirty && <span className="text-xs text-ink-faint">Saving…</span>}
               </div>
               <MarkdownEditor
                 content={content}
@@ -181,7 +181,7 @@ export default function NotesPage({
               />
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
+            <div className="flex-1 flex items-center justify-center text-ink-faint text-sm">
               Select a note to edit
             </div>
           )}

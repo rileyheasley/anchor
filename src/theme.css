@@ -1,0 +1,54 @@
+/*
+ * Design tokens — single source of truth for color in the app.
+ * Tailwind v4 turns each `--color-*` variable below into matching
+ * utilities (bg-*, text-*, border-*, ring-*, etc). Components should
+ * only ever reference these semantic names, never raw palette
+ * colors like `gray-900` or `blue-500` directly.
+ */
+@theme {
+  /* Surfaces */
+  --color-surface: #ffffff;
+  --color-surface-sunken: #f9fafb;
+  --color-surface-muted: #f3f4f6;
+
+  /* Borders */
+  --color-border: #e5e7eb;
+  --color-border-subtle: #f3f4f6;
+  --color-border-strong: #d1d5db;
+
+  /* Text / ink */
+  --color-ink: #111827;
+  --color-ink-secondary: #374151;
+  --color-ink-muted: #6b7280;
+  --color-ink-faint: #9ca3af;
+  --color-ink-inverse: #ffffff;
+
+  /* Primary action (near-black buttons, focus rings) */
+  --color-primary: #111827;
+  --color-primary-hover: #1f2937;
+
+  /* Accent (interactive/selected state) */
+  --color-accent: #3b82f6;
+  --color-accent-hover: #2563eb;
+  --color-accent-subtle: #eff6ff;
+  --color-accent-strong: #1d4ed8;
+
+  /* Semantic states */
+  --color-success: #22c55e;
+  --color-success-subtle: #dcfce7;
+  --color-success-strong: #15803d;
+
+  --color-warning: #f59e0b;
+  --color-warning-subtle: #fef3c7;
+  --color-warning-strong: #b45309;
+  --color-warning-hover: #fbbf24;
+
+  --color-danger: #ef4444;
+  --color-danger-subtle: #fee2e2;
+  --color-danger-strong: #b91c1c;
+  --color-danger-hover: #dc2626;
+
+  --color-special: #a855f7;
+  --color-special-subtle: #f3e8ff;
+  --color-special-strong: #7e22ce;
+}
