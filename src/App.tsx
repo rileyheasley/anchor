@@ -1,34 +1,72 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/electron-vite.animate.svg'
+import { useState, useEffect } from 'react'
 import './App.css'
 
+interface TestItem {
+  id: number
+  text: string
+}
+
+declare global {
+  interface Window {
+    api: {
+      saveItem: (text: string) => Promise<number>
+      getItems: () => Promise<TestItem[]>
+    }
+  }
+}
+
 function App() {
-  const [count, setCount] = useState(0)
+  const [input, setInput] = useState('')
+  const [items, setItems] = useState<TestItem[]>([])
+
+  useEffect(() => {
+    loadItems()
+  }, [])
+
+  const loadItems = async () => {
+    try {
+      const result = await window.api.getItems()
+      setItems(result)
+    } catch (error) {
+      console.error('Failed to load items:', error)
+    }
+  }
+
+  const handleSave = async () => {
+    if (!input.trim()) return
+    try {
+      await window.api.saveItem(input)
+      setInput('')
+      await loadItems()
+    } catch (error) {
+      console.error('Failed to save item:', error)
+    }
+  }
 
   return (
-    <>
+    <div>
+      <h1>Anchor - SQLite Storage Test</h1>
+      
       <div>
-        <a href="https://electron-vite.github.io" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleSave()}
+          placeholder="Enter text..."
+        />
+        <button onClick={handleSave}>Save</button>
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
+
+      <h2>Saved Items</h2>
+      <ul>
+        {items.map((item) => (
+          <li key={item.id}>
+            {item.id}: {item.text}
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
 
