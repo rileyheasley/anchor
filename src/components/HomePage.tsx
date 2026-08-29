@@ -39,10 +39,12 @@ export default function HomePage({
   onOpenProject,
   startCreating: startCreatingProp = false,
   onCreateHandled,
+  onNewProject,
 }: {
   onOpenProject: (project: Project) => void
   startCreating?: boolean
   onCreateHandled?: () => void
+  onNewProject?: () => void
 }) {
   const [projects, setProjects] = useState<Project[]>([])
   const [newName, setNewName] = useState('')
@@ -154,19 +156,38 @@ export default function HomePage({
         )}
 
         {projects.length > 0 && (
-          <div className="flex items-center gap-1 mb-4">
-            <span className="text-xs text-gray-400 mr-1">Sort:</span>
-            {(['priority', 'dueDate', 'name'] as SortMode[]).map((mode) => (
-              <button
-                key={mode}
-                onClick={() => { clickSound(); setSortBy(mode) }}
-                className={`text-xs px-2 py-1 rounded cursor-pointer transition-colors ${
-                  sortBy === mode ? 'bg-gray-900 text-white' : 'text-gray-400 hover:bg-gray-100'
-                }`}
-              >
-                {SORT_LABELS[mode]}
-              </button>
-            ))}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-gray-400 mr-1">Sort:</span>
+              {(['priority', 'dueDate', 'name'] as SortMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => { clickSound(); setSortBy(mode) }}
+                  className={`text-xs px-2 py-1 rounded cursor-pointer transition-colors ${
+                    sortBy === mode ? 'bg-gray-900 text-white' : 'text-gray-400 hover:bg-gray-100'
+                  }`}
+                >
+                  {SORT_LABELS[mode]}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => { setCreating(true); onNewProject?.() }}
+              className="px-3 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800 transition-colors cursor-pointer font-medium"
+            >
+              + New Project
+            </button>
+          </div>
+        )}
+
+        {projects.length === 0 && !creating && (
+          <div className="mb-6 flex justify-end">
+            <button
+              onClick={() => { setCreating(true); onNewProject?.() }}
+              className="px-3 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800 transition-colors cursor-pointer font-medium"
+            >
+              + New Project
+            </button>
           </div>
         )}
 
@@ -174,7 +195,6 @@ export default function HomePage({
           <div className="text-center py-24 text-gray-400">
             <p className="text-2xl mb-2">🪝</p>
             <p className="text-base font-medium text-gray-500">No projects yet</p>
-            <p className="text-sm mt-1">Hit <span className="font-medium text-gray-600">+ New Project</span> to get started</p>
           </div>
         )}
 

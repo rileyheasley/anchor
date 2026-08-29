@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import { fileURLToPath } from 'node:url'
+import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import fs from 'node:fs'
 import initSqlJs, { type Database } from 'sql.js'
@@ -65,6 +66,8 @@ async function initializeDatabase() {
 
     const SQL = await initSqlJs()
 
+    const isNewDatabase = !fs.existsSync(dbPath)
+
     if (fs.existsSync(dbPath)) {
       console.log('Loading existing database file...')
       const fileBuffer = fs.readFileSync(dbPath)
@@ -76,6 +79,11 @@ async function initializeDatabase() {
 
     db.run('PRAGMA foreign_keys = ON')
     createSchema()
+
+    if (isNewDatabase) {
+      seedSampleData()
+    }
+
     saveDatabase()
 
     console.log('Database initialized successfully')
@@ -171,6 +179,92 @@ function createSchema() {
     key TEXT PRIMARY KEY,
     value TEXT
   )`)
+}
+
+function seedSampleData() {
+  // Create 4 sample projects
+  const projects = [
+    {
+      id: randomUUID(),
+      name: 'Website Redesign',
+      priority: 'high',
+      due_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    },
+    {
+      id: randomUUID(),
+      name: 'Mobile App',
+      priority: 'medium',
+      due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    },
+    {
+      id: randomUUID(),
+      name: 'API Integration',
+      priority: 'medium',
+      due_date: null,
+    },
+    {
+      id: randomUUID(),
+      name: 'Documentation',
+      priority: 'low',
+      due_date: null,
+    },
+  ]
+
+  projects.forEach((proj) => {
+    execute(
+      'INSERT INTO projects (id, name, priority, due_date) VALUES (?, ?, ?, ?)',
+      [proj.id, proj.name, proj.priority, proj.due_date]
+    )
+  })
+
+  // Create columns and cards for each project
+  projects.forEach((proj) => {
+    // Create default columns
+    const todoCol = { id: randomUUID(), project_id: proj.id, name: 'To Do', position: 0, is_done: 0 }
+    const inProgCol = { id: randomUUID(), project_id: proj.id, name: 'In Progress', position: 1, is_done: 0 }
+    const doneCol = { id: randomUUID(), project_id: proj.id, name: 'Done', position: 2, is_done: 1 }
+
+    ;[todoCol, inProgCol, doneCol].forEach((col) => {
+      execute(
+        'INSERT INTO kanban_columns (id, project_id, name, position, is_done) VALUES (?, ?, ?, ?, ?)',
+        [col.id, col.project_id, col.name, col.position, col.is_done]
+      )
+    })
+
+    // Create sample cards
+    const cardConfigs = [
+      { title: 'Setup project structure', col: todoCol, points: 3, priority: 'high' },
+      { title: 'Design mockups', col: todoCol, points: 5, priority: 'high' },
+      { title: 'Implement authentication', col: inProgCol, points: 5, priority: 'medium' },
+      { title: 'Add database schema', col: inProgCol, points: 3, priority: 'medium' },
+      { title: 'Write unit tests', col: doneCol, points: 4, priority: 'low' },
+      { title: 'Deploy to staging', col: doneCol, points: 2, priority: 'low' },
+    ]
+
+    cardConfigs.forEach((config, i) => {
+      const cardId = randomUUID()
+      execute(
+        'INSERT INTO cards (id, project_id, column_id, title, points, priority, position) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [cardId, proj.id, config.col.id, config.title, config.points, config.priority, i]
+      )
+    })
+  })
+
+  // Create sample notes
+  const noteConfigs = [
+    { title: 'Project kickoff notes', filename: 'kickoff.md' },
+    { title: 'Design system ideas', filename: 'design-system.md' },
+    { title: 'Technical debt', filename: 'tech-debt.md' },
+  ]
+
+  noteConfigs.forEach((note) => {
+    execute(
+      'INSERT INTO notes (id, title, filename) VALUES (?, ?, ?)',
+      [randomUUID(), note.title, note.filename]
+    )
+  })
+
+  console.log('Seeded sample data')
 }
 
 function getSetting(key: string): string | null {

@@ -3,7 +3,15 @@ import { motion, AnimatePresence } from 'motion/react'
 import type { Note } from '../types'
 import { createSound, deleteSound, clickSound } from '../sounds'
 
-export default function NotesPage({ startCreating: startCreatingProp = false, onCreateHandled }: { startCreating?: boolean, onCreateHandled?: () => void }) {
+export default function NotesPage({
+  startCreating: startCreatingProp = false,
+  onCreateHandled,
+  onNewNote,
+}: {
+  startCreating?: boolean
+  onCreateHandled?: () => void
+  onNewNote?: () => void
+}) {
   const [vaultPath, setVaultPath] = useState<string | null>(null)
   const [notes, setNotes] = useState<Note[]>([])
   const [activeNote, setActiveNote] = useState<Note | null>(null)
@@ -99,6 +107,18 @@ export default function NotesPage({ startCreating: startCreatingProp = false, on
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
         <div className="w-64 bg-white border-r border-gray-200 flex flex-col shrink-0 overflow-y-auto">
+          {/* Header with New Note button */}
+          <div className="p-3 border-b border-gray-100 flex items-center justify-between gap-2">
+            <span className="text-xs uppercase tracking-wide text-gray-400 font-medium">Notes</span>
+            <button
+              onClick={() => { setCreating(true); onNewNote?.() }}
+              className="px-2 py-1 text-xs bg-gray-900 text-white rounded hover:bg-gray-800 transition-colors cursor-pointer font-medium"
+              title="Create new note"
+            >
+              +
+            </button>
+          </div>
+
           {creating && (
             <div className="p-3 border-b border-gray-100">
               <input

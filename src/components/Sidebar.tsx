@@ -1,14 +1,12 @@
 import { motion } from 'motion/react'
 import { clickSound } from '../sounds'
 
-type View = 'home' | 'notes' | 'archive' | 'recycle'
+type View = 'home' | 'projects' | 'notes' | 'archive' | 'recycle'
 
 interface SidebarProps {
   view: View
   isInProject: boolean
   onNavigate: (view: View) => void
-  onNewNote: () => void
-  onNewProject: () => void
 }
 
 function NavItem({
@@ -40,63 +38,49 @@ function NavItem({
   )
 }
 
-function ActionItem({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <motion.button
-      onClick={() => { clickSound(); onClick() }}
-      whileHover={{ x: 2 }}
-      whileTap={{ scale: 0.97 }}
-      className="w-full text-left px-3 py-1.5 rounded-lg text-xs text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
-    >
-      {label}
-    </motion.button>
-  )
-}
-
-export default function Sidebar({ view, isInProject, onNavigate, onNewNote, onNewProject }: SidebarProps) {
+export default function Sidebar({ view, isInProject, onNavigate }: SidebarProps) {
   return (
     <div className="w-48 bg-white border-r border-gray-200 flex flex-col shrink-0 h-full">
 
       {/* Nav */}
-      <div className="flex flex-1 flex-col px-2 py-3 overflow-hidden">
+      <div className="flex flex-1 flex-col px-2 py-3 overflow-hidden space-y-0.5">
 
-        {/* Projects group */}
-        <div className="space-y-0.5 mb-3">
-          <NavItem
-            label="Projects"
-            active={view === 'home' || isInProject}
-            onClick={() => onNavigate('home')}
-          />
-          <ActionItem label="+ New Project" onClick={onNewProject} />
-        </div>
+        {/* Home */}
+        <NavItem
+          label="Home"
+          active={view === 'home'}
+          onClick={() => onNavigate('home')}
+        />
 
-        {/* Notes group */}
-        <div className="space-y-0.5">
-          <NavItem
-            label="Notes"
-            active={view === 'notes'}
-            onClick={() => onNavigate('notes')}
-          />
-          <ActionItem label="+ New Note" onClick={onNewNote} />
-        </div>
+        {/* Projects */}
+        <NavItem
+          label="Projects"
+          active={view === 'projects' || isInProject}
+          onClick={() => onNavigate('projects')}
+        />
+
+        {/* Notes */}
+        <NavItem
+          label="Notes"
+          active={view === 'notes'}
+          onClick={() => onNavigate('notes')}
+        />
 
         {/* Spacer */}
         <div className="flex-1" />
 
         {/* Bottom */}
-        <div className="space-y-0.5 pb-1">
-          <NavItem
-            label="Archive"
-            active={view === 'archive'}
-            onClick={() => onNavigate('archive')}
-          />
-          <NavItem
-            label="Recycle Bin"
-            active={view === 'recycle'}
-            danger
-            onClick={() => onNavigate('recycle')}
-          />
-        </div>
+        <NavItem
+          label="Archive"
+          active={view === 'archive'}
+          onClick={() => onNavigate('archive')}
+        />
+        <NavItem
+          label="Recycle Bin"
+          active={view === 'recycle'}
+          danger
+          onClick={() => onNavigate('recycle')}
+        />
 
       </div>
     </div>
