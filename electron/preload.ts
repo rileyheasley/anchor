@@ -24,6 +24,11 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
 })
 
 contextBridge.exposeInMainWorld('api', {
-  saveItem: (text: string) => ipcRenderer.invoke('save-item', text),
-  getItems: () => ipcRenderer.invoke('get-items'),
+  projects: {
+    list: () => ipcRenderer.invoke('projects:list'),
+    create: (data: { name: string }) => ipcRenderer.invoke('projects:create', data),
+    update: (data: { id: string, name?: string, priority?: string, due_date?: string | null }) => ipcRenderer.invoke('projects:update', data),
+    archive: (id: string) => ipcRenderer.invoke('projects:archive', id),
+    delete: (id: string) => ipcRenderer.invoke('projects:delete', id),
+  },
 })

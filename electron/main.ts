@@ -95,6 +95,28 @@ function saveDatabase() {
   }
 }
 
+function queryAll(sql: string, params?: unknown[]): Record<string, unknown>[] {
+  if (!db) throw new Error('Database not initialized')
+  const stmt = db.prepare(sql)
+  if (params) stmt.bind(params)
+  const rows: Record<string, unknown>[] = []
+  while (stmt.step()) {
+    rows.push(stmt.getAsObject())
+  }
+  stmt.free()
+  return rows
+}
+
+function queryOne(sql: string, params?: unknown[]): Record<string, unknown> | null {
+  const rows = queryAll(sql, params)
+  return rows[0] || null
+}
+
+function execute(sql: string, params?: unknown[]) {
+  if (!db) throw new Error('Database not initialized')
+  db.run(sql, params)
+}
+
 function createSchema() {
   if (!db) return
 
@@ -114,6 +136,7 @@ function createSchema() {
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     position INTEGER NOT NULL DEFAULT 0,
+    is_done INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`)
@@ -188,31 +211,76 @@ app.whenReady().then(async () => {
   try {
     await initializeDatabase()
     
-    ipcMain.handle('save-item', async (_event, text: string) => {
-      try {
-        if (!db) throw new Error('Database not initialized')
-        
-        const id = crypto.randomUUID()
-        db.run('INSERT INTO projects (id, name) VALUES (?, ?)', [id, text])
-        saveDatabase()
-        
-        return id
-      } catch (error) {
-        console.error('save-item error:', error)
-        throw error
-      }
+    ipcMain.handle('projects:list', async () => {
+      const projects = queryAll(`
+        SELECT 
+          p.id, p.name, p.priority, p.due_date, p.archived,
+          p.created_at, p.updated_at,
+          COALESCE(SUM(CASE WHEN kc.is_done = 1 THEN c.points ELSE 0 END), 0) AS done_points,
+          COALESCE(SUM(c.points), 0) AS total_points
+        FROM projects p
+        LEFT JOIN cards c ON c.project_id = p.id AND c.deleted_at IS NULL
+        LEFT JOIN kanban_columns kc ON kc.id = c.column_id
+        WHERE p.deleted_at IS NULL AND p.archived = 0
+        GROUP BY p.id
+        ORDER BY 
+          CASE p.priority
+            WHEN 'high' THEN 0
+            WHEN 'medium' THEN 1
+            WHEN 'low' THEN 2
+            WHEN 'none' THEN 3
+          END,
+          p.name COLLATE NOCASE
+      `)
+      return projects
     })
-    
-    ipcMain.handle('get-items', async () => {
-      try {
-        if (!db) throw new Error('Database not initialized')
-        const result = db.exec('SELECT id, name AS text FROM projects WHERE deleted_at IS NULL AND archived = 0')
-        if (result.length === 0) return []
-        return result[0].values.map(([id, text]) => ({ id, text }))
-      } catch (error) {
-        console.error('get-items error:', error)
-        throw error
+
+    ipcMain.handle('projects:create', async (_event, data: { name: string }) => {
+      const projectId = crypto.randomUUID()
+      execute('INSERT INTO projects (id, name) VALUES (?, ?)', [projectId, data.name])
+
+      const defaultColumns = [
+        { name: 'To Do', isDone: 0 },
+        { name: 'In Progress', isDone: 0 },
+        { name: 'Done', isDone: 1 },
+      ]
+      for (let i = 0; i < defaultColumns.length; i++) {
+        execute(
+          'INSERT INTO kanban_columns (id, project_id, name, position, is_done) VALUES (?, ?, ?, ?, ?)',
+          [crypto.randomUUID(), projectId, defaultColumns[i].name, i, defaultColumns[i].isDone]
+        )
       }
+
+      saveDatabase()
+      return queryOne('SELECT * FROM projects WHERE id = ?', [projectId])
+    })
+
+    ipcMain.handle('projects:update', async (_event, data: { id: string, name?: string, priority?: string, due_date?: string | null }) => {
+      const fields: string[] = []
+      const values: unknown[] = []
+
+      if (data.name !== undefined) { fields.push('name = ?'); values.push(data.name) }
+      if (data.priority !== undefined) { fields.push('priority = ?'); values.push(data.priority) }
+      if (data.due_date !== undefined) { fields.push('due_date = ?'); values.push(data.due_date) }
+
+      if (fields.length === 0) return null
+
+      fields.push("updated_at = datetime('now')")
+      values.push(data.id)
+
+      execute(`UPDATE projects SET ${fields.join(', ')} WHERE id = ? AND deleted_at IS NULL`, values)
+      saveDatabase()
+      return queryOne('SELECT * FROM projects WHERE id = ?', [data.id])
+    })
+
+    ipcMain.handle('projects:archive', async (_event, id: string) => {
+      execute("UPDATE projects SET archived = CASE WHEN archived = 0 THEN 1 ELSE 0 END, updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL", [id])
+      saveDatabase()
+    })
+
+    ipcMain.handle('projects:delete', async (_event, id: string) => {
+      execute("UPDATE projects SET deleted_at = datetime('now'), updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL", [id])
+      saveDatabase()
     })
     
     createWindow()
