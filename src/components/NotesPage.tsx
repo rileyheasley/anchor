@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import type { Note } from '../types'
 import { createSound, deleteSound, clickSound } from '../sounds'
+import MarkdownEditor from './MarkdownEditor'
 
 export default function NotesPage({
   startCreating: startCreatingProp = false,
@@ -173,12 +174,10 @@ export default function NotesPage({
                 <h2 className="font-medium text-gray-900">{activeNote.title}</h2>
                 {dirty && <span className="text-xs text-gray-400">Saving…</span>}
               </div>
-              <textarea
-                value={content}
-                onChange={(e) => handleContentChange(e.target.value)}
+              <MarkdownEditor
+                content={content}
+                onChange={handleContentChange}
                 onBlur={() => saveActive()}
-                className="flex-1 p-6 resize-none text-sm font-mono text-gray-800 focus:outline-none bg-white"
-                placeholder="Start writing…"
               />
             </>
           ) : (

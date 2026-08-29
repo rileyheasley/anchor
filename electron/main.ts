@@ -252,9 +252,9 @@ function seedSampleData() {
 
   // Create sample notes
   const noteConfigs = [
-    { title: 'Project kickoff notes', filename: 'kickoff.md' },
-    { title: 'Design system ideas', filename: 'design-system.md' },
-    { title: 'Technical debt', filename: 'tech-debt.md' },
+    { title: 'Project kickoff notes', filename: path.join('notes', 'kickoff.md') },
+    { title: 'Design system ideas', filename: path.join('notes', 'design-system.md') },
+    { title: 'Technical debt', filename: path.join('notes', 'tech-debt.md') },
   ]
 
   noteConfigs.forEach((note) => {
