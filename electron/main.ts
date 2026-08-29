@@ -294,7 +294,13 @@ app.whenReady().then(async () => {
 
     // ── Notes handlers ──
 
-    ipcMain.handle('notes:list', (_event, filter?: { project_id?: string, standalone?: boolean }) => {
+    ipcMain.handle('notes:list', (_event, filter?: { project_id?: string, card_id?: string, standalone?: boolean }) => {
+      if (filter?.card_id) {
+        return queryAll(
+          'SELECT * FROM notes WHERE card_id = ? AND deleted_at IS NULL ORDER BY updated_at DESC',
+          [filter.card_id]
+        )
+      }
       if (filter?.project_id) {
         return queryAll(
           'SELECT * FROM notes WHERE project_id = ? AND card_id IS NULL AND deleted_at IS NULL ORDER BY updated_at DESC',

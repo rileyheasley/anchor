@@ -89,7 +89,7 @@ declare global {
         choose: () => Promise<string | null>
       }
       notes: {
-        list: (filter?: { project_id?: string, standalone?: boolean }) => Promise<Note[]>
+        list: (filter?: { project_id?: string, card_id?: string, standalone?: boolean }) => Promise<Note[]>
         create: (data: { title: string, project_id?: string, card_id?: string }) => Promise<Note>
         getContent: (id: string) => Promise<string | null>
         saveContent: (id: string, content: string) => Promise<void>
