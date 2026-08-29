@@ -72,9 +72,11 @@ async function initializeDatabase() {
     } else {
       console.log('Creating new database...')
       db = new SQL.Database()
-      db.run('CREATE TABLE test_items (id INTEGER PRIMARY KEY AUTOINCREMENT, text TEXT)')
-      saveDatabase()
     }
+
+    db.run('PRAGMA foreign_keys = ON')
+    createSchema()
+    saveDatabase()
 
     console.log('Database initialized successfully')
   } catch (error) {
@@ -91,6 +93,56 @@ function saveDatabase() {
   } catch (error) {
     console.error('Failed to save database:', error)
   }
+}
+
+function createSchema() {
+  if (!db) return
+
+  db.run(`CREATE TABLE IF NOT EXISTS projects (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    priority TEXT NOT NULL DEFAULT 'none' CHECK (priority IN ('none', 'low', 'medium', 'high')),
+    due_date TEXT,
+    archived INTEGER NOT NULL DEFAULT 0,
+    deleted_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`)
+
+  db.run(`CREATE TABLE IF NOT EXISTS kanban_columns (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`)
+
+  db.run(`CREATE TABLE IF NOT EXISTS cards (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    column_id TEXT NOT NULL REFERENCES kanban_columns(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    points INTEGER CHECK (points BETWEEN 1 AND 5),
+    priority TEXT NOT NULL DEFAULT 'none' CHECK (priority IN ('none', 'low', 'medium', 'high')),
+    due_date TEXT,
+    position INTEGER NOT NULL DEFAULT 0,
+    note_filename TEXT,
+    deleted_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`)
+
+  db.run(`CREATE TABLE IF NOT EXISTS notes (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    filename TEXT NOT NULL,
+    project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+    card_id TEXT REFERENCES cards(id) ON DELETE SET NULL,
+    deleted_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`)
 }
 
 function createWindow() {
@@ -140,11 +192,11 @@ app.whenReady().then(async () => {
       try {
         if (!db) throw new Error('Database not initialized')
         
-        db.run('INSERT INTO test_items (text) VALUES (?)', [text])
+        const id = crypto.randomUUID()
+        db.run('INSERT INTO projects (id, name) VALUES (?, ?)', [id, text])
         saveDatabase()
         
-        const result = db.exec('SELECT last_insert_rowid() AS id')
-        return result[0].values[0][0]
+        return id
       } catch (error) {
         console.error('save-item error:', error)
         throw error
@@ -154,7 +206,7 @@ app.whenReady().then(async () => {
     ipcMain.handle('get-items', async () => {
       try {
         if (!db) throw new Error('Database not initialized')
-        const result = db.exec('SELECT id, text FROM test_items')
+        const result = db.exec('SELECT id, name AS text FROM projects WHERE deleted_at IS NULL AND archived = 0')
         if (result.length === 0) return []
         return result[0].values.map(([id, text]) => ({ id, text }))
       } catch (error) {
