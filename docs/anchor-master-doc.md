@@ -26,26 +26,24 @@ A personal (not team) project manager:
 | Shell | Electron | Native desktop, local file/DB access, proven for exactly this use case (Obsidian is built on it) |
 | UI | React + Tailwind | High AI-assisted-coding support, fast iteration |
 | Animation | Framer Motion | Built for the spring/easing-based interactions Anchor needs |
-| Data | Plain JSON file storage (see Decisions Log) | Simple, no native compile issues, fits local-first philosophy |
+| Data | `sql.js` (SQLite compiled to WASM) | Real SQL without native compilation — works cross-platform, no rebuild step |
 | Notes | Markdown files on disk (planned) | Readable/portable outside the app, matches Obsidian-style ownership |
 | Repo | GitHub — `github.com/rileyheasley/anchor` | Standard version control |
 
 ## Current State
 
-- Electron + React scaffold running successfully (`npm run dev` launches a working desktop window)
-- Repo connected to GitHub, fully synced, build output properly gitignored
-- First end-to-end data test complete: input → save → persist → read back, using JSON file storage
-- `better-sqlite3` was tried first for structured data but caused a SIGSEGV crash on macOS (native module ABI mismatch with Electron); pivoted to JSON file storage for now
+- Electron + React scaffold running (`npm run dev` launches a working desktop window)
+- End-to-end data persistence working: input → save → persist to disk → reload on restart
+- `sql.js` storage layer proven and stable
 
 ## Goal / Roadmap
 
 1. ~~Scaffold Electron + React app~~ ✅
 2. ~~Prove local data persistence works end to end~~ ✅
-3. Build out real data model (projects, cards, notes) on top of the proven JSON storage layer
+3. Build out real data model (projects, cards, notes) on top of `sql.js`
 4. Build home page (notes + project list)
 5. Build per-project kanban board with points system
 6. Layer in signature interaction (motion + sound) once core functionality works
-7. Revisit storage layer if/when scale demands it (candidate: `sql.js`, avoids the native-compile crash `better-sqlite3` hit)
 
 ## Open Decisions / Things to Revisit
 
@@ -56,11 +54,12 @@ A personal (not team) project manager:
 
 ## Notes / Learnings
 
-- **Dev-mode data path:** When running unpackaged (`!app.isPackaged`), the JSON data file writes to `test-data/anchor-data.json` inside the project repo instead of `app.getPath('userData')`. This makes it easy to inspect/reset data during development. The `test-data/` folder is gitignored and created automatically on first run. Production builds still use the standard `userData` path.
-- Native modules (like `better-sqlite3`) must compile against Electron's bundled Node version, not the system Node — mismatches can cause hard crashes (SIGSEGV) rather than clean errors
-- `npm install-scripts approve <pkg>` may be needed to let Electron's own postinstall script run
-- Cross-platform packaging (Mac/Windows binaries) is a solved problem for later via `electron-builder`, not a concern during local dev
-- `.gitignore` needs to explicitly list every build output folder (`dist`, `dist-electron`, `release`) — a default template can miss ones specific to your Electron build tool. If a large file already got committed before `.gitignore` catches it, `git rm --cached` alone isn't enough: the file stays in older commit history too. If those commits haven't been pushed yet, `git reset --mixed origin/main` cleanly undoes them (keeping your actual file changes) so you can recommit once, clean.
+- **Dev-mode data path:** When running unpackaged (`!app.isPackaged`), the database writes to `test-data/anchor.db` (gitignored, auto-created) instead of `app.getPath('userData')`. Production builds use the standard `userData` path.
+- **`sql.js` is in-memory:** Loaded on startup, explicitly written to disk (`db.export()` → `fs.writeFileSync`) after every mutation. No native file locking — sufficient for a single-user desktop app.
+- **`sql.js` must be external in the Vite build:** Mark it in `rollupOptions.external` — otherwise Vite bundles it into ESM and its `__dirname`-based WASM loader breaks.
+- **Avoid native Node modules in Electron.** `better-sqlite3` required compiling against Electron's bundled Node ABI, which caused SIGSEGV crashes across machines. `sql.js` (pure WASM) sidesteps this entirely.
+- **`npm install-scripts approve <pkg>`** may be needed to let Electron's own postinstall script run.
+- **Committed a large file before `.gitignore` caught it?** `git rm --cached` removes it from tracking but not from history. If the commits haven't been pushed, `git reset --mixed origin/main` undoes them cleanly (keeps working tree changes) so you can recommit once.
 
 ---
 *Working title: Anchor. Living doc, update as decisions are made.*
