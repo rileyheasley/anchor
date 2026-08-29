@@ -42,17 +42,29 @@ let win: BrowserWindow | null
 function initializeDatabase() {
   try {
     console.log('Starting database initialization...')
-    const userDataPath = app.getPath('userData')
-    console.log('User data path:', userDataPath)
-    
-    // Ensure directory exists
-    if (!fs.existsSync(userDataPath)) {
-      console.log('Creating user data directory...')
-      fs.mkdirSync(userDataPath, { recursive: true })
+
+    if (app.isPackaged) {
+      const userDataPath = app.getPath('userData')
+      console.log('User data path:', userDataPath)
+
+      if (!fs.existsSync(userDataPath)) {
+        console.log('Creating user data directory...')
+        fs.mkdirSync(userDataPath, { recursive: true })
+      }
+
+      dbPath = path.join(userDataPath, 'anchor.json')
+    } else {
+      const testDataDir = path.join(process.env.APP_ROOT, 'test-data')
+      console.log('Dev mode — using test-data path:', testDataDir)
+
+      if (!fs.existsSync(testDataDir)) {
+        console.log('Creating test-data directory...')
+        fs.mkdirSync(testDataDir, { recursive: true })
+      }
+
+      dbPath = path.join(testDataDir, 'anchor-data.json')
     }
-    console.log('User data directory ready')
-    
-    dbPath = path.join(userDataPath, 'anchor.json')
+
     console.log('Database path:', dbPath)
     
     // Load existing data or initialize empty

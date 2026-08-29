@@ -56,6 +56,7 @@ A personal (not team) project manager:
 
 ## Notes / Learnings
 
+- **Dev-mode data path:** When running unpackaged (`!app.isPackaged`), the JSON data file writes to `test-data/anchor-data.json` inside the project repo instead of `app.getPath('userData')`. This makes it easy to inspect/reset data during development. The `test-data/` folder is gitignored and created automatically on first run. Production builds still use the standard `userData` path.
 - Native modules (like `better-sqlite3`) must compile against Electron's bundled Node version, not the system Node — mismatches can cause hard crashes (SIGSEGV) rather than clean errors
 - `npm install-scripts approve <pkg>` may be needed to let Electron's own postinstall script run
 - Cross-platform packaging (Mac/Windows binaries) is a solved problem for later via `electron-builder`, not a concern during local dev
