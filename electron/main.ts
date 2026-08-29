@@ -282,6 +282,133 @@ app.whenReady().then(async () => {
       execute("UPDATE projects SET deleted_at = datetime('now'), updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL", [id])
       saveDatabase()
     })
+
+    // ── Column handlers ──
+
+    ipcMain.handle('columns:list', async (_event, projectId: string) => {
+      return queryAll(
+        'SELECT * FROM kanban_columns WHERE project_id = ? ORDER BY position',
+        [projectId]
+      )
+    })
+
+    ipcMain.handle('columns:create', async (_event, data: { project_id: string, name: string }) => {
+      const maxPos = queryOne(
+        'SELECT COALESCE(MAX(position), -1) AS max_pos FROM kanban_columns WHERE project_id = ?',
+        [data.project_id]
+      )
+      const id = crypto.randomUUID()
+      execute(
+        'INSERT INTO kanban_columns (id, project_id, name, position) VALUES (?, ?, ?, ?)',
+        [id, data.project_id, data.name, (maxPos?.max_pos as number) + 1]
+      )
+      saveDatabase()
+      return queryOne('SELECT * FROM kanban_columns WHERE id = ?', [id])
+    })
+
+    ipcMain.handle('columns:update', async (_event, data: { id: string, name?: string, is_done?: number }) => {
+      const fields: string[] = []
+      const values: unknown[] = []
+
+      if (data.name !== undefined) { fields.push('name = ?'); values.push(data.name) }
+      if (data.is_done !== undefined) { fields.push('is_done = ?'); values.push(data.is_done) }
+
+      if (fields.length === 0) return null
+
+      fields.push("updated_at = datetime('now')")
+      values.push(data.id)
+
+      execute(`UPDATE kanban_columns SET ${fields.join(', ')} WHERE id = ?`, values)
+      saveDatabase()
+      return queryOne('SELECT * FROM kanban_columns WHERE id = ?', [data.id])
+    })
+
+    ipcMain.handle('columns:reorder', async (_event, data: { project_id: string, column_ids: string[] }) => {
+      for (let i = 0; i < data.column_ids.length; i++) {
+        execute(
+          "UPDATE kanban_columns SET position = ?, updated_at = datetime('now') WHERE id = ? AND project_id = ?",
+          [i, data.column_ids[i], data.project_id]
+        )
+      }
+      saveDatabase()
+    })
+
+    ipcMain.handle('columns:delete', async (_event, id: string) => {
+      execute('DELETE FROM kanban_columns WHERE id = ?', [id])
+      saveDatabase()
+    })
+
+    // ── Card handlers ──
+
+    ipcMain.handle('cards:list', async (_event, projectId: string) => {
+      return queryAll(
+        'SELECT * FROM cards WHERE project_id = ? AND deleted_at IS NULL ORDER BY position',
+        [projectId]
+      )
+    })
+
+    ipcMain.handle('cards:create', async (_event, data: { project_id: string, column_id: string, title: string, points?: number, priority?: string, due_date?: string }) => {
+      const maxPos = queryOne(
+        'SELECT COALESCE(MAX(position), -1) AS max_pos FROM cards WHERE column_id = ? AND deleted_at IS NULL',
+        [data.column_id]
+      )
+      const id = crypto.randomUUID()
+      execute(
+        'INSERT INTO cards (id, project_id, column_id, title, points, priority, due_date, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [id, data.project_id, data.column_id, data.title, data.points ?? null, data.priority ?? 'none', data.due_date ?? null, (maxPos?.max_pos as number) + 1]
+      )
+      saveDatabase()
+      return queryOne('SELECT * FROM cards WHERE id = ?', [id])
+    })
+
+    ipcMain.handle('cards:update', async (_event, data: { id: string, title?: string, points?: number | null, priority?: string, due_date?: string | null }) => {
+      const fields: string[] = []
+      const values: unknown[] = []
+
+      if (data.title !== undefined) { fields.push('title = ?'); values.push(data.title) }
+      if (data.points !== undefined) { fields.push('points = ?'); values.push(data.points) }
+      if (data.priority !== undefined) { fields.push('priority = ?'); values.push(data.priority) }
+      if (data.due_date !== undefined) { fields.push('due_date = ?'); values.push(data.due_date) }
+
+      if (fields.length === 0) return null
+
+      fields.push("updated_at = datetime('now')")
+      values.push(data.id)
+
+      execute(`UPDATE cards SET ${fields.join(', ')} WHERE id = ? AND deleted_at IS NULL`, values)
+      saveDatabase()
+      return queryOne('SELECT * FROM cards WHERE id = ?', [data.id])
+    })
+
+    ipcMain.handle('cards:move', async (_event, data: { id: string, column_id: string, position: number }) => {
+      // Shift cards down in the target column to make room
+      execute(
+        "UPDATE cards SET position = position + 1, updated_at = datetime('now') WHERE column_id = ? AND position >= ? AND deleted_at IS NULL",
+        [data.column_id, data.position]
+      )
+      // Move the card
+      execute(
+        "UPDATE cards SET column_id = ?, position = ?, updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL",
+        [data.column_id, data.position, data.id]
+      )
+      saveDatabase()
+      return queryOne('SELECT * FROM cards WHERE id = ?', [data.id])
+    })
+
+    ipcMain.handle('cards:reorder', async (_event, data: { column_id: string, card_ids: string[] }) => {
+      for (let i = 0; i < data.card_ids.length; i++) {
+        execute(
+          "UPDATE cards SET position = ?, updated_at = datetime('now') WHERE id = ?",
+          [i, data.card_ids[i]]
+        )
+      }
+      saveDatabase()
+    })
+
+    ipcMain.handle('cards:delete', async (_event, id: string) => {
+      execute("UPDATE cards SET deleted_at = datetime('now'), updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL", [id])
+      saveDatabase()
+    })
     
     createWindow()
   } catch (error) {
