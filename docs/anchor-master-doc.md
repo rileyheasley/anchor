@@ -101,7 +101,7 @@ A standalone note can be linked to a project. Linking sets `project_id` — the 
 |---|---|---|
 | Shell | Electron | Native desktop, local file/DB access, proven for exactly this use case (Obsidian is built on it) |
 | UI | React + Tailwind | High AI-assisted-coding support, fast iteration |
-| Animation | Framer Motion | Built for the spring/easing-based interactions Anchor needs |
+| Animation | Motion for React (`motion`) | Successor to Framer Motion — same spring/easing API, smaller bundle |
 | Data | `sql.js` (SQLite compiled to WASM) | Real SQL without native compilation — works cross-platform, no rebuild step |
 | Notes | Markdown files on disk | Readable/portable outside the app, matches Obsidian-style ownership |
 | Repo | GitHub — `github.com/rileyheasley/anchor` | Standard version control |

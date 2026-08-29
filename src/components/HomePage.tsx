@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'motion/react'
 import type { Project } from '../types'
+import { clickSound, createSound, deleteSound } from '../sounds'
 
 const PRIORITY_COLORS: Record<string, string> = {
   none: 'border-l-gray-400',
@@ -36,6 +38,7 @@ export default function HomePage({ onOpenProject }: { onOpenProject: (project: P
     if (!newName.trim()) return
     try {
       await window.api.projects.create({ name: newName })
+      createSound()
       setNewName('')
       setCreating(false)
       await loadProjects()
@@ -46,6 +49,7 @@ export default function HomePage({ onOpenProject }: { onOpenProject: (project: P
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation()
+    deleteSound()
     try {
       await window.api.projects.delete(id)
       await loadProjects()
@@ -56,6 +60,7 @@ export default function HomePage({ onOpenProject }: { onOpenProject: (project: P
 
   const handlePriority = async (e: React.MouseEvent, id: string, priority: string) => {
     e.stopPropagation()
+    clickSound()
     try {
       await window.api.projects.update({ id, priority })
       await loadProjects()
@@ -121,12 +126,19 @@ export default function HomePage({ onOpenProject }: { onOpenProject: (project: P
           </div>
         )}
 
-        <div className="space-y-3">
-          {projects.map((p) => (
-            <div
+        <AnimatePresence mode="popLayout">
+          {projects.map((p, i) => (
+            <motion.div
               key={p.id}
+              layout
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, x: -100, transition: { duration: 0.2 } }}
+              transition={{ delay: i * 0.05, type: 'spring', stiffness: 500, damping: 30 }}
+              whileHover={{ scale: 1.01, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
+              whileTap={{ scale: 0.99 }}
               onClick={() => onOpenProject(p)}
-              className={`bg-white rounded-lg border border-gray-200 border-l-4 ${PRIORITY_COLORS[p.priority]} p-4 cursor-pointer hover:shadow-md transition-shadow`}
+              className={`bg-white rounded-lg border border-gray-200 border-l-4 ${PRIORITY_COLORS[p.priority]} p-4 cursor-pointer`}
             >
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-medium text-gray-900">{p.name}</h3>
@@ -180,9 +192,9 @@ export default function HomePage({ onOpenProject }: { onOpenProject: (project: P
               {p.due_date && (
                 <p className="text-xs text-gray-400 mt-2">Due: {p.due_date}</p>
               )}
-            </div>
+            </motion.div>
           ))}
-        </div>
+        </AnimatePresence>
       </main>
     </div>
   )

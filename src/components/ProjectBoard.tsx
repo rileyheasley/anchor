@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'motion/react'
 import type { Project, KanbanColumn, Card } from '../types'
+import { clickSound, createSound, deleteSound, completeSound, moveSound } from '../sounds'
 
 const PRIORITY_BADGES: Record<string, string> = {
   none: 'bg-gray-100 text-gray-600',
@@ -46,6 +48,7 @@ export default function ProjectBoard({ project, onBack }: { project: Project, on
       })
       setNewTitle('')
       setAddingTo(null)
+      createSound()
       await loadBoard()
     } catch (error) {
       console.error('Failed to create card:', error)
@@ -53,6 +56,7 @@ export default function ProjectBoard({ project, onBack }: { project: Project, on
   }
 
   const handleDeleteCard = async (id: string) => {
+    deleteSound()
     try {
       await window.api.cards.delete(id)
       await loadBoard()
@@ -64,11 +68,17 @@ export default function ProjectBoard({ project, onBack }: { project: Project, on
   const handleMoveCard = async (cardId: string, targetColumnId: string) => {
     try {
       const targetCards = cardsInColumn(targetColumnId)
+      const targetCol = columns.find((c) => c.id === targetColumnId)
       await window.api.cards.move({
         id: cardId,
         column_id: targetColumnId,
         position: targetCards.length,
       })
+      if (targetCol?.is_done) {
+        completeSound()
+      } else {
+        moveSound()
+      }
       await loadBoard()
     } catch (error) {
       console.error('Failed to move card:', error)
@@ -76,6 +86,7 @@ export default function ProjectBoard({ project, onBack }: { project: Project, on
   }
 
   const handleUpdatePoints = async (cardId: string, points: number) => {
+    clickSound()
     try {
       await window.api.cards.update({ id: cardId, points })
       await loadBoard()
@@ -85,6 +96,7 @@ export default function ProjectBoard({ project, onBack }: { project: Project, on
   }
 
   const handleUpdatePriority = async (cardId: string, priority: string) => {
+    clickSound()
     try {
       await window.api.cards.update({ id: cardId, priority })
       await loadBoard()
@@ -99,6 +111,7 @@ export default function ProjectBoard({ project, onBack }: { project: Project, on
       await window.api.columns.create({ project_id: project.id, name: newColName })
       setNewColName('')
       setAddingColumn(false)
+      createSound()
       await loadBoard()
     } catch (error) {
       console.error('Failed to create column:', error)
@@ -106,6 +119,7 @@ export default function ProjectBoard({ project, onBack }: { project: Project, on
   }
 
   const handleDeleteColumn = async (id: string) => {
+    deleteSound()
     try {
       await window.api.columns.delete(id)
       await loadBoard()
@@ -151,8 +165,18 @@ export default function ProjectBoard({ project, onBack }: { project: Project, on
 
               {/* Cards */}
               <div className="space-y-2">
-                {cardsInColumn(col.id).map((card) => (
-                  <div key={card.id} className="bg-white rounded-lg border border-gray-200 p-3 shadow-sm">
+                <AnimatePresence mode="popLayout">
+                  {cardsInColumn(col.id).map((card) => (
+                    <motion.div
+                      key={card.id}
+                      layout
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.15 } }}
+                      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                      whileHover={{ y: -2, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                      className="bg-white rounded-lg border border-gray-200 p-3 shadow-sm"
+                    >
                     <div className="flex items-start justify-between mb-2">
                       <span className="text-sm text-gray-900 font-medium">{card.title}</span>
                       <button
@@ -213,8 +237,9 @@ export default function ProjectBoard({ project, onBack }: { project: Project, on
                           </button>
                         ))}
                     </div>
-                  </div>
-                ))}
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
               </div>
 
               {/* Add card */}
