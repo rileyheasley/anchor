@@ -14,10 +14,86 @@ A personal project management app, built because existing tools (Notion, Obsidia
 
 A personal (not team) project manager:
 
-- **Home page** — general notes + a list of projects (name, progress bar, due date countdown), sorted by priority then alphabetically. Clicking a project opens its kanban board.
-- **Per-project kanban board** — cards use a Jira-style effort points system (1–5, linear scale; meaning of the number, effort vs time, left open to the user).
-- **Notes** — both project-level notes and general/unattached notes.
-- **Signature interaction** — smooth animation on even small details (checking things off, moving cards), paired with subtle sound effects (e.g. clicks) for tactile feedback.
+- **Home page** — general notes + a list of projects (name, progress bar, due date countdown), sorted by highest priority first then A–Z. Clicking a project opens its kanban board.
+- **Per-project kanban board** — default columns: To Do / In Progress / Done (user can rename, add, remove). Cards show title + metadata; clicking a card opens its backing note.
+- **Cards** — each card is a title + metadata (points, priority, due date, status) backed by a markdown note file. Every card auto-creates its `.md` file on creation. Cards are manually ordered within columns via drag-and-drop, with sort options (priority, due date, points, alphabetical, date created).
+- **Notes** — markdown files on disk in a user-chosen vault folder. A note can be standalone (general) or linked to a project — linking makes it appear in both places without moving it.
+- **Signature interaction** — smooth animation on even small details (checking things off, moving cards), paired with subtle sound effects. Moving a card to Done is a "completion moment" with a dedicated animation/sound.
+
+## Data Model
+
+### IDs & Timestamps
+
+All entities use UUIDs. All entities have `created_at` and `updated_at` timestamps.
+
+### Projects
+
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| name | text | |
+| priority | enum | None / Low / Medium / High |
+| due_date | date | Manually set |
+| archived | boolean | Archived projects hidden from home, still accessible |
+| deleted_at | timestamp | Soft delete — auto-purged after 30 days |
+
+Progress bar on home page = sum of points on done cards ÷ total points in project.
+
+### Kanban Columns
+
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| project_id | UUID | FK → projects |
+| name | text | |
+| position | integer | Display order |
+
+Default set created with each new project: To Do, In Progress, Done. User can rename, add, remove.
+
+### Cards
+
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| project_id | UUID | FK → projects |
+| column_id | UUID | FK → kanban_columns |
+| title | text | |
+| points | integer | 1–5, effort estimate |
+| priority | enum | None / Low / Medium / High |
+| due_date | date | Optional |
+| position | integer | Manual order within column |
+| note_filename | text | Path to backing `.md` file relative to vault |
+| deleted_at | timestamp | Soft delete — 30-day auto-purge |
+
+No WIP limits on columns.
+
+### Notes
+
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| title | text | Display title (filename is separate) |
+| filename | text | Path relative to vault root |
+| project_id | UUID | FK → projects, nullable (null = standalone/general) |
+| card_id | UUID | FK → cards, nullable (null = not a card-backing note) |
+| deleted_at | timestamp | Soft delete — 30-day auto-purge |
+
+Content lives in `.md` files on disk, not in the database.
+
+### Vault Folder Structure
+
+User chooses a vault folder on first launch. Layout:
+
+```
+vault/
+  notes/                    ← general standalone notes
+  projects/
+    Project Name/           ← card-backing notes for that project
+```
+
+### Note–Project Linking
+
+A standalone note can be linked to a project. Linking sets `project_id` — the note then appears in both the general notes list and under the project. It does not move the file on disk.
 
 ## Tech Stack
 
@@ -27,7 +103,7 @@ A personal (not team) project manager:
 | UI | React + Tailwind | High AI-assisted-coding support, fast iteration |
 | Animation | Framer Motion | Built for the spring/easing-based interactions Anchor needs |
 | Data | `sql.js` (SQLite compiled to WASM) | Real SQL without native compilation — works cross-platform, no rebuild step |
-| Notes | Markdown files on disk (planned) | Readable/portable outside the app, matches Obsidian-style ownership |
+| Notes | Markdown files on disk | Readable/portable outside the app, matches Obsidian-style ownership |
 | Repo | GitHub — `github.com/rileyheasley/anchor` | Standard version control |
 
 ## Current State
@@ -35,22 +111,16 @@ A personal (not team) project manager:
 - Electron + React scaffold running (`npm run dev` launches a working desktop window)
 - End-to-end data persistence working: input → save → persist to disk → reload on restart
 - `sql.js` storage layer proven and stable
+- All data model decisions finalised — ready to build real schema
 
 ## Goal / Roadmap
 
 1. ~~Scaffold Electron + React app~~ ✅
 2. ~~Prove local data persistence works end to end~~ ✅
-3. Build out real data model (projects, cards, notes) on top of `sql.js`
+3. Build out real data model (projects, columns, cards, notes) on top of `sql.js`
 4. Build home page (notes + project list)
 5. Build per-project kanban board with points system
 6. Layer in signature interaction (motion + sound) once core functionality works
-
-## Open Decisions / Things to Revisit
-
-- Whether general notes can convert into project notes, or stay separate
-- Whether points and priority should be linked or fully independent stats
-- Whether project due dates are set manually or derived from card due dates
-- Whether future multi-device sync is ever wanted (local-first now, but data model kept clean enough not to block it later — UUIDs, `updated_at` timestamps, notes referenced not duplicated)
 
 ## Notes / Learnings
 
