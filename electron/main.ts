@@ -2,15 +2,11 @@ import { app, BrowserWindow, ipcMain } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs'
+import initSqlJs, { type Database } from 'sql.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-interface TestItem {
-  id: number
-  text: string
-}
-
-let db: { items: TestItem[], nextId: number } = { items: [], nextId: 1 }
+let db: Database | null = null
 let dbPath: string = ''
 
 // The built directory structure
@@ -39,7 +35,7 @@ process.on('uncaughtException', (error) => {
 
 let win: BrowserWindow | null
 
-function initializeDatabase() {
+async function initializeDatabase() {
   try {
     console.log('Starting database initialization...')
 
@@ -52,7 +48,7 @@ function initializeDatabase() {
         fs.mkdirSync(userDataPath, { recursive: true })
       }
 
-      dbPath = path.join(userDataPath, 'anchor.json')
+      dbPath = path.join(userDataPath, 'anchor.db')
     } else {
       const testDataDir = path.join(process.env.APP_ROOT, 'test-data')
       console.log('Dev mode — using test-data path:', testDataDir)
@@ -62,22 +58,24 @@ function initializeDatabase() {
         fs.mkdirSync(testDataDir, { recursive: true })
       }
 
-      dbPath = path.join(testDataDir, 'anchor-data.json')
+      dbPath = path.join(testDataDir, 'anchor.db')
     }
 
     console.log('Database path:', dbPath)
-    
-    // Load existing data or initialize empty
+
+    const SQL = await initSqlJs()
+
     if (fs.existsSync(dbPath)) {
       console.log('Loading existing database file...')
-      const data = fs.readFileSync(dbPath, 'utf-8')
-      db = JSON.parse(data)
+      const fileBuffer = fs.readFileSync(dbPath)
+      db = new SQL.Database(fileBuffer)
     } else {
       console.log('Creating new database...')
-      db = { items: [], nextId: 1 }
+      db = new SQL.Database()
+      db.run('CREATE TABLE test_items (id INTEGER PRIMARY KEY AUTOINCREMENT, text TEXT)')
       saveDatabase()
     }
-    
+
     console.log('Database initialized successfully')
   } catch (error) {
     console.error('Database initialization failed:', error)
@@ -87,7 +85,9 @@ function initializeDatabase() {
 
 function saveDatabase() {
   try {
-    fs.writeFileSync(dbPath, JSON.stringify(db, null, 2))
+    if (!db) return
+    const data = db.export()
+    fs.writeFileSync(dbPath, Buffer.from(data))
   } catch (error) {
     console.error('Failed to save database:', error)
   }
@@ -132,22 +132,19 @@ app.on('activate', () => {
   }
 })
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   try {
-    initializeDatabase()
+    await initializeDatabase()
     
     ipcMain.handle('save-item', async (_event, text: string) => {
       try {
         if (!db) throw new Error('Database not initialized')
         
-        const newItem: TestItem = {
-          id: db.nextId++,
-          text
-        }
-        db.items.push(newItem)
+        db.run('INSERT INTO test_items (text) VALUES (?)', [text])
         saveDatabase()
         
-        return newItem.id
+        const result = db.exec('SELECT last_insert_rowid() AS id')
+        return result[0].values[0][0]
       } catch (error) {
         console.error('save-item error:', error)
         throw error
@@ -157,7 +154,9 @@ app.whenReady().then(() => {
     ipcMain.handle('get-items', async () => {
       try {
         if (!db) throw new Error('Database not initialized')
-        return db.items
+        const result = db.exec('SELECT id, text FROM test_items')
+        if (result.length === 0) return []
+        return result[0].values.map(([id, text]) => ({ id, text }))
       } catch (error) {
         console.error('get-items error:', error)
         throw error
