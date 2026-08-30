@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Home, FolderOpen, FileText, Archive, Trash2, ChevronLeft, ChevronRight, Moon, Sun, Monitor, Settings } from 'lucide-react'
+import { Home, FolderOpen, FileText, Archive, Trash2, ChevronLeft, ChevronRight, Moon, Sun, Monitor, Heart, Settings } from 'lucide-react'
 import DraggableSidebar from './DraggableSidebar'
 import IconNavItem from './IconNavItem'
 import { clickSound } from '../sounds'
@@ -20,6 +20,7 @@ interface SidebarProps {
 const THEME_OPTIONS: { mode: ThemeMode; label: string; icon: typeof Sun }[] = [
   { mode: 'light', label: 'Light', icon: Sun },
   { mode: 'dark', label: 'Dark', icon: Moon },
+  { mode: 'pink', label: 'Pastel Pink', icon: Heart },
   { mode: 'system', label: 'System', icon: Monitor },
 ]
 

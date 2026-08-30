@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { Project, ThemeMode } from './types'
+import type { Project, ResolvedTheme, ThemeMode } from './types'
 import TitleBar from './components/TitleBar'
 import Sidebar from './components/Sidebar'
 import OverviewHome from './components/OverviewHome'
@@ -21,12 +21,12 @@ function App() {
   const [systemPrefersDark, setSystemPrefersDark] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 
-  const isDarkMode = themeMode === 'system' ? systemPrefersDark : themeMode === 'dark'
+  const resolvedTheme: ResolvedTheme = themeMode === 'system' ? (systemPrefersDark ? 'dark' : 'light') : themeMode
 
   // Load theme preference from localStorage on mount
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme')
-    const mode: ThemeMode = savedTheme === 'dark' || savedTheme === 'system' ? savedTheme : 'light'
+    const mode: ThemeMode = savedTheme === 'dark' || savedTheme === 'pink' || savedTheme === 'system' ? savedTheme : 'light'
     setThemeMode(mode)
   }, [])
 
@@ -39,15 +39,15 @@ function App() {
     return () => media.removeEventListener('change', handleChange)
   }, [])
 
-  // Apply theme to document whenever the effective light/dark value changes
+  // Apply theme to document whenever the resolved theme changes
   useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.setAttribute('data-theme', 'dark')
-    } else {
+    if (resolvedTheme === 'light') {
       document.documentElement.removeAttribute('data-theme')
+    } else {
+      document.documentElement.setAttribute('data-theme', resolvedTheme)
     }
-    window.api?.window.setTitleBarTheme(isDarkMode)
-  }, [isDarkMode])
+    window.api?.window.setTitleBarTheme(resolvedTheme)
+  }, [resolvedTheme])
 
   const handleThemeChange = (mode: ThemeMode) => {
     setThemeMode(mode)

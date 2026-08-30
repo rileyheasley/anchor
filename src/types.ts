@@ -1,5 +1,6 @@
 export type Priority = 'none' | 'low' | 'medium' | 'high'
-export type ThemeMode = 'light' | 'dark' | 'system'
+export type ResolvedTheme = 'light' | 'dark' | 'pink'
+export type ThemeMode = ResolvedTheme | 'system'
 
 export interface Project {
   id: string
@@ -64,7 +65,7 @@ declare global {
         maximize: () => Promise<void>
         close: () => Promise<void>
         isMaximized: () => Promise<boolean>
-        setTitleBarTheme: (dark: boolean) => Promise<void>
+        setTitleBarTheme: (theme: ResolvedTheme) => Promise<void>
       }
       projects: {
         list: () => Promise<Project[]>

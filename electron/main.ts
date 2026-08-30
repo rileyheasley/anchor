@@ -357,6 +357,7 @@ function purgeSoftDeleted() {
 const TITLEBAR_OVERLAY = {
   light: { color: '#fdfcf9', symbolColor: '#3d3a30' },
   dark: { color: '#1a1a1e', symbolColor: '#c8c4b8' },
+  pink: { color: '#fff5f8', symbolColor: '#4a2338' },
 }
 
 function createWindow() {
@@ -424,9 +425,9 @@ app.whenReady().then(async () => {
     })
     ipcMain.handle('window:close', () => win?.close())
     ipcMain.handle('window:isMaximized', () => win?.isMaximized() ?? false)
-    ipcMain.handle('window:setTitleBarTheme', (_event, dark: boolean) => {
+    ipcMain.handle('window:setTitleBarTheme', (_event, theme: keyof typeof TITLEBAR_OVERLAY) => {
       if (process.platform !== 'win32') return
-      win?.setTitleBarOverlay({ ...(dark ? TITLEBAR_OVERLAY.dark : TITLEBAR_OVERLAY.light), height: 40 })
+      win?.setTitleBarOverlay({ ...(TITLEBAR_OVERLAY[theme] ?? TITLEBAR_OVERLAY.light), height: 40 })
     })
 
     // ── Settings handlers ──
