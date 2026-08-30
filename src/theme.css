@@ -6,26 +6,33 @@
  * colors like `gray-900` or `blue-500` directly.
  */
 @theme {
-  /* Surfaces */
-  --color-surface: #ffffff;
-  --color-surface-sunken: #f9fafb;
-  --color-surface-muted: #f3f4f6;
+  /* Type */
+  --font-sans: 'Space Grotesk Variable', 'Space Grotesk', system-ui, sans-serif;
+
+  /* Surfaces — subtle warm paper tone, not stark white */
+  --color-surface: #fdfcf9;
+  --color-surface-sunken: #f6f4ee;
+  --color-surface-muted: #eeebe2;
 
   /* Borders */
-  --color-border: #e5e7eb;
-  --color-border-subtle: #f3f4f6;
-  --color-border-strong: #d1d5db;
+  --color-border: #e3ded2;
+  --color-border-subtle: #ece8dc;
+  --color-border-strong: #d3cdbd;
 
   /* Text / ink */
-  --color-ink: #111827;
-  --color-ink-secondary: #374151;
-  --color-ink-muted: #6b7280;
-  --color-ink-faint: #9ca3af;
-  --color-ink-inverse: #ffffff;
+  --color-ink: #1c1a14;
+  --color-ink-secondary: #3d3a30;
+  --color-ink-muted: #6f6a5c;
+  --color-ink-faint: #a29c8a;
+  --color-ink-inverse: #fdfcf9;
 
   /* Primary action (near-black buttons, focus rings) */
-  --color-primary: #111827;
-  --color-primary-hover: #1f2937;
+  --color-primary: #1c1a14;
+  --color-primary-hover: #332f24;
+
+  /* Code blocks — decoupled from primary so it doesn't shift with buttons */
+  --color-code-bg: #211f2b;
+  --color-code-text: #e7e4da;
 
   /* Accent (interactive/selected state) */
   --color-accent: #3b82f6;

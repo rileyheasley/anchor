@@ -12,7 +12,7 @@ export default function TitleBar() {
       {/* Mac: leave space for traffic lights (approx 72px) */}
       {isMac && <div className="w-[72px] shrink-0" />}
 
-      <span className="text-sm font-medium text-ink-faint tracking-wide px-3">Anchor</span>
+      <span className="text-sm font-bold text-ink-secondary tracking-tight px-3">Anchor</span>
     </div>
   )
 }
