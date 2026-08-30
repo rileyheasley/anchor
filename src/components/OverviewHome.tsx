@@ -48,7 +48,7 @@ export default function OverviewHome({ onOpenProject }: { onOpenProject: (projec
       <div className="max-w-4xl mx-auto px-6 py-8">
         {/* Header */}
         <div className="mb-10">
-          <h1 className="text-3xl font-bold text-ink mb-2">Welcome back</h1>
+          <h1 className="font-heading text-3xl font-bold text-ink mb-2">Welcome back</h1>
           <p className="text-ink-muted">Here's an overview of your projects and activity</p>
         </div>
 
@@ -98,7 +98,7 @@ export default function OverviewHome({ onOpenProject }: { onOpenProject: (projec
         {/* Recent Projects */}
         {activeProjects > 0 && (
           <div className="mb-10">
-            <h2 className="text-lg font-semibold text-ink mb-4">Recent Projects</h2>
+            <h2 className="font-heading text-lg font-semibold text-ink mb-4">Recent Projects</h2>
             <div className="space-y-3">
               <AnimatePresence>
                 {recentProjects.map((p, i) => {
@@ -115,7 +115,7 @@ export default function OverviewHome({ onOpenProject }: { onOpenProject: (projec
                       className="w-full bg-surface rounded-lg border border-border p-4 text-left hover:border-border-strong transition-colors cursor-pointer"
                     >
                       <div className="flex items-center justify-between mb-2">
-                        <h3 className="font-medium text-ink">{p.name}</h3>
+                        <h3 className="font-heading font-medium text-ink">{p.name}</h3>
                         <span className="text-sm text-ink-faint">{p.done_points}/{p.total_points} pts</span>
                       </div>
                       <div className="w-full bg-surface-muted rounded-full h-1.5 overflow-hidden">

@@ -1,4 +1,5 @@
 export type Priority = 'none' | 'low' | 'medium' | 'high'
+export type ProjectStatus = 'planning' | 'in_progress' | 'on_hold' | 'done'
 export type ResolvedTheme = 'light' | 'dark' | 'pink'
 export type ThemeMode = ResolvedTheme | 'system'
 
@@ -6,10 +7,13 @@ export interface Project {
   id: string
   name: string
   priority: Priority
+  status: ProjectStatus
   due_date: string | null
   archived: number
   done_points: number
   total_points: number
+  total_cards: number
+  done_cards: number
   created_at: string
   updated_at: string
 }
@@ -69,8 +73,8 @@ declare global {
       }
       projects: {
         list: () => Promise<Project[]>
-        create: (data: { name: string, priority?: Priority, due_date?: string | null }) => Promise<Project>
-        update: (data: { id: string, name?: string, priority?: Priority, due_date?: string | null }) => Promise<Project>
+        create: (data: { name: string, priority?: Priority, status?: ProjectStatus, due_date?: string | null }) => Promise<Project>
+        update: (data: { id: string, name?: string, priority?: Priority, status?: ProjectStatus, due_date?: string | null }) => Promise<Project>
         archive: (id: string) => Promise<void>
         delete: (id: string) => Promise<void>
       }

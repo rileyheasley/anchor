@@ -53,7 +53,7 @@ export default function ArchiveView({ onOpenProject }: { onOpenProject: (p: Proj
                 className="bg-surface rounded-lg border border-border p-4 cursor-pointer hover:shadow-md transition-shadow opacity-75 hover:opacity-100"
               >
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-medium text-ink-secondary">{p.name}</h3>
+                  <h3 className="font-heading font-medium text-ink-secondary">{p.name}</h3>
                   <button
                     onClick={(e) => { e.stopPropagation(); handleRestore(p.id) }}
                     className="text-xs px-3 py-1 text-accent-hover hover:bg-accent-subtle rounded-full border border-accent/30 cursor-pointer transition-colors flex items-center gap-1"

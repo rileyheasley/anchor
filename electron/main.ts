@@ -132,6 +132,7 @@ function createSchema() {
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     priority TEXT NOT NULL DEFAULT 'none' CHECK (priority IN ('none', 'low', 'medium', 'high')),
+    status TEXT NOT NULL DEFAULT 'planning' CHECK (status IN ('planning', 'in_progress', 'on_hold', 'done')),
     due_date TEXT,
     archived INTEGER NOT NULL DEFAULT 0,
     deleted_at TEXT,
@@ -186,10 +187,16 @@ function createSchema() {
 
 function migrateSchema() {
   if (!db) return
-  const columns = queryAll("PRAGMA table_info(notes)")
-  const hasPosition = columns.some((col) => col.name === 'position')
+  const noteColumns = queryAll("PRAGMA table_info(notes)")
+  const hasPosition = noteColumns.some((col) => col.name === 'position')
   if (!hasPosition) {
     db.run('ALTER TABLE notes ADD COLUMN position INTEGER NOT NULL DEFAULT 0')
+  }
+
+  const projectColumns = queryAll("PRAGMA table_info(projects)")
+  const hasStatus = projectColumns.some((col) => col.name === 'status')
+  if (!hasStatus) {
+    db.run("ALTER TABLE projects ADD COLUMN status TEXT NOT NULL DEFAULT 'planning'")
   }
 }
 
@@ -200,32 +207,36 @@ function seedSampleData() {
       id: randomUUID(),
       name: 'Website Redesign',
       priority: 'high',
+      status: 'in_progress',
       due_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     },
     {
       id: randomUUID(),
       name: 'Mobile App',
       priority: 'medium',
+      status: 'planning',
       due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     },
     {
       id: randomUUID(),
       name: 'API Integration',
       priority: 'medium',
+      status: 'on_hold',
       due_date: null,
     },
     {
       id: randomUUID(),
       name: 'Documentation',
       priority: 'low',
+      status: 'done',
       due_date: null,
     },
   ]
 
   projects.forEach((proj) => {
     execute(
-      'INSERT INTO projects (id, name, priority, due_date) VALUES (?, ?, ?, ?)',
-      [proj.id, proj.name, proj.priority, proj.due_date]
+      'INSERT INTO projects (id, name, priority, status, due_date) VALUES (?, ?, ?, ?, ?)',
+      [proj.id, proj.name, proj.priority, proj.status, proj.due_date]
     )
   })
 
@@ -629,9 +640,11 @@ app.whenReady().then(async () => {
 
     ipcMain.handle('archive:list', () => {
       return queryAll(
-        `SELECT p.id, p.name, p.priority, p.due_date, p.archived, p.created_at, p.updated_at,
+        `SELECT p.id, p.name, p.priority, p.status, p.due_date, p.archived, p.created_at, p.updated_at,
           COALESCE(SUM(CASE WHEN kc.is_done = 1 THEN c.points ELSE 0 END), 0) AS done_points,
-          COALESCE(SUM(c.points), 0) AS total_points
+          COALESCE(SUM(c.points), 0) AS total_points,
+          COUNT(c.id) AS total_cards,
+          COALESCE(SUM(CASE WHEN kc.is_done = 1 THEN 1 ELSE 0 END), 0) AS done_cards
         FROM projects p
         LEFT JOIN cards c ON c.project_id = p.id AND c.deleted_at IS NULL
         LEFT JOIN kanban_columns kc ON kc.id = c.column_id
@@ -648,17 +661,19 @@ app.whenReady().then(async () => {
 
     ipcMain.handle('projects:list', async () => {
       const projects = queryAll(`
-        SELECT 
-          p.id, p.name, p.priority, p.due_date, p.archived,
+        SELECT
+          p.id, p.name, p.priority, p.status, p.due_date, p.archived,
           p.created_at, p.updated_at,
           COALESCE(SUM(CASE WHEN kc.is_done = 1 THEN c.points ELSE 0 END), 0) AS done_points,
-          COALESCE(SUM(c.points), 0) AS total_points
+          COALESCE(SUM(c.points), 0) AS total_points,
+          COUNT(c.id) AS total_cards,
+          COALESCE(SUM(CASE WHEN kc.is_done = 1 THEN 1 ELSE 0 END), 0) AS done_cards
         FROM projects p
         LEFT JOIN cards c ON c.project_id = p.id AND c.deleted_at IS NULL
         LEFT JOIN kanban_columns kc ON kc.id = c.column_id
         WHERE p.deleted_at IS NULL AND p.archived = 0
         GROUP BY p.id
-        ORDER BY 
+        ORDER BY
           CASE p.priority
             WHEN 'high' THEN 0
             WHEN 'medium' THEN 1
@@ -670,14 +685,15 @@ app.whenReady().then(async () => {
       return projects
     })
 
-    ipcMain.handle('projects:create', async (_event, data: { name: string, priority?: string, due_date?: string | null }) => {
+    ipcMain.handle('projects:create', async (_event, data: { name: string, priority?: string, status?: string, due_date?: string | null }) => {
       const projectId = crypto.randomUUID()
       const priority = data.priority || 'none'
+      const status = data.status || 'planning'
       const dueDate = data.due_date || null
 
       execute(
-        'INSERT INTO projects (id, name, priority, due_date) VALUES (?, ?, ?, ?)',
-        [projectId, data.name, priority, dueDate]
+        'INSERT INTO projects (id, name, priority, status, due_date) VALUES (?, ?, ?, ?, ?)',
+        [projectId, data.name, priority, status, dueDate]
       )
 
       const defaultColumns = [
@@ -696,12 +712,13 @@ app.whenReady().then(async () => {
       return queryOne('SELECT * FROM projects WHERE id = ?', [projectId])
     })
 
-    ipcMain.handle('projects:update', async (_event, data: { id: string, name?: string, priority?: string, due_date?: string | null }) => {
+    ipcMain.handle('projects:update', async (_event, data: { id: string, name?: string, priority?: string, status?: string, due_date?: string | null }) => {
       const fields: string[] = []
       const values: unknown[] = []
 
       if (data.name !== undefined) { fields.push('name = ?'); values.push(data.name) }
       if (data.priority !== undefined) { fields.push('priority = ?'); values.push(data.priority) }
+      if (data.status !== undefined) { fields.push('status = ?'); values.push(data.status) }
       if (data.due_date !== undefined) { fields.push('due_date = ?'); values.push(data.due_date) }
 
       if (fields.length === 0) return null

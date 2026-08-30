@@ -1,3 +1,7 @@
+import type { Priority } from '../types'
+
+export const PRIORITY_OPTIONS: Priority[] = ['none', 'low', 'medium', 'high']
+
 export const PRIORITY_BADGES: Record<string, string> = {
   none: 'bg-surface-muted text-ink-muted',
   low: 'bg-accent-subtle text-accent-strong',

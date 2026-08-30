@@ -213,7 +213,7 @@ export default function NotesPage({
                       >
                         <div className="flex items-center gap-2 min-w-0">
                           <FileText size={16} className="shrink-0 text-ink-muted" />
-                          <span className="text-sm text-ink-secondary truncate">{note.title}</span>
+                          <span className="font-heading text-sm text-ink-secondary truncate">{note.title}</span>
                         </div>
                         <button
                           onClick={(e) => { e.stopPropagation(); handleDelete(note.id) }}

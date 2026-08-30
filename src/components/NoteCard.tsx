@@ -43,7 +43,7 @@ export default function NoteCard({
       onContextMenu={(e) => onContextMenu?.(e, note)}
       className="bg-surface border border-border-strong rounded-lg px-4 py-3 hover:border-accent hover:bg-surface-muted transition-colors cursor-grab active:cursor-grabbing group whitespace-nowrap"
     >
-      <h3 className="font-medium text-ink text-sm group-hover:text-accent-hover transition-colors">
+      <h3 className="font-heading font-medium text-ink text-sm group-hover:text-accent-hover transition-colors">
         {note.title}
       </h3>
     </motion.button>

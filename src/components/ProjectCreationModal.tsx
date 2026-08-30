@@ -1,14 +1,15 @@
 import { useRef, useState } from 'react'
 import { X } from 'lucide-react'
-import type { Priority } from '../types'
+import type { Priority, ProjectStatus } from '../types'
 import { clickSound, createSound } from '../sounds'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { STATUS_OPTIONS, STATUS_LABELS } from '../utils/status'
 
 interface ProjectCreationModalProps {
   isOpen: boolean
   onClose: () => void
-  onCreate: (data: { name: string; priority: Priority; due_date: string | null }) => Promise<void>
+  onCreate: (data: { name: string; priority: Priority; status: ProjectStatus; due_date: string | null }) => Promise<void>
   isLoading?: boolean
 }
 
@@ -22,6 +23,7 @@ export default function ProjectCreationModal({
 }: ProjectCreationModalProps) {
   const [name, setName] = useState('')
   const [priority, setPriority] = useState<Priority>('none')
+  const [status, setStatus] = useState<ProjectStatus>('planning')
   const [dueDate, setDueDate] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
 
@@ -35,11 +37,13 @@ export default function ProjectCreationModal({
       await onCreate({
         name: name.trim(),
         priority,
+        status,
         due_date: dueDate || null,
       })
       createSound()
       setName('')
       setPriority('none')
+      setStatus('planning')
       setDueDate('')
       setError(null)
       onClose()
@@ -52,6 +56,7 @@ export default function ProjectCreationModal({
     clickSound()
     setName('')
     setPriority('none')
+    setStatus('planning')
     setDueDate('')
     setError(null)
     onClose()
@@ -83,7 +88,7 @@ export default function ProjectCreationModal({
       >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-border-subtle">
-          <h2 className="text-lg font-medium text-ink">Create New Project</h2>
+          <h2 className="font-heading text-lg font-medium text-ink">Create New Project</h2>
           <button
             onClick={handleClose}
             disabled={isLoading}
@@ -130,6 +135,27 @@ export default function ProjectCreationModal({
                   }`}
                 >
                   {p.charAt(0).toUpperCase() + p.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Status */}
+          <div>
+            <label className="block text-sm font-medium text-ink mb-2">Status</label>
+            <div className="grid grid-cols-2 gap-2">
+              {STATUS_OPTIONS.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setStatus(s)}
+                  disabled={isLoading}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer disabled:opacity-50 ${
+                    status === s
+                      ? 'bg-primary text-ink-inverse'
+                      : 'bg-surface-muted text-ink hover:bg-border-strong'
+                  }`}
+                >
+                  {STATUS_LABELS[s]}
                 </button>
               ))}
             </div>

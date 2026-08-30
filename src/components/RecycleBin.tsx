@@ -91,7 +91,7 @@ export default function RecycleBin() {
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${TYPE_COLORS[item.type]}`}>
                     {TYPE_LABELS[item.type]}
                   </span>
-                  <span className="text-sm text-ink-secondary truncate">{item.title}</span>
+                  <span className="font-heading text-sm text-ink-secondary truncate">{item.title}</span>
                   <span className="text-xs text-ink-faint shrink-0">{formatDate(item.deleted_at)}</span>
                 </div>
                 <div className="flex items-center gap-2 shrink-0 ml-4">

@@ -1,17 +1,18 @@
 import { useState, useEffect } from 'react'
 import { AnimatePresence } from 'motion/react'
 import { Plus, FolderOpen, Trash2 } from 'lucide-react'
-import type { Project, Priority, Note } from '../types'
+import type { Project, Priority, ProjectStatus, Note } from '../types'
 import { clickSound, createSound, deleteSound } from '../sounds'
 import NoteCard from './NoteCard'
 import NoteEditModal from './NoteEditModal'
 import ConfirmDialog from './ConfirmDialog'
 import ContextMenu, { type ContextMenuPosition } from './ContextMenu'
 import { PRIORITY_BADGES, dueDateInfo } from '../utils/priority'
+import { STATUS_OPTIONS, STATUS_BADGES, STATUS_LABELS } from '../utils/status'
 
 interface ProjectHeaderProps {
   project: Project
-  onUpdateProject: (data: { name?: string; priority?: Priority; due_date?: string | null }) => Promise<void>
+  onUpdateProject: (data: { name?: string; priority?: Priority; status?: ProjectStatus; due_date?: string | null }) => Promise<void>
   totalPoints: number
   donePoints: number
   isLoading?: boolean
@@ -32,12 +33,14 @@ export default function ProjectHeader({
   const [noteMenu, setNoteMenu] = useState<{ note: Note; position: ContextMenuPosition } | null>(null)
   const [confirmDeleteNote, setConfirmDeleteNote] = useState<Note | null>(null)
   const [displayPriority, setDisplayPriority] = useState<Priority>(project.priority)
+  const [displayStatus, setDisplayStatus] = useState<ProjectStatus>(project.status)
   const [displayDueDate, setDisplayDueDate] = useState<string | null>(project.due_date)
 
   useEffect(() => {
     setDisplayPriority(project.priority)
+    setDisplayStatus(project.status)
     setDisplayDueDate(project.due_date)
-  }, [project.priority, project.due_date])
+  }, [project.priority, project.status, project.due_date])
 
   useEffect(() => {
     loadProjectNotes()
@@ -75,6 +78,17 @@ export default function ProjectHeader({
     } catch (error) {
       console.error('Failed to update priority:', error)
       setDisplayPriority(project.priority)
+    }
+  }
+
+  const handleUpdateStatus = async (newStatus: ProjectStatus) => {
+    clickSound()
+    setDisplayStatus(newStatus)
+    try {
+      await onUpdateProject({ status: newStatus })
+    } catch (error) {
+      console.error('Failed to update status:', error)
+      setDisplayStatus(project.status)
     }
   }
 
@@ -210,7 +224,7 @@ export default function ProjectHeader({
               }}
               onBlur={handleUpdateName}
               disabled={isLoading}
-              className="text-2xl font-bold bg-surface-sunken text-ink border border-border-strong rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-50"
+              className="font-heading text-2xl font-bold bg-surface-sunken text-ink border border-border-strong rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-50"
             />
           ) : (
             <button
@@ -218,7 +232,7 @@ export default function ProjectHeader({
                 clickSound()
                 setIsEditingName(true)
               }}
-              className="text-2xl font-bold text-ink hover:text-accent-hover transition-colors cursor-pointer text-left w-full break-words"
+              className="font-heading text-2xl font-bold text-ink hover:text-accent-hover transition-colors cursor-pointer text-left w-full break-words"
             >
               {project.name}
             </button>
@@ -228,6 +242,27 @@ export default function ProjectHeader({
 
       {/* Metadata Row */}
       <div className="flex items-center gap-3 flex-wrap">
+        {/* Status */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-ink-faint uppercase tracking-wide">Status:</span>
+          <div className="flex gap-1.5">
+            {STATUS_OPTIONS.map((s) => (
+              <button
+                key={s}
+                onClick={() => handleUpdateStatus(s)}
+                disabled={isLoading}
+                className={`text-xs px-2 py-1 rounded-lg cursor-pointer transition-colors disabled:opacity-50 ${
+                  displayStatus === s
+                    ? STATUS_BADGES[s] + ' font-semibold'
+                    : 'bg-surface-muted text-ink-muted hover:bg-border-strong'
+                }`}
+              >
+                {STATUS_LABELS[s]}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Priority */}
         <div className="flex items-center gap-2">
           <span className="text-xs text-ink-faint uppercase tracking-wide">Priority:</span>

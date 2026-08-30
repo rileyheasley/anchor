@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { Plus, Trash2, X, ChevronLeft, FolderOpen, CheckCircle2, Circle, ArrowRightCircle } from 'lucide-react'
-import type { Project, KanbanColumn, Card, Note, Priority } from '../types'
+import { Plus, Trash2, X, ChevronLeft, FolderOpen, CheckCircle2, Circle, ArrowRightCircle, Flag } from 'lucide-react'
+import type { Project, KanbanColumn, Card, Note, Priority, ProjectStatus } from '../types'
 import { clickSound, createSound, deleteSound, completeSound, moveSound } from '../sounds'
 import ProjectHeader from './ProjectHeader'
 import ConfirmDialog from './ConfirmDialog'
@@ -230,19 +230,26 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate }: { pr
   const buildCardMenuItems = (card: Card): ContextMenuEntry[] => [
     { label: 'Open card', icon: FolderOpen, onClick: () => openDetail(card) },
     'separator',
-    ...(['high', 'medium', 'low', 'none'] as const).map((pri) => ({
-      label: `Set priority: ${pri.charAt(0).toUpperCase() + pri.slice(1)}`,
-      icon: card.priority === pri ? CheckCircle2 : Circle,
-      onClick: () => handleUpdatePriority(card.id, pri),
-    })),
-    'separator' as const,
-    ...columns
-      .filter((col) => col.id !== card.column_id)
-      .map((col) => ({
-        label: `Move to ${col.name}`,
-        icon: ArrowRightCircle,
-        onClick: () => handleMoveCard(card.id, col.id),
+    {
+      label: 'Set priority',
+      icon: Flag,
+      items: (['high', 'medium', 'low', 'none'] as const).map((pri) => ({
+        label: pri.charAt(0).toUpperCase() + pri.slice(1),
+        icon: card.priority === pri ? CheckCircle2 : Circle,
+        onClick: () => handleUpdatePriority(card.id, pri),
       })),
+    },
+    {
+      label: 'Move to column',
+      icon: ArrowRightCircle,
+      disabled: columns.filter((col) => col.id !== card.column_id).length === 0,
+      items: columns
+        .filter((col) => col.id !== card.column_id)
+        .map((col) => ({
+          label: col.name,
+          onClick: () => handleMoveCard(card.id, col.id),
+        })),
+    },
     'separator' as const,
     { label: 'Delete card', icon: Trash2, danger: true, onClick: () => setConfirmDelete({ type: 'card', id: card.id }) },
   ]
@@ -300,7 +307,7 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate }: { pr
     clickSound()
   }
 
-  const handleUpdateProject = async (data: { name?: string; priority?: Priority; due_date?: string | null }) => {
+  const handleUpdateProject = async (data: { name?: string; priority?: Priority; status?: ProjectStatus; due_date?: string | null }) => {
     setIsUpdatingProject(true)
     try {
       await window.api.projects.update({ id: project.id, ...data })
@@ -379,7 +386,7 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate }: { pr
                   onContextMenu={(e) => { e.preventDefault(); setColumnMenu({ column: col, position: { x: e.clientX, y: e.clientY } }) }}
                 >
                   <div className="flex items-center gap-2">
-                    <h3 className="font-medium text-sm text-ink-secondary">{col.name}</h3>
+                    <h3 className="font-heading font-medium text-sm text-ink-secondary">{col.name}</h3>
                     <span className="text-xs text-ink-faint">{cardsInColumn(col.id).length}</span>
                     {col.is_done ? <span className="text-xs text-success">✓</span> : null}
                   </div>
@@ -425,21 +432,16 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate }: { pr
                           onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleCardDrop(card) }}
                           onClick={() => openDetail(card)}
                           onContextMenu={(e) => { e.preventDefault(); setCardMenu({ card, position: { x: e.clientX, y: e.clientY } }) }}
-                          className={`w-full bg-surface rounded-lg border border-l-4 transition-all text-left cursor-grab active:cursor-grabbing group ${
+                          className={`w-full bg-surface rounded-lg border transition-all text-left cursor-grab active:cursor-grabbing group ${
                             isSelected ? 'border-accent-hover ring-1 ring-accent/40' : 'border-border'
                           } ${
                             dragOverCardId === card.id ? 'ring-2 ring-accent/50' : ''
-                          } ${
-                            card.priority === 'high' ? 'border-l-danger' :
-                            card.priority === 'medium' ? 'border-l-warning' :
-                            card.priority === 'low' ? 'border-l-accent' :
-                            'border-l-border'
                           }`}
                         >
                           <div className="p-3 flex flex-col gap-2">
                             {/* Title */}
                             <div className="flex items-start justify-between gap-2">
-                              <h3 className="text-sm text-ink font-medium leading-snug group-hover:text-accent-hover transition-colors flex-1">
+                              <h3 className="font-heading text-sm text-ink font-medium leading-snug group-hover:text-accent-hover transition-colors flex-1">
                                 {card.title}
                               </h3>
                               <button
@@ -563,7 +565,7 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate }: { pr
               className="w-80 bg-surface border-l border-border flex flex-col shrink-0 overflow-y-auto"
             >
               <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle shrink-0">
-                <span className="text-sm font-medium text-ink-secondary truncate mr-2">{selectedCard.title}</span>
+                <span className="font-heading text-sm font-medium text-ink-secondary truncate mr-2">{selectedCard.title}</span>
                 <button
                   onClick={() => { clickSound(); if (noteDirty) saveNoteContent(); setSelectedCard(null) }}
                   className="text-ink-faint hover:text-ink-secondary cursor-pointer p-1 shrink-0"

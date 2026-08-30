@@ -7,8 +7,9 @@
  */
 /* stylelint-disable-next-line at-rule-no-unknown */
 @theme {
-  /* Type */
-  --font-sans: 'Space Grotesk Variable', 'Space Grotesk', system-ui, sans-serif;
+  /* Type — Space Grotesk for headings/titles, Inter for body copy and labels */
+  --font-sans: 'Inter Variable', 'Inter', system-ui, sans-serif;
+  --font-heading: 'Space Grotesk Variable', 'Space Grotesk', system-ui, sans-serif;
 
   /* Surfaces — subtle warm paper tone, not stark white */
   --color-surface: #fdfcf9;

@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { LucideIcon } from 'lucide-react'
+import { ChevronRight, type LucideIcon } from 'lucide-react'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { clickSound } from '../sounds'
 
@@ -11,7 +11,14 @@ export interface ContextMenuItem {
   disabled?: boolean
 }
 
-export type ContextMenuEntry = ContextMenuItem | 'separator'
+export interface ContextMenuSubmenu {
+  label: string
+  icon?: LucideIcon
+  items: ContextMenuEntry[]
+  disabled?: boolean
+}
+
+export type ContextMenuEntry = ContextMenuItem | ContextMenuSubmenu | 'separator'
 
 export interface ContextMenuPosition {
   x: number
@@ -79,31 +86,83 @@ export default function ContextMenu({
       onClick={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}
     >
-      {items.map((item, i) =>
-        item === 'separator' ? (
+      <MenuEntries items={items} onClose={onClose} />
+    </div>
+  )
+}
+
+function MenuEntries({ items, onClose }: { items: ContextMenuEntry[]; onClose: () => void }) {
+  return (
+    <>
+      {items.map((entry, i) =>
+        entry === 'separator' ? (
           <div key={i} className="my-1 border-t border-border-subtle" />
+        ) : 'items' in entry ? (
+          <SubmenuRow key={entry.label} entry={entry} onClose={onClose} />
         ) : (
           <button
-            key={item.label}
-            disabled={item.disabled}
+            key={entry.label}
+            disabled={entry.disabled}
             onClick={() => {
-              if (item.disabled) return
+              if (entry.disabled) return
               clickSound()
-              item.onClick()
+              entry.onClick()
               onClose()
             }}
             className={`w-full flex items-center gap-2 text-left px-3 py-1.5 transition-colors ${
-              item.disabled
+              entry.disabled
                 ? 'text-ink-faint/50 cursor-default'
-                : item.danger
+                : entry.danger
                 ? 'text-danger hover:bg-danger-subtle cursor-pointer'
                 : 'text-ink-secondary hover:bg-surface-sunken cursor-pointer'
             }`}
           >
-            {item.icon && <item.icon size={14} className="shrink-0" />}
-            {item.label}
+            {entry.icon && <entry.icon size={14} className="shrink-0" />}
+            {entry.label}
           </button>
         )
+      )}
+    </>
+  )
+}
+
+function SubmenuRow({ entry, onClose }: { entry: ContextMenuSubmenu; onClose: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [side, setSide] = useState<'right' | 'left'>('right')
+  const rowRef = useRef<HTMLDivElement>(null)
+
+  useLayoutEffect(() => {
+    if (!open || !rowRef.current) return
+    const rect = rowRef.current.getBoundingClientRect()
+    const submenuWidthEstimate = 200
+    setSide(rect.right + submenuWidthEstimate > window.innerWidth ? 'left' : 'right')
+  }, [open])
+
+  return (
+    <div
+      ref={rowRef}
+      className="relative"
+      onMouseEnter={() => !entry.disabled && setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <div
+        className={`w-full flex items-center gap-2 px-3 py-1.5 transition-colors ${
+          entry.disabled ? 'text-ink-faint/50 cursor-default' : 'text-ink-secondary hover:bg-surface-sunken cursor-default'
+        }`}
+      >
+        {entry.icon && <entry.icon size={14} className="shrink-0" />}
+        <span className="flex-1">{entry.label}</span>
+        <ChevronRight size={13} className="shrink-0 text-ink-faint" />
+      </div>
+
+      {open && !entry.disabled && (
+        <div
+          className={`absolute top-0 z-[110] bg-surface border border-border rounded-lg shadow-lg py-1 min-w-[180px] text-sm ${
+            side === 'right' ? 'left-full' : 'right-full'
+          }`}
+        >
+          <MenuEntries items={entry.items} onClose={onClose} />
+        </div>
       )}
     </div>
   )

@@ -29,7 +29,7 @@ export default function TitleBar() {
             maskSize: 'contain',
           }}
         />
-        <span className="text-sm font-bold text-ink-secondary tracking-tight">Anchor</span>
+        <span className="font-heading text-sm font-bold text-ink-secondary tracking-tight">Anchor</span>
       </div>
     </div>
   )

@@ -145,12 +145,12 @@ export default function NoteEditModal({
               }}
               onBlur={handleTitleSave}
               disabled={isLoading || isSaving}
-              className="flex-1 text-lg font-medium bg-surface-sunken text-ink border border-border-strong rounded-lg px-3 py-1 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-50 mr-2"
+              className="font-heading flex-1 text-lg font-medium bg-surface-sunken text-ink border border-border-strong rounded-lg px-3 py-1 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-50 mr-2"
             />
           ) : (
             <button
               onClick={() => setIsEditingTitle(true)}
-              className="text-lg font-medium text-ink hover:text-accent-hover transition-colors cursor-pointer text-left flex-1 truncate mr-2"
+              className="font-heading text-lg font-medium text-ink hover:text-accent-hover transition-colors cursor-pointer text-left flex-1 truncate mr-2"
             >
               {title}
             </button>

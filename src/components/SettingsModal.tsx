@@ -32,7 +32,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       >
         {/* Header with Close Button */}
         <div className="flex items-center justify-between p-4 border-b border-border-subtle">
-          <h2 className="text-lg font-medium text-ink">Settings</h2>
+          <h2 className="font-heading text-lg font-medium text-ink">Settings</h2>
           <button
             onClick={handleClose}
             className="p-1 rounded-lg text-ink-muted hover:bg-surface-sunken hover:text-ink transition-colors"
