@@ -5,6 +5,7 @@ import type { Project, KanbanColumn, Card, Note, Priority } from '../types'
 import { clickSound, createSound, deleteSound, completeSound, moveSound } from '../sounds'
 import ProjectHeader from './ProjectHeader'
 import ConfirmDialog from './ConfirmDialog'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 
 const PRIORITY_BADGES: Record<string, string> = {
   none: 'bg-surface-muted text-ink-muted',
@@ -45,6 +46,14 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate }: { pr
 
   useEffect(() => { loadBoard() }, [project.id])
   useEffect(() => { if (selectedCard) loadCardNote(selectedCard) }, [selectedCard?.id])
+
+  // Esc closes the card editor panel first; when nothing else is open, it exits the board.
+  useEscapeKey(() => {
+    clickSound()
+    if (noteDirty) saveNoteContent()
+    setSelectedCard(null)
+  }, !!selectedCard && !confirmDelete)
+  useEscapeKey(onClose, !selectedCard && !confirmDelete && !addingTo && !addingColumn)
 
   const loadBoard = async () => {
     try {

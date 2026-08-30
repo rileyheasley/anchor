@@ -1,5 +1,7 @@
-import { X } from 'lucide-react'
+import { X, Keyboard } from 'lucide-react'
 import { clickSound } from '../sounds'
+import { useEscapeKey } from '../hooks/useEscapeKey'
+import { getShortcutGroups } from '../shortcuts'
 
 interface SettingsModalProps {
   isOpen: boolean
@@ -7,11 +9,13 @@ interface SettingsModalProps {
 }
 
 export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
+  useEscapeKey(onClose, isOpen)
+
   if (!isOpen) return null
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-surface border border-border-subtle rounded-lg shadow-lg w-96 h-96 flex flex-col">
+      <div className="bg-surface border border-border-subtle rounded-lg shadow-lg w-[30rem] h-[32rem] flex flex-col">
         {/* Header with Close Button */}
         <div className="flex items-center justify-between p-4 border-b border-border-subtle">
           <h2 className="text-lg font-medium text-ink">Settings</h2>
@@ -26,7 +30,34 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
         {/* Content */}
         <div className="flex-1 p-4 overflow-y-auto">
-          {/* Settings content goes here */}
+          <div className="flex items-center gap-2 mb-4 text-ink-secondary">
+            <Keyboard size={16} />
+            <h3 className="text-sm font-medium uppercase tracking-wide">Keyboard shortcuts</h3>
+          </div>
+          <div className="space-y-5">
+            {getShortcutGroups().map((group) => (
+              <div key={group.title}>
+                <h4 className="text-xs font-semibold text-ink-faint uppercase tracking-wide mb-2">{group.title}</h4>
+                <div className="space-y-1.5">
+                  {group.items.map((item) => (
+                    <div key={item.description} className="flex items-center justify-between gap-4">
+                      <span className="text-sm text-ink-secondary">{item.description}</span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {item.keys.map((key, i) => (
+                          <kbd
+                            key={i}
+                            className="px-1.5 py-0.5 text-xs font-medium bg-surface-muted text-ink border border-border-strong rounded"
+                          >
+                            {key}
+                          </kbd>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>

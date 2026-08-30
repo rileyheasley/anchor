@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { X } from 'lucide-react'
 import type { Priority } from '../types'
 import { clickSound, createSound } from '../sounds'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 
 interface ProjectCreationModalProps {
   isOpen: boolean
@@ -58,10 +59,10 @@ export default function ProjectCreationModal({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !isLoading) {
       handleCreate()
-    } else if (e.key === 'Escape') {
-      handleClose()
     }
   }
+
+  useEscapeKey(handleClose, isOpen)
 
   if (!isOpen) return null
 

@@ -5,6 +5,7 @@
  * only ever reference these semantic names, never raw palette
  * colors like `gray-900` or `blue-500` directly.
  */
+/* stylelint-disable-next-line at-rule-no-unknown */
 @theme {
   /* Type */
   --font-sans: 'Space Grotesk Variable', 'Space Grotesk', system-ui, sans-serif;

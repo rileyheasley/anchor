@@ -1,4 +1,5 @@
 import { motion, AnimatePresence } from 'motion/react'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 
 interface ConfirmDialogProps {
   isOpen: boolean
@@ -21,6 +22,8 @@ export default function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  useEscapeKey(onCancel, isOpen)
+
   return (
     <AnimatePresence>
       {isOpen && (

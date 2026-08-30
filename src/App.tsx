@@ -64,6 +64,48 @@ function App() {
     setView('projects')
   }
 
+  // Global keyboard shortcuts: Mod+, settings, Mod+1-5 navigation, Mod+N new item (context-aware)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey
+      if (!mod) return
+      switch (e.key) {
+        case ',':
+          e.preventDefault()
+          setIsSettingsOpen((prev) => !prev)
+          break
+        case '1':
+          e.preventDefault()
+          handleNavigate('home')
+          break
+        case '2':
+          e.preventDefault()
+          handleNavigate('projects')
+          break
+        case '3':
+          e.preventDefault()
+          handleNavigate('notes')
+          break
+        case '4':
+          e.preventDefault()
+          handleNavigate('archive')
+          break
+        case '5':
+          e.preventDefault()
+          handleNavigate('recycle')
+          break
+        case 'n':
+        case 'N':
+          e.preventDefault()
+          if (view === 'notes') handleNewNote()
+          else handleNewProject()
+          break
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [view])
+
   const content = () => {
     if (activeProject) {
       return <ProjectBoard project={activeProject} onClose={() => setActiveProject(null)} onProjectUpdate={setActiveProject} />

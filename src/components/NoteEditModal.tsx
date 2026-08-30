@@ -4,6 +4,7 @@ import type { Note } from '../types'
 import { clickSound, deleteSound } from '../sounds'
 import MarkdownEditor from './MarkdownEditor'
 import ConfirmDialog from './ConfirmDialog'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 
 interface NoteEditModalProps {
   isOpen: boolean
@@ -99,6 +100,8 @@ export default function NoteEditModal({
     if (saveTimer.current) clearTimeout(saveTimer.current)
     onClose()
   }
+
+  useEscapeKey(handleClose, isOpen && !confirmDelete)
 
   if (!isOpen || !note) return null
 
