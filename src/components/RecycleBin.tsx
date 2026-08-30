@@ -4,6 +4,7 @@ import { RotateCcw, Trash2, Clock } from 'lucide-react'
 import type { RecycleItem } from '../types'
 import { clickSound, deleteSound } from '../sounds'
 import ConfirmDialog from './ConfirmDialog'
+import ContextMenu, { type ContextMenuPosition } from './ContextMenu'
 
 const TYPE_LABELS: Record<string, string> = {
   project: 'Project',
@@ -20,6 +21,7 @@ const TYPE_COLORS: Record<string, string> = {
 export default function RecycleBin() {
   const [items, setItems] = useState<RecycleItem[]>([])
   const [confirmDelete, setConfirmDelete] = useState<{ type: string; id: string } | null>(null)
+  const [menu, setMenu] = useState<{ item: RecycleItem; position: ContextMenuPosition } | null>(null)
 
   useEffect(() => {
     load()
@@ -81,6 +83,7 @@ export default function RecycleBin() {
                 exit={{ opacity: 0, x: 100 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                 className="bg-surface rounded-lg border border-border px-4 py-3 flex items-center justify-between"
+                onContextMenu={(e) => { e.preventDefault(); setMenu({ item, position: { x: e.clientX, y: e.clientY } }) }}
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${TYPE_COLORS[item.type]}`}>
@@ -122,6 +125,20 @@ export default function RecycleBin() {
         confirmText="Delete permanently"
         onConfirm={confirmDeleteAction}
         onCancel={() => setConfirmDelete(null)}
+      />
+
+      <ContextMenu
+        position={menu?.position ?? null}
+        onClose={() => setMenu(null)}
+        items={
+          menu
+            ? [
+                { label: 'Restore', icon: RotateCcw, onClick: () => handleRestore(menu.item.type, menu.item.id) },
+                'separator',
+                { label: 'Delete permanently', icon: Trash2, danger: true, onClick: () => handlePurge(menu.item.type, menu.item.id) },
+              ]
+            : []
+        }
       />
     </div>
   )

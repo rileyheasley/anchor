@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import { AnimatePresence } from 'motion/react'
-import { Plus } from 'lucide-react'
+import { Plus, FolderOpen, Trash2 } from 'lucide-react'
 import type { Project, Priority, Note } from '../types'
-import { clickSound, createSound } from '../sounds'
+import { clickSound, createSound, deleteSound } from '../sounds'
 import NoteCard from './NoteCard'
 import NoteEditModal from './NoteEditModal'
+import ConfirmDialog from './ConfirmDialog'
+import ContextMenu, { type ContextMenuPosition } from './ContextMenu'
 
 interface ProjectHeaderProps {
   project: Project
@@ -33,6 +35,8 @@ export default function ProjectHeader({
   const [notes, setNotes] = useState<Note[]>([])
   const [editingNote, setEditingNote] = useState<Note | null>(null)
   const [draggedNote, setDraggedNote] = useState<Note | null>(null)
+  const [noteMenu, setNoteMenu] = useState<{ note: Note; position: ContextMenuPosition } | null>(null)
+  const [confirmDeleteNote, setConfirmDeleteNote] = useState<Note | null>(null)
   const [displayPriority, setDisplayPriority] = useState<Priority>(project.priority)
   const [displayDueDate, setDisplayDueDate] = useState<string | null>(project.due_date)
 
@@ -137,6 +141,19 @@ export default function ProjectHeader({
       console.error('Failed to delete note:', error)
       throw error
     }
+  }
+
+  const confirmDeleteNoteAction = async () => {
+    if (!confirmDeleteNote) return
+    deleteSound()
+    try {
+      await window.api.notes.delete(confirmDeleteNote.id)
+      if (editingNote?.id === confirmDeleteNote.id) setEditingNote(null)
+      await loadProjectNotes()
+    } catch (error) {
+      console.error('Failed to delete note:', error)
+    }
+    setConfirmDeleteNote(null)
   }
 
   const handleDragStart = (note: Note) => {
@@ -287,6 +304,7 @@ export default function ProjectHeader({
                   onDrop={(_e, n) => {
                     handleDrop(n)
                   }}
+                  onContextMenu={(e, n) => setNoteMenu({ note: n, position: { x: e.clientX, y: e.clientY } })}
                   isDragging={draggedNote?.id === note.id}
                 />
               ))}
@@ -321,6 +339,29 @@ export default function ProjectHeader({
         onClose={() => setEditingNote(null)}
         onSave={handleSaveNote}
         onDelete={handleDeleteNote}
+      />
+
+      <ConfirmDialog
+        isOpen={!!confirmDeleteNote}
+        title="Delete note?"
+        message="This note will be moved to the recycle bin. You can restore it later."
+        confirmText="Delete"
+        onConfirm={confirmDeleteNoteAction}
+        onCancel={() => setConfirmDeleteNote(null)}
+      />
+
+      <ContextMenu
+        position={noteMenu?.position ?? null}
+        onClose={() => setNoteMenu(null)}
+        items={
+          noteMenu
+            ? [
+                { label: 'Open note', icon: FolderOpen, onClick: () => setEditingNote(noteMenu.note) },
+                'separator',
+                { label: 'Delete note', icon: Trash2, danger: true, onClick: () => setConfirmDeleteNote(noteMenu.note) },
+              ]
+            : []
+        }
       />
     </div>
   )

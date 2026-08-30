@@ -9,6 +9,7 @@ interface NoteCardProps {
   onDragEnd?: () => void
   onDragOver?: (e: React.DragEvent<HTMLButtonElement>) => void
   onDrop?: (e: React.DragEvent<HTMLButtonElement>, note: Note) => void
+  onContextMenu?: (e: React.MouseEvent<HTMLButtonElement>, note: Note) => void
   isDragging?: boolean
 }
 
@@ -19,6 +20,7 @@ export default function NoteCard({
   onDragEnd,
   onDragOver,
   onDrop,
+  onContextMenu,
   isDragging,
 }: NoteCardProps) {
   return (
@@ -38,6 +40,7 @@ export default function NoteCard({
         clickSound()
         onClick(note)
       }}
+      onContextMenu={(e) => onContextMenu?.(e, note)}
       className="bg-surface border border-border-strong rounded-lg px-4 py-3 hover:border-accent hover:bg-surface-muted transition-colors cursor-grab active:cursor-grabbing group whitespace-nowrap"
     >
       <h3 className="font-medium text-ink text-sm group-hover:text-accent-hover transition-colors">

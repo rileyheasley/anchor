@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { Plus, Trash2, X, ChevronLeft } from 'lucide-react'
+import { Plus, Trash2, X, ChevronLeft, FolderOpen, CheckCircle2, Circle, ArrowRightCircle } from 'lucide-react'
 import type { Project, KanbanColumn, Card, Note, Priority } from '../types'
 import { clickSound, createSound, deleteSound, completeSound, moveSound } from '../sounds'
 import ProjectHeader from './ProjectHeader'
 import ConfirmDialog from './ConfirmDialog'
+import ContextMenu, { type ContextMenuEntry, type ContextMenuPosition } from './ContextMenu'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 
 const PRIORITY_BADGES: Record<string, string> = {
@@ -43,6 +44,10 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate }: { pr
 
   // Project update state
   const [isUpdatingProject, setIsUpdatingProject] = useState(false)
+
+  // Right-click context menus
+  const [cardMenu, setCardMenu] = useState<{ card: Card; position: ContextMenuPosition } | null>(null)
+  const [columnMenu, setColumnMenu] = useState<{ column: KanbanColumn; position: ContextMenuPosition } | null>(null)
 
   useEffect(() => { loadBoard() }, [project.id])
   useEffect(() => { if (selectedCard) loadCardNote(selectedCard) }, [selectedCard?.id])
@@ -162,6 +167,41 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate }: { pr
     } catch (error) { console.error('Failed to create column:', error) }
   }
 
+  const handleToggleColumnDone = async (col: KanbanColumn) => {
+    clickSound()
+    try {
+      await window.api.columns.update({ id: col.id, is_done: col.is_done ? 0 : 1 })
+      await loadBoard()
+    } catch (error) { console.error('Failed to update column:', error) }
+  }
+
+  const buildCardMenuItems = (card: Card): ContextMenuEntry[] => [
+    { label: 'Open card', icon: FolderOpen, onClick: () => openDetail(card) },
+    'separator',
+    ...(['high', 'medium', 'low', 'none'] as const).map((pri) => ({
+      label: `Set priority: ${pri.charAt(0).toUpperCase() + pri.slice(1)}`,
+      icon: card.priority === pri ? CheckCircle2 : Circle,
+      onClick: () => handleUpdatePriority(card.id, pri),
+    })),
+    'separator' as const,
+    ...columns
+      .filter((col) => col.id !== card.column_id)
+      .map((col) => ({
+        label: `Move to ${col.name}`,
+        icon: ArrowRightCircle,
+        onClick: () => handleMoveCard(card.id, col.id),
+      })),
+    'separator' as const,
+    { label: 'Delete card', icon: Trash2, danger: true, onClick: () => setConfirmDelete({ type: 'card', id: card.id }) },
+  ]
+
+  const buildColumnMenuItems = (col: KanbanColumn): ContextMenuEntry[] => [
+    { label: 'Add card', icon: Plus, onClick: () => { setAddingTo(col.id); setNewTitle('') } },
+    { label: col.is_done ? 'Unmark as done column' : 'Mark as done column', icon: CheckCircle2, onClick: () => handleToggleColumnDone(col) },
+    'separator',
+    { label: 'Delete column', icon: Trash2, danger: true, onClick: () => setConfirmDelete({ type: 'column', id: col.id }) },
+  ]
+
   const handleReorderColumns = async (sourceIndex: number, targetIndex: number) => {
     if (sourceIndex === targetIndex) return
     const newColumns = [...columns]
@@ -278,7 +318,13 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate }: { pr
                   }
                 }}
               >
-                <div className="flex items-center justify-between mb-3 px-1 group cursor-grab active:cursor-grabbing" draggable onDragStart={() => setDraggingColId(col.id)} onDragEnd={() => setDraggingColId(null)}>
+                <div
+                  className="flex items-center justify-between mb-3 px-1 group cursor-grab active:cursor-grabbing"
+                  draggable
+                  onDragStart={() => setDraggingColId(col.id)}
+                  onDragEnd={() => setDraggingColId(null)}
+                  onContextMenu={(e) => { e.preventDefault(); setColumnMenu({ column: col, position: { x: e.clientX, y: e.clientY } }) }}
+                >
                   <div className="flex items-center gap-2">
                     <h3 className="font-medium text-sm text-ink-secondary">{col.name}</h3>
                     <span className="text-xs text-ink-faint">{cardsInColumn(col.id).length}</span>
@@ -316,6 +362,7 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate }: { pr
                           onDragStart={() => setDraggingId(card.id)}
                           onDragEnd={() => { setDraggingId(null); setDragOverColId(null) }}
                           onClick={() => openDetail(card)}
+                          onContextMenu={(e) => { e.preventDefault(); setCardMenu({ card, position: { x: e.clientX, y: e.clientY } }) }}
                           className={`w-full bg-surface rounded-lg border border-l-4 transition-all text-left cursor-grab active:cursor-grabbing group ${
                             isSelected ? 'border-accent-hover ring-1 ring-accent/40' : 'border-border'
                           } ${
@@ -536,6 +583,18 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate }: { pr
         confirmText="Delete"
         onConfirm={confirmDeleteAction}
         onCancel={() => setConfirmDelete(null)}
+      />
+
+      <ContextMenu
+        position={cardMenu?.position ?? null}
+        onClose={() => setCardMenu(null)}
+        items={cardMenu ? buildCardMenuItems(cardMenu.card) : []}
+      />
+
+      <ContextMenu
+        position={columnMenu?.position ?? null}
+        onClose={() => setColumnMenu(null)}
+        items={columnMenu ? buildColumnMenuItems(columnMenu.column) : []}
       />
     </div>
   )

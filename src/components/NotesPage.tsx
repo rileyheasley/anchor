@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { Plus, Trash2, FileText, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, Trash2, FileText, FolderOpen, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { Note } from '../types'
 import { createSound, deleteSound, clickSound } from '../sounds'
 import MarkdownEditor from './MarkdownEditor'
 import ResizableNotesSidebar from './ResizableNotesSidebar'
 import ConfirmDialog from './ConfirmDialog'
+import ContextMenu, { type ContextMenuPosition } from './ContextMenu'
 
 // Derives a plain-text title from the first non-empty markdown line
 function deriveTitleFromContent(content: string): string {
@@ -41,6 +42,7 @@ export default function NotesPage({
   const [dirty, setDirty] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [noteMenu, setNoteMenu] = useState<{ note: Note; position: ContextMenuPosition } | null>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -197,6 +199,7 @@ export default function NotesPage({
                         exit={{ opacity: 0, x: -10 }}
                         transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                         onClick={() => handleOpenNote(note)}
+                        onContextMenu={(e) => { e.preventDefault(); setNoteMenu({ note, position: { x: e.clientX, y: e.clientY } }) }}
                         className={`px-4 py-3 cursor-pointer border-b border-border-subtle group flex items-center justify-between hover:bg-surface-sunken transition-colors ${
                           activeNote?.id === note.id ? 'bg-accent-subtle border-l-2 border-l-accent' : ''
                         }`}
@@ -235,6 +238,7 @@ export default function NotesPage({
                       exit={{ opacity: 0, x: -10 }}
                       transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                       onClick={() => handleOpenNote(note)}
+                      onContextMenu={(e) => { e.preventDefault(); setNoteMenu({ note, position: { x: e.clientX, y: e.clientY } }) }}
                       title={note.title}
                       className={`w-10 h-10 flex items-center justify-center rounded-lg transition-colors ${
                         activeNote?.id === note.id
@@ -292,6 +296,20 @@ export default function NotesPage({
         confirmText="Delete"
         onConfirm={confirmDeleteAction}
         onCancel={() => setConfirmDelete(null)}
+      />
+
+      <ContextMenu
+        position={noteMenu?.position ?? null}
+        onClose={() => setNoteMenu(null)}
+        items={
+          noteMenu
+            ? [
+                { label: 'Open note', icon: FolderOpen, onClick: () => handleOpenNote(noteMenu.note) },
+                'separator',
+                { label: 'Delete note', icon: Trash2, danger: true, onClick: () => handleDelete(noteMenu.note.id) },
+              ]
+            : []
+        }
       />
     </div>
   )

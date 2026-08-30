@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { RotateCcw } from 'lucide-react'
+import { RotateCcw, FolderOpen } from 'lucide-react'
 import type { Project } from '../types'
 import { clickSound } from '../sounds'
+import ContextMenu, { type ContextMenuPosition } from './ContextMenu'
 
 export default function ArchiveView({ onOpenProject }: { onOpenProject: (p: Project) => void }) {
   const [projects, setProjects] = useState<Project[]>([])
+  const [menu, setMenu] = useState<{ project: Project; position: ContextMenuPosition } | null>(null)
 
   useEffect(() => {
     load()
@@ -15,8 +17,7 @@ export default function ArchiveView({ onOpenProject }: { onOpenProject: (p: Proj
     setProjects(await window.api.archive.list())
   }
 
-  const handleRestore = async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation()
+  const handleRestore = async (id: string) => {
     clickSound()
     await window.api.archive.restore(id)
     await load()
@@ -46,12 +47,13 @@ export default function ArchiveView({ onOpenProject }: { onOpenProject: (p: Proj
                 exit={{ opacity: 0, x: -60 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                 onClick={() => { clickSound(); onOpenProject(p) }}
+                onContextMenu={(e) => { e.preventDefault(); setMenu({ project: p, position: { x: e.clientX, y: e.clientY } }) }}
                 className="bg-surface rounded-lg border border-border p-4 cursor-pointer hover:shadow-md transition-shadow opacity-75 hover:opacity-100"
               >
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="font-medium text-ink-secondary">{p.name}</h3>
                   <button
-                    onClick={(e) => handleRestore(e, p.id)}
+                    onClick={(e) => { e.stopPropagation(); handleRestore(p.id) }}
                     className="text-xs px-3 py-1 text-accent-hover hover:bg-accent-subtle rounded-full border border-accent/30 cursor-pointer transition-colors flex items-center gap-1"
                   >
                     <RotateCcw size={14} />
@@ -75,6 +77,20 @@ export default function ArchiveView({ onOpenProject }: { onOpenProject: (p: Proj
           </AnimatePresence>
         </div>
       </main>
+
+      <ContextMenu
+        position={menu?.position ?? null}
+        onClose={() => setMenu(null)}
+        items={
+          menu
+            ? [
+                { label: 'Open project', icon: FolderOpen, onClick: () => onOpenProject(menu.project) },
+                'separator',
+                { label: 'Restore project', icon: RotateCcw, onClick: () => handleRestore(menu.project.id) },
+              ]
+            : []
+        }
+      />
     </div>
   )
 }

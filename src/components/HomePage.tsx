@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { Plus, Trash2, Archive } from 'lucide-react'
+import { Plus, Trash2, Archive, FolderOpen } from 'lucide-react'
 import type { Project, Priority } from '../types'
 import { clickSound, deleteSound } from '../sounds'
 import ProjectCreationModal from './ProjectCreationModal'
 import ConfirmDialog from './ConfirmDialog'
+import ContextMenu, { type ContextMenuPosition } from './ContextMenu'
 
 const PRIORITY_COLORS: Record<string, string> = {
   none: 'border-l-ink-faint',
@@ -54,6 +55,7 @@ export default function HomePage({
   const [isCreating, setIsCreating] = useState(false)
   const [sortBy, setSortBy] = useState<SortMode>('priority')
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [menu, setMenu] = useState<{ project: Project; position: ContextMenuPosition } | null>(null)
 
   useEffect(() => { loadProjects() }, [])
 
@@ -99,11 +101,6 @@ export default function HomePage({
     }
   }
 
-  const handleDelete = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation()
-    setConfirmDelete(id)
-  }
-
   const confirmDeleteAction = async () => {
     if (!confirmDelete) return
     deleteSound()
@@ -116,25 +113,13 @@ export default function HomePage({
     setConfirmDelete(null)
   }
 
-  const handleArchive = async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation()
+  const handleArchive = async (id: string) => {
     clickSound()
     try {
       await window.api.projects.archive(id)
       await loadProjects()
     } catch (error) {
       console.error('Failed to archive project:', error)
-    }
-  }
-
-  const handlePriority = async (e: React.MouseEvent, id: string, priority: string) => {
-    e.stopPropagation()
-    clickSound()
-    try {
-      await window.api.projects.update({ id, priority: priority as Priority })
-      await loadProjects()
-    } catch (error) {
-      console.error('Failed to update priority:', error)
     }
   }
 
@@ -206,6 +191,7 @@ export default function HomePage({
                   whileHover={{ scale: 1.01, boxShadow: 'var(--shadow-md)' }}
                   whileTap={{ scale: 0.99 }}
                   onClick={() => { clickSound(); onOpenProject(p) }}
+                  onContextMenu={(e) => { e.preventDefault(); setMenu({ project: p, position: { x: e.clientX, y: e.clientY } }) }}
                   className={`bg-surface rounded-lg border border-border border-l-4 ${PRIORITY_COLORS[p.priority]} p-4 cursor-pointer`}
                 >
                   <div className="flex items-center justify-between mb-2">
@@ -215,35 +201,7 @@ export default function HomePage({
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${PRIORITY_BADGES[p.priority]}`}>
                         {p.priority}
                       </span>
-                      <button
-                        onClick={(e) => handleArchive(e, p.id)}
-                        className="text-ink-faint/70 hover:text-warning transition-colors cursor-pointer p-1"
-                        title="Archive project"
-                      >
-                        <Archive size={16} />
-                      </button>
-                      <button
-                        onClick={(e) => handleDelete(e, p.id)}
-                        className="text-ink-faint/70 hover:text-danger transition-colors cursor-pointer p-1"
-                        title="Delete project"
-                      >
-                        <Trash2 size={16} />
-                      </button>
                     </div>
-                  </div>
-
-                  <div className="flex items-center gap-1 mb-3">
-                    {(['none', 'low', 'medium', 'high'] as const).map((pri) => (
-                      <button
-                        key={pri}
-                        onClick={(e) => handlePriority(e, p.id, pri)}
-                        className={`text-xs px-2 py-0.5 rounded cursor-pointer transition-colors ${
-                          p.priority === pri ? PRIORITY_BADGES[pri] + ' font-semibold' : 'text-ink-faint hover:bg-surface-muted'
-                        }`}
-                      >
-                        {pri}
-                      </button>
-                    ))}
                   </div>
 
                   <div className="flex items-center gap-3">
@@ -280,6 +238,21 @@ export default function HomePage({
         confirmText="Delete"
         onConfirm={confirmDeleteAction}
         onCancel={() => setConfirmDelete(null)}
+      />
+
+      <ContextMenu
+        position={menu?.position ?? null}
+        onClose={() => setMenu(null)}
+        items={
+          menu
+            ? [
+                { label: 'Open project', icon: FolderOpen, onClick: () => onOpenProject(menu.project) },
+                'separator',
+                { label: 'Archive project', icon: Archive, onClick: () => handleArchive(menu.project.id) },
+                { label: 'Delete project', icon: Trash2, danger: true, onClick: () => setConfirmDelete(menu.project.id) },
+              ]
+            : []
+        }
       />
     </div>
   )
