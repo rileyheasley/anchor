@@ -6,6 +6,7 @@ import { clickSound } from '../sounds'
 
 export default function OverviewHome({ onOpenProject }: { onOpenProject: (project: Project) => void }) {
   const [projects, setProjects] = useState<Project[]>([])
+  const [recentProjects, setRecentProjects] = useState<Project[]>([])
   const [recycleItems, setRecycleItems] = useState<RecycleItem[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -19,7 +20,9 @@ export default function OverviewHome({ onOpenProject }: { onOpenProject: (projec
         window.api.projects.list(),
         window.api.recycle.list(),
       ])
-      setProjects(proj.filter(p => !p.archived).slice(0, 5))
+      const active = proj.filter(p => !p.archived)
+      setProjects(active)
+      setRecentProjects(active.slice(0, 5))
       setRecycleItems(recycle)
     } catch (error) {
       console.error('Failed to load home data:', error)
@@ -98,7 +101,7 @@ export default function OverviewHome({ onOpenProject }: { onOpenProject: (projec
             <h2 className="text-lg font-semibold text-ink mb-4">Recent Projects</h2>
             <div className="space-y-3">
               <AnimatePresence>
-                {projects.map((p, i) => {
+                {recentProjects.map((p, i) => {
                   const progress = p.total_points > 0 ? Math.round((p.done_points / p.total_points) * 100) : 0
                   return (
                     <motion.button

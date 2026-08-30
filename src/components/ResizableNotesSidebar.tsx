@@ -21,7 +21,7 @@ export default function ResizableNotesSidebar({
   collapsedWidth = 50,
   isDraggable = true,
 }: ResizableNotesSidebarProps) {
-  const [width, setWidth] = useState(defaultWidth)
+  const [width, setWidth] = useState(Math.max(minWidth, defaultWidth))
   const isDragging = useRef(false)
   const COLLAPSE_THRESHOLD = 120 // Auto-collapse below this width
 

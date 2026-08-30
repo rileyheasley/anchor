@@ -76,7 +76,6 @@ export default function MarkdownEditor({
       contentRef.current = content
       editor.commands.setContent(content)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [content, editor])
 
   useEffect(() => {

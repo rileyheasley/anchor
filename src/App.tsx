@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { Project } from './types'
+import type { Project, ThemeMode } from './types'
 import TitleBar from './components/TitleBar'
 import Sidebar from './components/Sidebar'
 import OverviewHome from './components/OverviewHome'
@@ -17,32 +17,41 @@ function App() {
   const [activeProject, setActiveProject] = useState<Project | null>(null)
   const [startCreatingNote, setStartCreatingNote] = useState(false)
   const [startCreatingProject, setStartCreatingProject] = useState(false)
-  const [isDarkMode, setIsDarkMode] = useState(false)
+  const [themeMode, setThemeMode] = useState<ThemeMode>('light')
+  const [systemPrefersDark, setSystemPrefersDark] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+
+  const isDarkMode = themeMode === 'system' ? systemPrefersDark : themeMode === 'dark'
 
   // Load theme preference from localStorage on mount
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme')
-    const prefersDark = savedTheme ? savedTheme === 'dark' : false
-    setIsDarkMode(prefersDark)
-    applyTheme(prefersDark)
+    const mode: ThemeMode = savedTheme === 'dark' || savedTheme === 'system' ? savedTheme : 'light'
+    setThemeMode(mode)
   }, [])
 
-  // Apply theme to document
-  const applyTheme = (dark: boolean) => {
-    if (dark) {
+  // Track the OS color scheme so 'system' mode stays in sync while the app is open
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    setSystemPrefersDark(media.matches)
+    const handleChange = (e: MediaQueryListEvent) => setSystemPrefersDark(e.matches)
+    media.addEventListener('change', handleChange)
+    return () => media.removeEventListener('change', handleChange)
+  }, [])
+
+  // Apply theme to document whenever the effective light/dark value changes
+  useEffect(() => {
+    if (isDarkMode) {
       document.documentElement.setAttribute('data-theme', 'dark')
     } else {
       document.documentElement.removeAttribute('data-theme')
     }
-    window.api?.window.setTitleBarTheme(dark)
-  }
+    window.api?.window.setTitleBarTheme(isDarkMode)
+  }, [isDarkMode])
 
-  // Handle theme toggle
-  const handleThemeToggle = (dark: boolean) => {
-    setIsDarkMode(dark)
-    applyTheme(dark)
-    localStorage.setItem('theme', dark ? 'dark' : 'light')
+  const handleThemeChange = (mode: ThemeMode) => {
+    setThemeMode(mode)
+    localStorage.setItem('theme', mode)
   }
 
   const handleNavigate = (v: View) => {
@@ -143,10 +152,9 @@ function App() {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
           view={view}
-          isInProject={activeProject !== null}
           onNavigate={handleNavigate}
-          isDarkMode={isDarkMode}
-          onThemeToggle={handleThemeToggle}
+          themeMode={themeMode}
+          onThemeChange={handleThemeChange}
           onOpenSettings={() => setIsSettingsOpen(true)}
         />
         <div className="flex-1 overflow-hidden">

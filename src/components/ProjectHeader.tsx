@@ -273,7 +273,7 @@ export default function ProjectHeader({
       <div>
         <h3 className="text-xs text-ink-faint uppercase tracking-wide font-medium mb-3">Project Notes</h3>
 
-        {notes.length > 0 || true ? (
+        {notes.length > 0 ? (
           <div className="flex flex-wrap gap-2 items-center">
             <AnimatePresence>
               {notes.map((note) => (
@@ -300,9 +300,18 @@ export default function ProjectHeader({
               <Plus size={16} />
             </button>
           </div>
-        ) : null}
-        {notes.length === 0 && (
-          <p className="text-xs text-ink-faint text-center py-3">No notes yet. Click the button to create one.</p>
+        ) : (
+          <div className="flex items-center gap-2">
+            <p className="text-xs text-ink-faint">No notes yet. Click the button to create one.</p>
+            <button
+              onClick={handleCreateNote}
+              disabled={isLoading}
+              className="p-2 rounded-lg bg-primary text-ink-inverse hover:bg-primary-hover transition-colors disabled:opacity-50 cursor-pointer flex items-center justify-center"
+              title="New note"
+            >
+              <Plus size={16} />
+            </button>
+          </div>
         )}
       </div>
 

@@ -299,6 +299,24 @@ function noteFilePath(filename: string): string | null {
   return path.join(vault, filename)
 }
 
+function deleteNoteFile(filename: string) {
+  const fp = noteFilePath(filename)
+  if (fp && fs.existsSync(fp)) {
+    try { fs.unlinkSync(fp) } catch { /* ignore */ }
+  }
+}
+
+// Removes notes (DB rows + files) attached to the given cards. Must run before any hard
+// delete that cascades away those cards, otherwise their notes silently become orphaned
+// "standalone" notes (notes.card_id is ON DELETE SET NULL, not CASCADE).
+function deleteNotesForCards(cardIds: string[]) {
+  if (cardIds.length === 0) return
+  const placeholders = cardIds.map(() => '?').join(',')
+  const notes = queryAll(`SELECT filename FROM notes WHERE card_id IN (${placeholders})`, cardIds)
+  for (const note of notes) deleteNoteFile(note.filename as string)
+  execute(`DELETE FROM notes WHERE card_id IN (${placeholders})`, cardIds)
+}
+
 // Derives a plain-text title from the first non-empty markdown line
 function deriveTitleFromContent(content: string): string {
   const firstLine = content.split('\n').find((line) => line.trim().length > 0) ?? ''
@@ -567,20 +585,40 @@ app.whenReady().then(async () => {
 
     ipcMain.handle('recycle:restore', (_event, type: string, id: string) => {
       if (type === 'project') execute('UPDATE projects SET deleted_at = NULL WHERE id = ?', [id])
-      else if (type === 'card') execute('UPDATE cards SET deleted_at = NULL WHERE id = ?', [id])
+      else if (type === 'card') {
+        // The card's original column may have since been deleted; fall back to the
+        // project's first column so the restored card doesn't become invisible.
+        const card = queryOne('SELECT project_id, column_id FROM cards WHERE id = ?', [id])
+        if (card) {
+          const columnExists = queryOne('SELECT id FROM kanban_columns WHERE id = ?', [card.column_id])
+          if (!columnExists) {
+            const fallbackCol = queryOne(
+              'SELECT id FROM kanban_columns WHERE project_id = ? ORDER BY position ASC LIMIT 1',
+              [card.project_id]
+            )
+            if (fallbackCol) execute('UPDATE cards SET column_id = ? WHERE id = ?', [fallbackCol.id, id])
+          }
+        }
+        execute('UPDATE cards SET deleted_at = NULL WHERE id = ?', [id])
+      }
       else if (type === 'note') execute('UPDATE notes SET deleted_at = NULL WHERE id = ?', [id])
       saveDatabase()
     })
 
     ipcMain.handle('recycle:purge', (_event, type: string, id: string) => {
-      if (type === 'project') execute('DELETE FROM projects WHERE id = ?', [id])
-      else if (type === 'card') execute('DELETE FROM cards WHERE id = ?', [id])
-      else if (type === 'note') {
+      if (type === 'project') {
+        const cardIds = queryAll('SELECT id FROM cards WHERE project_id = ?', [id]).map((r) => r.id as string)
+        deleteNotesForCards(cardIds)
+        const projectNotes = queryAll('SELECT filename FROM notes WHERE project_id = ?', [id])
+        for (const note of projectNotes) deleteNoteFile(note.filename as string)
+        execute('DELETE FROM notes WHERE project_id = ?', [id])
+        execute('DELETE FROM projects WHERE id = ?', [id])
+      } else if (type === 'card') {
+        deleteNotesForCards([id])
+        execute('DELETE FROM cards WHERE id = ?', [id])
+      } else if (type === 'note') {
         const note = queryOne('SELECT filename FROM notes WHERE id = ?', [id])
-        if (note) {
-          const fp = noteFilePath(note.filename as string)
-          if (fp && fs.existsSync(fp)) try { fs.unlinkSync(fp) } catch { /* ignore */ }
-        }
+        if (note) deleteNoteFile(note.filename as string)
         execute('DELETE FROM notes WHERE id = ?', [id])
       }
       saveDatabase()
@@ -736,9 +774,9 @@ app.whenReady().then(async () => {
     })
 
     ipcMain.handle('columns:delete', async (_event, id: string) => {
-      // Soft-delete all cards in this column
-      execute("UPDATE cards SET deleted_at = datetime('now'), updated_at = datetime('now') WHERE column_id = ? AND deleted_at IS NULL", [id])
-      // Hard-delete the column
+      // Deleting the column cascades to hard-delete its cards, so clean up their notes first
+      const cardIds = queryAll('SELECT id FROM cards WHERE column_id = ?', [id]).map((r) => r.id as string)
+      deleteNotesForCards(cardIds)
       execute('DELETE FROM kanban_columns WHERE id = ?', [id])
       saveDatabase()
     })

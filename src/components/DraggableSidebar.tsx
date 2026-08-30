@@ -21,7 +21,7 @@ export default function DraggableSidebar({
   collapsedWidth = 60,
   isDraggable = true,
 }: DraggableSidebarProps) {
-  const [width, setWidth] = useState(defaultWidth)
+  const [width, setWidth] = useState(Math.max(minWidth, defaultWidth))
   const isDragging = useRef(false)
   const COLLAPSE_THRESHOLD = 120 // Auto-collapse below this width
 

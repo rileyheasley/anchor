@@ -1,4 +1,5 @@
 export type Priority = 'none' | 'low' | 'medium' | 'high'
+export type ThemeMode = 'light' | 'dark' | 'system'
 
 export interface Project {
   id: string

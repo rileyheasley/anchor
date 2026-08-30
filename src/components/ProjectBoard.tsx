@@ -233,7 +233,9 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate }: { pr
       />
       <div className="flex flex-1 overflow-hidden">
         {/* Board */}
-        <div className="flex-1 overflow-x-auto p-6">
+        {/* Overflow is suppressed mid-drag: Chromium's native drag auto-scroll otherwise
+            flashes the OS-default scrollbar over our themed one. */}
+        <div className={`flex-1 p-6 ${draggingId || draggingColId ? 'overflow-hidden' : 'overflow-x-auto'}`}>
           <div className="flex gap-4 h-full items-start">
             {columns.map((col, colIndex) => {
               const isColumnDragTarget = dragOverColIndex === colIndex && draggingColId && draggingColId !== col.id
