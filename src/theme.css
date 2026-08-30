@@ -58,6 +58,11 @@
   --color-special: #a855f7;
   --color-special-subtle: #f3e8ff;
   --color-special-strong: #7e22ce;
+
+  /* Shadows — context-aware elevations */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 /* Dark Mode Variants */
@@ -107,4 +112,9 @@ html[data-theme="dark"] {
   --color-special-subtle: #3f1f5c;
   /* was #a855f7 (3.4:1 on special-subtle, fails WCAG AA) */
   --color-special-strong: #c084fc;
+
+  /* Shadows — subtle glow effect in dark mode */
+  --shadow-sm: 0 1px 2px rgba(167, 139, 250, 0.1);
+  --shadow-md: 0 4px 8px rgba(167, 139, 250, 0.08);
+  --shadow-lg: 0 4px 12px rgba(167, 139, 250, 0.12);
 }

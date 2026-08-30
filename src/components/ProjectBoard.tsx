@@ -4,6 +4,7 @@ import { Plus, Trash2, X, ChevronLeft } from 'lucide-react'
 import type { Project, KanbanColumn, Card, Note, Priority } from '../types'
 import { clickSound, createSound, deleteSound, completeSound, moveSound } from '../sounds'
 import ProjectHeader from './ProjectHeader'
+import ConfirmDialog from './ConfirmDialog'
 
 const PRIORITY_BADGES: Record<string, string> = {
   none: 'bg-surface-muted text-ink-muted',
@@ -12,17 +13,25 @@ const PRIORITY_BADGES: Record<string, string> = {
   high: 'bg-danger-subtle text-danger-strong',
 }
 
-export default function ProjectBoard({ project, onClose }: { project: Project, onClose: () => void }) {
+export default function ProjectBoard({ project, onClose, onProjectUpdate }: { project: Project, onClose: () => void, onProjectUpdate?: (updatedProject: Project) => void }) {
   const [columns, setColumns] = useState<KanbanColumn[]>([])
   const [cards, setCards] = useState<Card[]>([])
   const [addingTo, setAddingTo] = useState<string | null>(null)
   const [newTitle, setNewTitle] = useState('')
   const [newColName, setNewColName] = useState('')
+  const [newColIsDone, setNewColIsDone] = useState(false)
   const [addingColumn, setAddingColumn] = useState(false)
 
-  // Drag state
+  // Deletion confirmation state
+  const [confirmDelete, setConfirmDelete] = useState<{ type: 'column' | 'card', id: string } | null>(null)
+
+  // Drag state for cards
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dragOverColId, setDragOverColId] = useState<string | null>(null)
+
+  // Drag state for columns
+  const [draggingColId, setDraggingColId] = useState<string | null>(null)
+  const [dragOverColIndex, setDragOverColIndex] = useState<number | null>(null)
 
   // Card detail panel
   const [selectedCard, setSelectedCard] = useState<Card | null>(null)
@@ -98,12 +107,7 @@ export default function ProjectBoard({ project, onClose }: { project: Project, o
   }
 
   const handleDeleteCard = async (id: string) => {
-    deleteSound()
-    if (selectedCard?.id === id) setSelectedCard(null)
-    try {
-      await window.api.cards.delete(id)
-      await loadBoard()
-    } catch (error) { console.error('Failed to delete card:', error) }
+    setConfirmDelete({ type: 'card', id })
   }
 
   const handleMoveCard = async (cardId: string, targetColumnId: string) => {
@@ -140,20 +144,52 @@ export default function ProjectBoard({ project, onClose }: { project: Project, o
   const handleAddColumn = async () => {
     if (!newColName.trim()) return
     try {
-      await window.api.columns.create({ project_id: project.id, name: newColName })
+      await window.api.columns.create({ project_id: project.id, name: newColName, is_done: newColIsDone ? 1 : 0 })
       setNewColName('')
+      setNewColIsDone(false)
       setAddingColumn(false)
       createSound()
       await loadBoard()
     } catch (error) { console.error('Failed to create column:', error) }
   }
 
+  const handleReorderColumns = async (sourceIndex: number, targetIndex: number) => {
+    if (sourceIndex === targetIndex) return
+    const newColumns = [...columns]
+    const [removed] = newColumns.splice(sourceIndex, 1)
+    newColumns.splice(targetIndex, 0, removed)
+    setColumns(newColumns)
+    try {
+      await window.api.columns.reorder({ project_id: project.id, column_ids: newColumns.map(c => c.id) })
+    } catch (error) {
+      console.error('Failed to reorder columns:', error)
+      await loadBoard()
+    }
+  }
+
   const handleDeleteColumn = async (id: string) => {
+    setConfirmDelete({ type: 'column', id })
+  }
+
+  const confirmDeleteAction = async () => {
+    if (!confirmDelete) return
     deleteSound()
     try {
-      await window.api.columns.delete(id)
+      if (confirmDelete.type === 'column') {
+        await window.api.columns.delete(confirmDelete.id)
+      } else {
+        if (selectedCard?.id === confirmDelete.id) setSelectedCard(null)
+        await window.api.cards.delete(confirmDelete.id)
+      }
       await loadBoard()
-    } catch (error) { console.error('Failed to delete column:', error) }
+      // Reload project to update total_points and done_points
+      const updatedProject = await window.api.projects.list()
+      const currentProject = updatedProject.find(p => p.id === project.id)
+      if (currentProject && onProjectUpdate) {
+        onProjectUpdate(currentProject)
+      }
+    } catch (error) { console.error(`Failed to delete ${confirmDelete.type}:`, error) }
+    setConfirmDelete(null)
   }
 
   const openDetail = (card: Card) => {
@@ -190,21 +226,48 @@ export default function ProjectBoard({ project, onClose }: { project: Project, o
         {/* Board */}
         <div className="flex-1 overflow-x-auto p-6">
           <div className="flex gap-4 h-full items-start">
-            {columns.map((col) => (
+            {columns.map((col, colIndex) => {
+              const isColumnDragTarget = dragOverColIndex === colIndex && draggingColId && draggingColId !== col.id
+              return (
               <div
                 key={col.id}
-                className={`rounded-lg p-3 w-72 shrink-0 transition-colors duration-150 ${
-                  dragOverColId === col.id ? 'bg-accent-subtle ring-2 ring-accent/40' : 'bg-surface-muted'
+                className={`rounded-lg p-3 w-72 shrink-0 transition-all duration-150 ${
+                  dragOverColId === col.id && !draggingColId ? 'bg-accent-subtle ring-2 ring-accent/40' : 'bg-surface-muted'
+                } ${
+                  isColumnDragTarget ? 'ring-2 ring-warning/50 scale-105' : ''
+                } ${
+                  draggingColId === col.id ? 'opacity-50' : ''
                 }`}
-                onDragOver={(e) => { e.preventDefault(); setDragOverColId(col.id) }}
-                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverColId(null) }}
+                onDragOver={(e) => {
+                  e.preventDefault()
+                  if (draggingColId && draggingColId !== col.id) {
+                    setDragOverColIndex(colIndex)
+                  } else if (!draggingColId) {
+                    setDragOverColId(col.id)
+                  }
+                }}
+                onDragLeave={(e) => {
+                  if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                    if (draggingColId) {
+                      setDragOverColIndex(null)
+                    } else {
+                      setDragOverColId(null)
+                    }
+                  }
+                }}
                 onDrop={(e) => {
                   e.preventDefault()
-                  if (draggingId) handleMoveCard(draggingId, col.id)
-                  setDragOverColId(null)
+                  if (draggingColId && draggingColId !== col.id) {
+                    const sourceIndex = columns.findIndex(c => c.id === draggingColId)
+                    handleReorderColumns(sourceIndex, colIndex)
+                    setDragOverColIndex(null)
+                  } else if (draggingId) {
+                    handleMoveCard(draggingId, col.id)
+                    setDragOverColId(null)
+                  }
                 }}
               >
-                <div className="flex items-center justify-between mb-3 px-1">
+                <div className="flex items-center justify-between mb-3 px-1 group cursor-grab active:cursor-grabbing" draggable onDragStart={() => setDraggingColId(col.id)} onDragEnd={() => setDraggingColId(null)}>
                   <div className="flex items-center gap-2">
                     <h3 className="font-medium text-sm text-ink-secondary">{col.name}</h3>
                     <span className="text-xs text-ink-faint">{cardsInColumn(col.id).length}</span>
@@ -230,63 +293,64 @@ export default function ProjectBoard({ project, onClose }: { project: Project, o
                       const isSelected = selectedCard?.id === card.id
 
                       return (
-                        <motion.div
+                        <motion.button
                           key={card.id}
                           layout
                           initial={{ opacity: 0, scale: 0.9 }}
                           animate={{ opacity: draggingId === card.id ? 0.4 : 1, scale: 1 }}
                           exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.15 } }}
                           transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                          whileHover={{ y: -2, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                          whileHover={{ y: -2, boxShadow: 'var(--shadow-lg)' }}
                           draggable
                           onDragStart={() => setDraggingId(card.id)}
                           onDragEnd={() => { setDraggingId(null); setDragOverColId(null) }}
-                          className={`bg-surface rounded-lg border p-3 shadow-sm cursor-grab active:cursor-grabbing ${
+                          onClick={() => openDetail(card)}
+                          className={`w-full bg-surface rounded-lg border border-l-4 transition-all text-left cursor-grab active:cursor-grabbing group ${
                             isSelected ? 'border-accent-hover ring-1 ring-accent/40' : 'border-border'
+                          } ${
+                            card.priority === 'high' ? 'border-l-danger' :
+                            card.priority === 'medium' ? 'border-l-warning' :
+                            card.priority === 'low' ? 'border-l-accent' :
+                            'border-l-border'
                           }`}
                         >
-                          <div className="flex items-start justify-between mb-2">
-                            <button
-                              onClick={() => openDetail(card)}
-                              className="text-sm text-ink font-medium text-left hover:text-accent-hover transition-colors cursor-pointer leading-snug"
-                            >
-                              {card.title}
-                            </button>
-                            <button onClick={() => handleDeleteCard(card.id)}
-                              className="text-ink-faint/70 hover:text-danger text-sm leading-none cursor-pointer transition-colors shrink-0 ml-2">×</button>
-                          </div>
-
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <div className="flex gap-0.5">
-                              {[1,2,3,4,5].map((pt) => (
-                                <button key={pt} onClick={() => handleUpdatePoints(card.id, pt)}
-                                  className={`w-4 h-4 text-xs rounded cursor-pointer transition-colors ${card.points === pt ? 'bg-accent text-ink-inverse' : 'bg-surface-muted text-ink-faint hover:bg-border-strong'}`}>
-                                  {pt}
-                                </button>
-                              ))}
-                            </div>
-                            <span
-                              onClick={() => {
-                                const order = ['none','low','medium','high']
-                                handleUpdatePriority(card.id, order[(order.indexOf(card.priority)+1)%order.length])
-                              }}
-                              title="Click to cycle priority"
-                              className={`text-xs px-1.5 py-0.5 rounded cursor-pointer select-none ${PRIORITY_BADGES[card.priority]}`}
-                            >
-                              {card.priority[0].toUpperCase()}
-                            </span>
-                            {due && <span className={`text-xs ${due.color}`}>{due.label}</span>}
-                          </div>
-
-                          <div className="flex gap-1 flex-wrap mt-2">
-                            {columns.filter((c) => c.id !== col.id).map((c) => (
-                              <button key={c.id} onClick={() => handleMoveCard(card.id, c.id)}
-                                className="text-xs text-ink-faint hover:text-accent-hover hover:bg-accent-subtle px-1.5 py-0.5 rounded cursor-pointer transition-colors">
-                                → {c.name}
+                          <div className="p-3 flex flex-col gap-2">
+                            {/* Title */}
+                            <div className="flex items-start justify-between gap-2">
+                              <h3 className="text-sm text-ink font-medium leading-snug group-hover:text-accent-hover transition-colors flex-1">
+                                {card.title}
+                              </h3>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleDeleteCard(card.id)
+                                }}
+                                className="text-ink-faint/50 hover:text-danger text-lg leading-none cursor-pointer transition-colors shrink-0 opacity-0 group-hover:opacity-100"
+                              >
+                                ×
                               </button>
-                            ))}
+                            </div>
+
+                            {/* Metadata Footer */}
+                            <div className="flex items-center justify-between gap-2 text-xs text-ink-faint">
+                              <div className="flex items-center gap-2">
+                                {card.points !== null && card.points > 0 && (
+                                  <span className="text-ink-secondary font-medium">{card.points} pts</span>
+                                )}
+                                {card.priority !== 'none' && (
+                                  <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${PRIORITY_BADGES[card.priority]}`}>
+                                    {card.priority[0].toUpperCase()}
+                                  </span>
+                                )}
+                              </div>
+                              {due && (
+                                <span className={`text-xs font-medium ${due.color}`}>
+                                  {due.label}
+                                </span>
+                              )}
+                            </div>
                           </div>
-                        </motion.div>
+                        </motion.button>
                       )
                     })}
                   </AnimatePresence>
@@ -301,7 +365,7 @@ export default function ProjectBoard({ project, onClose }: { project: Project, o
                         if (e.key === 'Escape') { setAddingTo(null); setNewTitle('') }
                       }}
                       placeholder="Card title..."
-                      className="w-full px-2 py-1.5 text-sm border border-border-strong rounded focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                      className="w-full px-2 py-1.5 text-sm border border-border-strong rounded bg-surface-sunken text-ink placeholder-ink-faint focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                     />
                     <div className="flex gap-1 mt-1">
                       <button onClick={() => handleAddCard(col.id)} className="text-xs px-2 py-1 bg-primary text-ink-inverse rounded hover:bg-primary-hover cursor-pointer transition-colors flex items-center gap-1">
@@ -322,7 +386,8 @@ export default function ProjectBoard({ project, onClose }: { project: Project, o
                   </button>
                 )}
               </div>
-            ))}
+            )
+            })}
 
             {addingColumn ? (
               <div className="bg-surface-muted rounded-lg p-3 w-72 shrink-0">
@@ -330,17 +395,26 @@ export default function ProjectBoard({ project, onClose }: { project: Project, o
                   onChange={(e) => setNewColName(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleAddColumn()
-                    if (e.key === 'Escape') { setAddingColumn(false); setNewColName('') }
+                    if (e.key === 'Escape') { setAddingColumn(false); setNewColName(''); setNewColIsDone(false) }
                   }}
                   placeholder="Column name..."
-                  className="w-full px-2 py-1.5 text-sm border border-border-strong rounded focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                  className="w-full px-2 py-1.5 text-sm border border-border-strong rounded bg-surface-sunken text-ink placeholder-ink-faint focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                 />
+                <label className="flex items-center gap-2 mt-3 mb-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={newColIsDone}
+                    onChange={(e) => setNewColIsDone(e.target.checked)}
+                    className="w-4 h-4 accent-primary cursor-pointer"
+                  />
+                  <span className="text-sm text-ink-secondary">Mark as done column</span>
+                </label>
                 <div className="flex gap-1 mt-2">
                   <button onClick={handleAddColumn} className="text-xs px-2 py-1 bg-primary text-ink-inverse rounded hover:bg-primary-hover cursor-pointer transition-colors flex items-center gap-1">
                     <Plus size={14} />
                     Add
                   </button>
-                  <button onClick={() => { clickSound(); setAddingColumn(false); setNewColName('') }} className="text-xs px-2 py-1 text-ink-muted hover:bg-border-strong rounded cursor-pointer transition-colors flex items-center gap-1">
+                  <button onClick={() => { clickSound(); setAddingColumn(false); setNewColName(''); setNewColIsDone(false) }} className="text-xs px-2 py-1 text-ink-muted hover:bg-border-strong rounded cursor-pointer transition-colors flex items-center gap-1">
                     <X size={14} />
                     Cancel
                   </button>
@@ -424,7 +498,7 @@ export default function ProjectBoard({ project, onClose }: { project: Project, o
                       value={noteContent}
                       onChange={(e) => handleNoteContentChange(e.target.value)}
                       onBlur={() => saveNoteContent()}
-                      className="w-full h-56 p-3 text-sm font-mono text-ink-secondary border border-border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                      className="w-full h-56 p-3 text-sm font-mono text-ink-secondary bg-surface-sunken border border-border rounded-lg resize-none placeholder-ink-faint focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                       placeholder="Write in markdown…"
                     />
                   ) : (
@@ -441,6 +515,17 @@ export default function ProjectBoard({ project, onClose }: { project: Project, o
           )}
         </AnimatePresence>
       </div>
+
+      <ConfirmDialog
+        isOpen={!!confirmDelete}
+        title={confirmDelete?.type === 'column' ? 'Delete column?' : 'Delete card?'}
+        message={confirmDelete?.type === 'column' 
+          ? 'This will delete the entire column and all cards in it. This action cannot be undone.'
+          : 'This card will be moved to the recycle bin. You can restore it later.'}
+        confirmText="Delete"
+        onConfirm={confirmDeleteAction}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </div>
   )
 }

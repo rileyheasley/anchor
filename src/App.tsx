@@ -66,7 +66,7 @@ function App() {
 
   const content = () => {
     if (activeProject) {
-      return <ProjectBoard project={activeProject} onClose={() => setActiveProject(null)} />
+      return <ProjectBoard project={activeProject} onClose={() => setActiveProject(null)} onProjectUpdate={setActiveProject} />
     }
     if (view === 'home') {
       return <OverviewHome onOpenProject={setActiveProject} />

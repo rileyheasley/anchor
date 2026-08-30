@@ -106,7 +106,7 @@ export default function OverviewHome({ onOpenProject }: { onOpenProject: (projec
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: i * 0.05 }}
-                      whileHover={{ scale: 1.01, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
+                      whileHover={{ scale: 1.01, boxShadow: 'var(--shadow-md)' }}
                       whileTap={{ scale: 0.99 }}
                       onClick={() => { clickSound(); onOpenProject(p) }}
                       className="w-full bg-surface rounded-lg border border-border p-4 text-left hover:border-border-strong transition-colors cursor-pointer"

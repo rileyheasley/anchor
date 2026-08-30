@@ -694,15 +694,15 @@ app.whenReady().then(async () => {
       )
     })
 
-    ipcMain.handle('columns:create', async (_event, data: { project_id: string, name: string }) => {
+    ipcMain.handle('columns:create', async (_event, data: { project_id: string, name: string, is_done?: number }) => {
       const maxPos = queryOne(
         'SELECT COALESCE(MAX(position), -1) AS max_pos FROM kanban_columns WHERE project_id = ?',
         [data.project_id]
       )
       const id = crypto.randomUUID()
       execute(
-        'INSERT INTO kanban_columns (id, project_id, name, position) VALUES (?, ?, ?, ?)',
-        [id, data.project_id, data.name, (maxPos?.max_pos as number) + 1]
+        'INSERT INTO kanban_columns (id, project_id, name, position, is_done) VALUES (?, ?, ?, ?, ?)',
+        [id, data.project_id, data.name, (maxPos?.max_pos as number) + 1, data.is_done ?? 0]
       )
       saveDatabase()
       return queryOne('SELECT * FROM kanban_columns WHERE id = ?', [id])
@@ -736,6 +736,9 @@ app.whenReady().then(async () => {
     })
 
     ipcMain.handle('columns:delete', async (_event, id: string) => {
+      // Soft-delete all cards in this column
+      execute("UPDATE cards SET deleted_at = datetime('now'), updated_at = datetime('now') WHERE column_id = ? AND deleted_at IS NULL", [id])
+      // Hard-delete the column
       execute('DELETE FROM kanban_columns WHERE id = ?', [id])
       saveDatabase()
     })

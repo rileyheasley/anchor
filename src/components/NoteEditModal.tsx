@@ -3,6 +3,7 @@ import { X, Trash2 } from 'lucide-react'
 import type { Note } from '../types'
 import { clickSound, deleteSound } from '../sounds'
 import MarkdownEditor from './MarkdownEditor'
+import ConfirmDialog from './ConfirmDialog'
 
 interface NoteEditModalProps {
   isOpen: boolean
@@ -25,6 +26,7 @@ export default function NoteEditModal({
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [content, setContent] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const titleInputRef = useRef<HTMLInputElement>(null)
 
@@ -77,16 +79,19 @@ export default function NoteEditModal({
   }
 
   const handleDelete = async () => {
+    setConfirmDelete(true)
+  }
+
+  const confirmDeleteAction = async () => {
     if (!note) return
-    if (confirm('Delete this note? This cannot be undone.')) {
-      deleteSound()
-      try {
-        await onDelete()
-        onClose()
-      } catch (error) {
-        console.error('Failed to delete note:', error)
-      }
+    deleteSound()
+    try {
+      await onDelete()
+      onClose()
+    } catch (error) {
+      console.error('Failed to delete note:', error)
     }
+    setConfirmDelete(false)
   }
 
   const handleClose = () => {
@@ -170,6 +175,15 @@ export default function NoteEditModal({
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        isOpen={confirmDelete}
+        title="Delete note?"
+        message="This note will be moved to the recycle bin. You can restore it later."
+        confirmText="Delete"
+        onConfirm={confirmDeleteAction}
+        onCancel={() => setConfirmDelete(false)}
+      />
     </div>
   )
 }

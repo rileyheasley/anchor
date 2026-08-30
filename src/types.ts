@@ -74,7 +74,7 @@ declare global {
       }
       columns: {
         list: (projectId: string) => Promise<KanbanColumn[]>
-        create: (data: { project_id: string, name: string }) => Promise<KanbanColumn>
+        create: (data: { project_id: string, name: string, is_done?: number }) => Promise<KanbanColumn>
         update: (data: { id: string, name?: string, is_done?: number }) => Promise<KanbanColumn>
         reorder: (data: { project_id: string, column_ids: string[] }) => Promise<void>
         delete: (id: string) => Promise<void>

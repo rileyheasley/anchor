@@ -4,6 +4,7 @@ import { Plus, Trash2, Archive } from 'lucide-react'
 import type { Project, Priority } from '../types'
 import { clickSound, deleteSound } from '../sounds'
 import ProjectCreationModal from './ProjectCreationModal'
+import ConfirmDialog from './ConfirmDialog'
 
 const PRIORITY_COLORS: Record<string, string> = {
   none: 'border-l-ink-faint',
@@ -52,6 +53,7 @@ export default function HomePage({
   const [isCreatingModalOpen, setIsCreatingModalOpen] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [sortBy, setSortBy] = useState<SortMode>('priority')
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
 
   useEffect(() => { loadProjects() }, [])
 
@@ -97,15 +99,21 @@ export default function HomePage({
     }
   }
 
-  const handleDelete = async (e: React.MouseEvent, id: string) => {
+  const handleDelete = (e: React.MouseEvent, id: string) => {
     e.stopPropagation()
+    setConfirmDelete(id)
+  }
+
+  const confirmDeleteAction = async () => {
+    if (!confirmDelete) return
     deleteSound()
     try {
-      await window.api.projects.delete(id)
+      await window.api.projects.delete(confirmDelete)
       await loadProjects()
     } catch (error) {
       console.error('Failed to delete project:', error)
     }
+    setConfirmDelete(null)
   }
 
   const handleArchive = async (e: React.MouseEvent, id: string) => {
@@ -195,7 +203,7 @@ export default function HomePage({
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, x: -100, transition: { duration: 0.2 } }}
                   transition={{ delay: i * 0.04, type: 'spring', stiffness: 500, damping: 30 }}
-                  whileHover={{ scale: 1.01, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
+                  whileHover={{ scale: 1.01, boxShadow: 'var(--shadow-md)' }}
                   whileTap={{ scale: 0.99 }}
                   onClick={() => { clickSound(); onOpenProject(p) }}
                   className={`bg-surface rounded-lg border border-border border-l-4 ${PRIORITY_COLORS[p.priority]} p-4 cursor-pointer`}
@@ -263,6 +271,15 @@ export default function HomePage({
         onClose={() => setIsCreatingModalOpen(false)}
         onCreate={handleCreate}
         isLoading={isCreating}
+      />
+
+      <ConfirmDialog
+        isOpen={!!confirmDelete}
+        title="Delete project?"
+        message="This project will be moved to the recycle bin. You can restore it later."
+        confirmText="Delete"
+        onConfirm={confirmDeleteAction}
+        onCancel={() => setConfirmDelete(null)}
       />
     </div>
   )

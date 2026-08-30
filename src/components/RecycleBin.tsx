@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react'
 import { RotateCcw, Trash2, Clock } from 'lucide-react'
 import type { RecycleItem } from '../types'
 import { clickSound, deleteSound } from '../sounds'
+import ConfirmDialog from './ConfirmDialog'
 
 const TYPE_LABELS: Record<string, string> = {
   project: 'Project',
@@ -18,6 +19,7 @@ const TYPE_COLORS: Record<string, string> = {
 
 export default function RecycleBin() {
   const [items, setItems] = useState<RecycleItem[]>([])
+  const [confirmDelete, setConfirmDelete] = useState<{ type: string; id: string } | null>(null)
 
   useEffect(() => {
     load()
@@ -33,10 +35,16 @@ export default function RecycleBin() {
     await load()
   }
 
-  const handlePurge = async (type: string, id: string) => {
+  const handlePurge = (type: string, id: string) => {
+    setConfirmDelete({ type, id })
+  }
+
+  const confirmDeleteAction = async () => {
+    if (!confirmDelete) return
     deleteSound()
-    await window.api.recycle.purge(type, id)
+    await window.api.recycle.purge(confirmDelete.type, confirmDelete.id)
     await load()
+    setConfirmDelete(null)
   }
 
   const formatDate = (iso: string) => {
@@ -106,6 +114,15 @@ export default function RecycleBin() {
           </AnimatePresence>
         </div>
       </main>
+
+      <ConfirmDialog
+        isOpen={!!confirmDelete}
+        title="Permanently delete?"
+        message="This item will be permanently deleted and cannot be recovered."
+        confirmText="Delete permanently"
+        onConfirm={confirmDeleteAction}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </div>
   )
 }

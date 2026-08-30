@@ -5,6 +5,7 @@ import type { Note } from '../types'
 import { createSound, deleteSound, clickSound } from '../sounds'
 import MarkdownEditor from './MarkdownEditor'
 import ResizableNotesSidebar from './ResizableNotesSidebar'
+import ConfirmDialog from './ConfirmDialog'
 
 // Derives a plain-text title from the first non-empty markdown line
 function deriveTitleFromContent(content: string): string {
@@ -39,6 +40,7 @@ export default function NotesPage({
   const [creating, setCreating] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -105,11 +107,17 @@ export default function NotesPage({
     handleOpenNote(note as Note)
   }
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = (id: string) => {
+    setConfirmDelete(id)
+  }
+
+  const confirmDeleteAction = async () => {
+    if (!confirmDelete) return
     deleteSound()
-    if (activeNote?.id === id) { setActiveNote(null); setContent('') }
-    await window.api.notes.delete(id)
+    if (activeNote?.id === confirmDelete) { setActiveNote(null); setContent('') }
+    await window.api.notes.delete(confirmDelete)
     await loadVaultAndNotes()
+    setConfirmDelete(null)
   }
 
   if (!vaultPath) {
@@ -174,7 +182,7 @@ export default function NotesPage({
                         if (e.key === 'Escape') { setCreating(false); setNewTitle('') }
                       }}
                       placeholder="Note title..."
-                      className="w-full px-2 py-1.5 text-sm border border-border-strong rounded focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                      className="w-full px-2 py-1.5 text-sm border border-border-strong rounded bg-surface-sunken text-ink placeholder-ink-faint focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                     />
                   </div>
                 )}
@@ -276,6 +284,15 @@ export default function NotesPage({
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={!!confirmDelete}
+        title="Delete note?"
+        message="This note will be moved to the recycle bin. You can restore it later."
+        confirmText="Delete"
+        onConfirm={confirmDeleteAction}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </div>
   )
 }

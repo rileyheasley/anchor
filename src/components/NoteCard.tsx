@@ -28,7 +28,7 @@ export default function NoteCard({
       animate={{ opacity: isDragging ? 0.4 : 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.15 } }}
       transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-      whileHover={{ y: -2, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+      whileHover={{ y: -2, boxShadow: 'var(--shadow-lg)' }}
       draggable
       onDragStart={() => onDragStart?.(note)}
       onDragEnd={() => onDragEnd?.()}
