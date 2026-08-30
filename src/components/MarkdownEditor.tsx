@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useEditor, EditorContent, type Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -6,6 +6,7 @@ import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
 import { Markdown } from 'tiptap-markdown'
 import { clickSound } from '../sounds'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 
 interface ContextMenuState {
   x: number
@@ -50,6 +51,7 @@ export default function MarkdownEditor({
   placeholder?: string
 }) {
   const [menu, setMenu] = useState<ContextMenuState | null>(null)
+  const [menuPlacement, setMenuPlacement] = useState<{ top: number; left: number } | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef(content)
 
@@ -89,6 +91,21 @@ export default function MarkdownEditor({
     }
   }, [menu])
 
+  useEscapeKey(() => setMenu(null), !!menu)
+
+  // Clamp the menu inside the viewport once its size is known
+  useLayoutEffect(() => {
+    if (!menu || !menuRef.current) {
+      setMenuPlacement(null)
+      return
+    }
+    const rect = menuRef.current.getBoundingClientRect()
+    const padding = 8
+    const left = Math.max(padding, Math.min(menu.x, window.innerWidth - rect.width - padding))
+    const top = Math.max(padding, Math.min(menu.y, window.innerHeight - rect.height - padding))
+    setMenuPlacement({ top, left })
+  }, [menu])
+
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault()
     setMenu({ x: e.clientX, y: e.clientY })
@@ -104,7 +121,11 @@ export default function MarkdownEditor({
         <div
           ref={menuRef}
           className="fixed z-50 bg-surface border border-border rounded-lg shadow-lg py-1 min-w-[170px] text-sm"
-          style={{ top: menu.y, left: menu.x }}
+          style={{
+            top: menuPlacement?.top ?? menu.y,
+            left: menuPlacement?.left ?? menu.x,
+            visibility: menuPlacement ? 'visible' : 'hidden',
+          }}
           onClick={(e) => e.stopPropagation()}
         >
           {MENU_ITEMS.map((item, i) =>

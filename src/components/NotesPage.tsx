@@ -50,6 +50,12 @@ export default function NotesPage({
   }, [])
 
   useEffect(() => {
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current)
+    }
+  }, [])
+
+  useEffect(() => {
     if (startCreatingProp) {
       setCreating(true)
       onCreateHandled?.()
@@ -74,6 +80,7 @@ export default function NotesPage({
   }
 
   const handleOpenNote = async (note: Note) => {
+    if (saveTimer.current) clearTimeout(saveTimer.current)
     if (dirty && activeNote) await saveActive()
     setActiveNote(note)
     const c = await window.api.notes.getContent(note.id)

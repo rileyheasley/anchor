@@ -20,6 +20,7 @@ const TYPE_COLORS: Record<string, string> = {
 
 export default function RecycleBin() {
   const [items, setItems] = useState<RecycleItem[]>([])
+  const [loading, setLoading] = useState(true)
   const [confirmDelete, setConfirmDelete] = useState<{ type: string; id: string } | null>(null)
   const [menu, setMenu] = useState<{ item: RecycleItem; position: ContextMenuPosition } | null>(null)
 
@@ -29,6 +30,7 @@ export default function RecycleBin() {
 
   const load = async () => {
     setItems(await window.api.recycle.list())
+    setLoading(false)
   }
 
   const handleRestore = async (type: string, id: string) => {
@@ -65,7 +67,7 @@ export default function RecycleBin() {
   return (
     <div className="min-h-screen bg-surface-sunken">
       <main className="max-w-3xl mx-auto px-6 py-8">
-        {items.length === 0 && (
+        {!loading && items.length === 0 && (
           <div className="text-center py-16 text-ink-faint">
             <p className="text-lg">Recycle bin is empty</p>
             <p className="text-sm mt-1">Deleted items appear here for 30 days before being permanently removed</p>

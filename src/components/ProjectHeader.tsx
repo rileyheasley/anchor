@@ -7,6 +7,7 @@ import NoteCard from './NoteCard'
 import NoteEditModal from './NoteEditModal'
 import ConfirmDialog from './ConfirmDialog'
 import ContextMenu, { type ContextMenuPosition } from './ContextMenu'
+import { PRIORITY_BADGES, dueDateInfo } from '../utils/priority'
 
 interface ProjectHeaderProps {
   project: Project
@@ -14,13 +15,6 @@ interface ProjectHeaderProps {
   totalPoints: number
   donePoints: number
   isLoading?: boolean
-}
-
-const PRIORITY_BADGES: Record<string, string> = {
-  none: 'bg-surface-muted text-ink-muted',
-  low: 'bg-accent-subtle text-accent-strong',
-  medium: 'bg-warning-subtle text-warning-strong',
-  high: 'bg-danger-subtle text-danger-strong',
 }
 
 export default function ProjectHeader({
@@ -182,20 +176,19 @@ export default function ProjectHeader({
   }
 
   const progressPercent = totalPoints > 0 ? Math.round((donePoints / totalPoints) * 100) : 0
+  const dueInfo = dueDateInfo(displayDueDate)
 
-  const dueInfo = (() => {
-    if (!displayDueDate) return null
-    const due = new Date(displayDueDate)
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    due.setHours(0, 0, 0, 0)
-    const diff = Math.round((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-    if (diff < 0) return { label: `${Math.abs(diff)}d overdue`, color: 'text-danger' }
-    if (diff === 0) return { label: 'Due today', color: 'text-danger' }
-    if (diff <= 3) return { label: `Due in ${diff}d`, color: 'text-warning' }
-    if (diff <= 7) return { label: `Due in ${diff}d`, color: 'text-warning-hover' }
-    return { label: `Due in ${diff}d`, color: 'text-ink-faint' }
-  })()
+  const [colorScheme, setColorScheme] = useState<'light' | 'dark'>(
+    () => (document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light')
+  )
+
+  useEffect(() => {
+    const update = () => setColorScheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light')
+    update()
+    const observer = new MutationObserver(update)
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+    return () => observer.disconnect()
+  }, [])
 
   return (
     <div className="border-b border-border-subtle bg-surface px-6 py-4 space-y-4 shrink-0">
@@ -265,7 +258,7 @@ export default function ProjectHeader({
             onChange={(e) => handleUpdateDueDate(e.target.value || null)}
             disabled={isLoading}
             className="bg-surface-sunken text-ink border border-border-strong rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-50"
-            style={{ colorScheme: document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light' }}
+            style={{ colorScheme }}
           />
           {dueInfo && <span className={`text-xs font-medium ${dueInfo.color}`}>{dueInfo.label}</span>}
         </div>

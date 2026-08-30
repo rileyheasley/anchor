@@ -6,6 +6,7 @@ import { clickSound, deleteSound } from '../sounds'
 import ProjectCreationModal from './ProjectCreationModal'
 import ConfirmDialog from './ConfirmDialog'
 import ContextMenu, { type ContextMenuPosition } from './ContextMenu'
+import { PRIORITY_BADGES, dueDateInfo } from '../utils/priority'
 
 const PRIORITY_COLORS: Record<string, string> = {
   none: 'border-l-ink-faint',
@@ -14,30 +15,9 @@ const PRIORITY_COLORS: Record<string, string> = {
   high: 'border-l-danger',
 }
 
-const PRIORITY_BADGES: Record<string, string> = {
-  none: 'bg-surface-muted text-ink-muted',
-  low: 'bg-accent-subtle text-accent-strong',
-  medium: 'bg-warning-subtle text-warning-strong',
-  high: 'bg-danger-subtle text-danger-strong',
-}
-
 const PRIORITY_ORDER: Record<Priority, number> = { high: 0, medium: 1, low: 2, none: 3 }
 
 type SortMode = 'priority' | 'dueDate' | 'name'
-
-function dueDateInfo(dateStr: string | null): { label: string; color: string } | null {
-  if (!dateStr) return null
-  const due = new Date(dateStr)
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  due.setHours(0, 0, 0, 0)
-  const diff = Math.round((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-  if (diff < 0) return { label: `${Math.abs(diff)}d overdue`, color: 'text-danger font-medium' }
-  if (diff === 0) return { label: 'Due today', color: 'text-danger font-medium' }
-  if (diff <= 3) return { label: `Due in ${diff}d`, color: 'text-warning' }
-  if (diff <= 7) return { label: `Due in ${diff}d`, color: 'text-warning-hover' }
-  return { label: `Due in ${diff}d`, color: 'text-ink-faint' }
-}
 
 export default function HomePage({
   onOpenProject,

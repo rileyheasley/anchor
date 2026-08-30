@@ -5,6 +5,7 @@ import { clickSound, deleteSound } from '../sounds'
 import MarkdownEditor from './MarkdownEditor'
 import ConfirmDialog from './ConfirmDialog'
 import { useEscapeKey } from '../hooks/useEscapeKey'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 interface NoteEditModalProps {
   isOpen: boolean
@@ -30,13 +31,23 @@ export default function NoteEditModal({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const titleInputRef = useRef<HTMLInputElement>(null)
+  const activeNoteIdRef = useRef<string | null>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (note && isOpen) {
+      if (saveTimer.current) clearTimeout(saveTimer.current)
       setTitle(note.title)
-      loadNoteContent()
+      activeNoteIdRef.current = note.id
+      loadNoteContent(note.id)
     }
   }, [note?.id, isOpen])
+
+  useEffect(() => {
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current)
+    }
+  }, [])
 
   useEffect(() => {
     if (isEditingTitle && titleInputRef.current) {
@@ -44,21 +55,21 @@ export default function NoteEditModal({
     }
   }, [isEditingTitle])
 
-  const loadNoteContent = async () => {
-    if (!note) return
+  const loadNoteContent = async (noteId: string) => {
     try {
-      const text = await window.api.notes.getContent(note.id)
+      const text = await window.api.notes.getContent(noteId)
+      if (activeNoteIdRef.current !== noteId) return
       setContent(text ?? '')
     } catch (error) {
       console.error('Failed to load note content:', error)
     }
   }
 
-  const handleSave = async () => {
+  const handleSave = async (overrideContent?: string) => {
     if (!note) return
     setIsSaving(true)
     try {
-      await onSave(content, title)
+      await onSave(overrideContent ?? content, title)
     } catch (error) {
       console.error('Failed to save note:', error)
     } finally {
@@ -102,12 +113,21 @@ export default function NoteEditModal({
   }
 
   useEscapeKey(handleClose, isOpen && !confirmDelete)
+  useFocusTrap(panelRef, isOpen && !confirmDelete)
 
   if (!isOpen || !note) return null
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-surface border border-border-subtle rounded-lg shadow-lg w-full max-w-2xl max-h-[80vh] flex flex-col">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={handleClose}>
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Edit note"
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+        className="bg-surface border border-border-subtle rounded-lg shadow-lg w-full max-w-2xl max-h-[80vh] flex flex-col"
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-border-subtle shrink-0">
           {isEditingTitle ? (
@@ -163,7 +183,7 @@ export default function NoteEditModal({
               setContent(markdown)
               if (saveTimer.current) clearTimeout(saveTimer.current)
               saveTimer.current = setTimeout(() => {
-                handleSave()
+                handleSave(markdown)
               }, 1500)
             }}
             onBlur={handleSave}

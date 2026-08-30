@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import type { Priority } from '../types'
 import { clickSound, createSound } from '../sounds'
 import { useEscapeKey } from '../hooks/useEscapeKey'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 interface ProjectCreationModalProps {
   isOpen: boolean
@@ -62,13 +63,24 @@ export default function ProjectCreationModal({
     }
   }
 
+  const panelRef = useRef<HTMLDivElement>(null)
+
   useEscapeKey(handleClose, isOpen)
+  useFocusTrap(panelRef, isOpen)
 
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-surface border border-border-subtle rounded-lg shadow-lg w-full max-w-md flex flex-col">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={handleClose}>
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Create New Project"
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+        className="bg-surface border border-border-subtle rounded-lg shadow-lg w-full max-w-md flex flex-col"
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-border-subtle">
           <h2 className="text-lg font-medium text-ink">Create New Project</h2>

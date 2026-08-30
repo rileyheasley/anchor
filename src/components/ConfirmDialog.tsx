@@ -1,5 +1,7 @@
+import { useRef } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { useEscapeKey } from '../hooks/useEscapeKey'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 interface ConfirmDialogProps {
   isOpen: boolean
@@ -22,7 +24,10 @@ export default function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  const panelRef = useRef<HTMLDivElement>(null)
+
   useEscapeKey(onCancel, isOpen)
+  useFocusTrap(panelRef, isOpen)
 
   return (
     <AnimatePresence>
@@ -35,6 +40,11 @@ export default function ConfirmDialog({
           className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
         >
           <motion.div
+            ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={title}
+            tabIndex={-1}
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.95, opacity: 0 }}

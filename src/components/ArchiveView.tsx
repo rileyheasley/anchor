@@ -7,6 +7,7 @@ import ContextMenu, { type ContextMenuPosition } from './ContextMenu'
 
 export default function ArchiveView({ onOpenProject }: { onOpenProject: (p: Project) => void }) {
   const [projects, setProjects] = useState<Project[]>([])
+  const [loading, setLoading] = useState(true)
   const [menu, setMenu] = useState<{ project: Project; position: ContextMenuPosition } | null>(null)
 
   useEffect(() => {
@@ -15,6 +16,7 @@ export default function ArchiveView({ onOpenProject }: { onOpenProject: (p: Proj
 
   const load = async () => {
     setProjects(await window.api.archive.list())
+    setLoading(false)
   }
 
   const handleRestore = async (id: string) => {
@@ -29,7 +31,7 @@ export default function ArchiveView({ onOpenProject }: { onOpenProject: (p: Proj
   return (
     <div className="min-h-screen bg-surface-sunken">
       <main className="max-w-3xl mx-auto px-6 py-8">
-        {projects.length === 0 && (
+        {!loading && projects.length === 0 && (
           <div className="text-center py-16 text-ink-faint">
             <p className="text-lg">No archived projects</p>
             <p className="text-sm mt-1">Archive a project from the home page to store it here</p>

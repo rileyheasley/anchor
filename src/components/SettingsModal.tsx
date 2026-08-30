@@ -1,6 +1,8 @@
+import { useRef } from 'react'
 import { X, Keyboard } from 'lucide-react'
 import { clickSound } from '../sounds'
 import { useEscapeKey } from '../hooks/useEscapeKey'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 import { getShortcutGroups } from '../shortcuts'
 
 interface SettingsModalProps {
@@ -9,18 +11,30 @@ interface SettingsModalProps {
 }
 
 export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
+  const panelRef = useRef<HTMLDivElement>(null)
+  const handleClose = () => { clickSound(); onClose() }
+
   useEscapeKey(onClose, isOpen)
+  useFocusTrap(panelRef, isOpen)
 
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-surface border border-border-subtle rounded-lg shadow-lg w-[30rem] h-[32rem] flex flex-col">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={handleClose}>
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Settings"
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+        className="bg-surface border border-border-subtle rounded-lg shadow-lg w-[30rem] h-[32rem] flex flex-col"
+      >
         {/* Header with Close Button */}
         <div className="flex items-center justify-between p-4 border-b border-border-subtle">
           <h2 className="text-lg font-medium text-ink">Settings</h2>
           <button
-            onClick={() => { clickSound(); onClose() }}
+            onClick={handleClose}
             className="p-1 rounded-lg text-ink-muted hover:bg-surface-sunken hover:text-ink transition-colors"
             title="Close settings"
           >

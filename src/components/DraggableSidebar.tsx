@@ -1,4 +1,4 @@
-import { useState, useRef, ReactNode } from 'react'
+import { useState, useRef, useEffect, ReactNode } from 'react'
 
 interface DraggableSidebarProps {
   children: ReactNode
@@ -23,7 +23,12 @@ export default function DraggableSidebar({
 }: DraggableSidebarProps) {
   const [width, setWidth] = useState(Math.max(minWidth, defaultWidth))
   const isDragging = useRef(false)
+  const isCollapsedRef = useRef(isCollapsed)
   const COLLAPSE_THRESHOLD = 120 // Auto-collapse below this width
+
+  useEffect(() => {
+    isCollapsedRef.current = isCollapsed
+  }, [isCollapsed])
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!isDraggable) return
@@ -39,14 +44,19 @@ export default function DraggableSidebar({
       const diff = moveEvent.clientX - startX
       const newWidth = Math.max(collapsedWidth, Math.min(maxWidth, startWidth + diff))
 
-      setWidth(newWidth)
-      
+      // Only persist widths that are actually usable when expanded, so a
+      // drag that collapses the sidebar doesn't leave a tiny leftover width
+      // for the next manual expand.
+      if (newWidth >= minWidth) {
+        setWidth(newWidth)
+      }
+
       // Auto-collapse when dragging below threshold
       if (newWidth < COLLAPSE_THRESHOLD) {
         onCollapsedChange(true)
       }
       // Auto-expand when dragging above threshold
-      else if (newWidth > COLLAPSE_THRESHOLD && isCollapsed) {
+      else if (newWidth > COLLAPSE_THRESHOLD && isCollapsedRef.current) {
         onCollapsedChange(false)
       }
     }

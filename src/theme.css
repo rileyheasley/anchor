@@ -49,7 +49,7 @@
   --color-warning: #f59e0b;
   --color-warning-subtle: #fef3c7;
   --color-warning-strong: #b45309;
-  --color-warning-hover: #fbbf24;
+  --color-warning-hover: #d97706;
 
   --color-danger: #ef4444;
   --color-danger-subtle: #fee2e2;
@@ -78,8 +78,8 @@ html[data-theme="dark"] {
 
   --color-ink: #e7e4da;
   --color-ink-secondary: #c8c4b8;
-  --color-ink-muted: #8a8278;
-  --color-ink-faint: #b6b0aa;
+  --color-ink-muted: #b6b0aa;
+  --color-ink-faint: #8a8278;
   --color-ink-inverse: #1a1a1e;
 
   --color-primary: #e7e4da;

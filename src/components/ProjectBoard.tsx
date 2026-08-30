@@ -7,13 +7,7 @@ import ProjectHeader from './ProjectHeader'
 import ConfirmDialog from './ConfirmDialog'
 import ContextMenu, { type ContextMenuEntry, type ContextMenuPosition } from './ContextMenu'
 import { useEscapeKey } from '../hooks/useEscapeKey'
-
-const PRIORITY_BADGES: Record<string, string> = {
-  none: 'bg-surface-muted text-ink-muted',
-  low: 'bg-accent-subtle text-accent-strong',
-  medium: 'bg-warning-subtle text-warning-strong',
-  high: 'bg-danger-subtle text-danger-strong',
-}
+import { PRIORITY_BADGES } from '../utils/priority'
 
 export default function ProjectBoard({ project, onClose, onProjectUpdate }: { project: Project, onClose: () => void, onProjectUpdate?: (updatedProject: Project) => void }) {
   const [columns, setColumns] = useState<KanbanColumn[]>([])
@@ -30,6 +24,7 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate }: { pr
   // Drag state for cards
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dragOverColId, setDragOverColId] = useState<string | null>(null)
+  const [dragOverCardId, setDragOverCardId] = useState<string | null>(null)
 
   // Drag state for columns
   const [draggingColId, setDraggingColId] = useState<string | null>(null)
@@ -49,8 +44,17 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate }: { pr
   const [cardMenu, setCardMenu] = useState<{ card: Card; position: ContextMenuPosition } | null>(null)
   const [columnMenu, setColumnMenu] = useState<{ column: KanbanColumn; position: ContextMenuPosition } | null>(null)
 
+  const selectedCardIdRef = useRef<string | null>(null)
+
   useEffect(() => { loadBoard() }, [project.id])
   useEffect(() => { if (selectedCard) loadCardNote(selectedCard) }, [selectedCard?.id])
+  useEffect(() => { selectedCardIdRef.current = selectedCard?.id ?? null }, [selectedCard])
+
+  useEffect(() => {
+    return () => {
+      if (noteSaveTimer.current) clearTimeout(noteSaveTimer.current)
+    }
+  }, [])
 
   // Esc closes the card editor panel first; when nothing else is open, it exits the board.
   useEscapeKey(() => {
@@ -87,10 +91,13 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate }: { pr
 
   const handleCreateCardNote = async () => {
     if (!selectedCard) return
-    const note = await window.api.notes.create({ title: selectedCard.title, card_id: selectedCard.id })
+    const cardId = selectedCard.id
+    const note = await window.api.notes.create({ title: selectedCard.title, card_id: cardId })
     createSound()
+    const text = await window.api.notes.getContent(note.id) ?? ''
+    if (selectedCardIdRef.current !== cardId) return
     setCardNote(note as Note)
-    setNoteContent(await window.api.notes.getContent(note!.id) ?? '')
+    setNoteContent(text)
   }
 
   const handleNoteContentChange = (val: string) => {
@@ -134,6 +141,51 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate }: { pr
       targetCol?.is_done ? completeSound() : moveSound()
       await loadBoard()
       if (selectedCard?.id === cardId) setSelectedCard(prev => prev ? { ...prev, column_id: targetColumnId } : prev)
+    } catch (error) { console.error('Failed to move card:', error) }
+  }
+
+  const handleReorderCards = async (cardId: string, targetCardId: string) => {
+    const sourceCard = cards.find((c) => c.id === cardId)
+    if (!sourceCard) return
+    const columnId = sourceCard.column_id
+    const columnCards = cardsInColumn(columnId)
+    const sourceIndex = columnCards.findIndex((c) => c.id === cardId)
+    const targetIndex = columnCards.findIndex((c) => c.id === targetCardId)
+    if (sourceIndex === -1 || targetIndex === -1 || sourceIndex === targetIndex) return
+
+    const reordered = [...columnCards]
+    const [removed] = reordered.splice(sourceIndex, 1)
+    reordered.splice(targetIndex, 0, removed)
+
+    setCards((prev) => {
+      const others = prev.filter((c) => c.column_id !== columnId)
+      return [...others, ...reordered.map((c, i) => ({ ...c, position: i }))]
+    })
+    try {
+      await window.api.cards.reorder({ column_id: columnId, card_ids: reordered.map((c) => c.id) })
+    } catch (error) {
+      console.error('Failed to reorder cards:', error)
+      await loadBoard()
+    }
+  }
+
+  const handleCardDrop = async (targetCard: Card) => {
+    setDragOverCardId(null)
+    if (!draggingId || draggingId === targetCard.id) return
+    const sourceCard = cards.find((c) => c.id === draggingId)
+    if (!sourceCard) return
+    if (sourceCard.column_id === targetCard.column_id) {
+      await handleReorderCards(draggingId, targetCard.id)
+      return
+    }
+    try {
+      const targetCards = cardsInColumn(targetCard.column_id)
+      const targetIndex = targetCards.findIndex((c) => c.id === targetCard.id)
+      await window.api.cards.move({ id: draggingId, column_id: targetCard.column_id, position: targetIndex })
+      const targetCol = columns.find((c) => c.id === targetCard.column_id)
+      targetCol?.is_done ? completeSound() : moveSound()
+      await loadBoard()
+      if (selectedCard?.id === draggingId) setSelectedCard((prev) => prev ? { ...prev, column_id: targetCard.column_id } : prev)
     } catch (error) { console.error('Failed to move card:', error) }
   }
 
@@ -242,6 +294,7 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate }: { pr
   }
 
   const openDetail = (card: Card) => {
+    if (noteSaveTimer.current) clearTimeout(noteSaveTimer.current)
     if (noteDirty) saveNoteContent()
     setSelectedCard(card)
     clickSound()
@@ -360,11 +413,22 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate }: { pr
                           whileHover={{ y: -2, boxShadow: 'var(--shadow-lg)' }}
                           draggable
                           onDragStart={() => setDraggingId(card.id)}
-                          onDragEnd={() => { setDraggingId(null); setDragOverColId(null) }}
+                          onDragEnd={() => { setDraggingId(null); setDragOverColId(null); setDragOverCardId(null) }}
+                          onDragOver={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            if (draggingId && draggingId !== card.id) setDragOverCardId(card.id)
+                          }}
+                          onDragLeave={(e) => {
+                            if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverCardId((id) => (id === card.id ? null : id))
+                          }}
+                          onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleCardDrop(card) }}
                           onClick={() => openDetail(card)}
                           onContextMenu={(e) => { e.preventDefault(); setCardMenu({ card, position: { x: e.clientX, y: e.clientY } }) }}
                           className={`w-full bg-surface rounded-lg border border-l-4 transition-all text-left cursor-grab active:cursor-grabbing group ${
                             isSelected ? 'border-accent-hover ring-1 ring-accent/40' : 'border-border'
+                          } ${
+                            dragOverCardId === card.id ? 'ring-2 ring-accent/50' : ''
                           } ${
                             card.priority === 'high' ? 'border-l-danger' :
                             card.priority === 'medium' ? 'border-l-warning' :
