@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
+import { Plus, Trash2, Archive, ArrowUp } from 'lucide-react'
 import type { Project, Priority } from '../types'
 import { clickSound, createSound, deleteSound } from '../sounds'
 
@@ -173,9 +174,10 @@ export default function HomePage({
             </div>
             <button
               onClick={() => { setCreating(true); onNewProject?.() }}
-              className="px-3 py-2 bg-primary text-ink-inverse text-sm rounded-lg hover:bg-primary-hover transition-colors cursor-pointer font-medium"
+              className="px-3 py-2 bg-primary text-ink-inverse text-sm rounded-lg hover:bg-primary-hover transition-colors cursor-pointer font-medium flex items-center gap-2"
             >
-              + New Project
+              <Plus size={16} />
+              New Project
             </button>
           </div>
         )}
@@ -184,9 +186,10 @@ export default function HomePage({
           <div className="mb-6 flex justify-end">
             <button
               onClick={() => { setCreating(true); onNewProject?.() }}
-              className="px-3 py-2 bg-primary text-ink-inverse text-sm rounded-lg hover:bg-primary-hover transition-colors cursor-pointer font-medium"
+              className="px-3 py-2 bg-primary text-ink-inverse text-sm rounded-lg hover:bg-primary-hover transition-colors cursor-pointer font-medium flex items-center gap-2"
             >
-              + New Project
+              <Plus size={16} />
+              New Project
             </button>
           </div>
         )}
@@ -224,17 +227,17 @@ export default function HomePage({
                       </span>
                       <button
                         onClick={(e) => handleArchive(e, p.id)}
-                        className="text-ink-faint/70 hover:text-warning transition-colors cursor-pointer text-xs px-1"
+                        className="text-ink-faint/70 hover:text-warning transition-colors cursor-pointer p-1"
                         title="Archive project"
                       >
-                        ↓
+                        <Archive size={16} />
                       </button>
                       <button
                         onClick={(e) => handleDelete(e, p.id)}
-                        className="text-ink-faint/70 hover:text-danger transition-colors text-lg leading-none cursor-pointer"
+                        className="text-ink-faint/70 hover:text-danger transition-colors cursor-pointer p-1"
                         title="Delete project"
                       >
-                        ×
+                        <Trash2 size={16} />
                       </button>
                     </div>
                   </div>

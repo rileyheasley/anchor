@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
+import { RotateCcw, Trash2, Clock } from 'lucide-react'
 import type { RecycleItem } from '../types'
 import { clickSound, deleteSound } from '../sounds'
 
@@ -81,17 +82,22 @@ export default function RecycleBin() {
                   <span className="text-xs text-ink-faint shrink-0">{formatDate(item.deleted_at)}</span>
                 </div>
                 <div className="flex items-center gap-2 shrink-0 ml-4">
-                  <span className="text-xs text-ink-faint">Purges in {daysUntilPurge(item.deleted_at)}d</span>
+                  <span className="text-xs text-ink-faint flex items-center gap-1 shrink-0">
+                    <Clock size={14} />
+                    Purges in {daysUntilPurge(item.deleted_at)}d
+                  </span>
                   <button
                     onClick={() => handleRestore(item.type, item.id)}
-                    className="text-xs px-2 py-1 text-accent-hover hover:bg-accent-subtle rounded cursor-pointer transition-colors"
+                    className="text-xs px-2 py-1 text-accent-hover hover:bg-accent-subtle rounded cursor-pointer transition-colors flex items-center gap-1"
                   >
+                    <RotateCcw size={14} />
                     Restore
                   </button>
                   <button
                     onClick={() => handlePurge(item.type, item.id)}
-                    className="text-xs px-2 py-1 text-danger hover:bg-danger-subtle rounded cursor-pointer transition-colors"
+                    className="text-xs px-2 py-1 text-danger hover:bg-danger-subtle rounded cursor-pointer transition-colors flex items-center gap-1"
                   >
+                    <Trash2 size={14} />
                     Delete now
                   </button>
                 </div>

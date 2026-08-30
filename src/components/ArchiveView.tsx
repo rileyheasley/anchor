@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
+import { RotateCcw } from 'lucide-react'
 import type { Project } from '../types'
 import { clickSound } from '../sounds'
 
@@ -51,8 +52,9 @@ export default function ArchiveView({ onOpenProject }: { onOpenProject: (p: Proj
                   <h3 className="font-medium text-ink-secondary">{p.name}</h3>
                   <button
                     onClick={(e) => handleRestore(e, p.id)}
-                    className="text-xs px-3 py-1 text-accent-hover hover:bg-accent-subtle rounded-full border border-accent/30 cursor-pointer transition-colors"
+                    className="text-xs px-3 py-1 text-accent-hover hover:bg-accent-subtle rounded-full border border-accent/30 cursor-pointer transition-colors flex items-center gap-1"
                   >
+                    <RotateCcw size={14} />
                     Restore
                   </button>
                 </div>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
+import { FolderOpen, CheckCircle2, Zap, Trash2 } from 'lucide-react'
 import type { Project, RecycleItem } from '../types'
 
 export default function OverviewHome({ onOpenProject }: { onOpenProject: (project: Project) => void }) {
@@ -52,31 +53,40 @@ export default function OverviewHome({ onOpenProject }: { onOpenProject: (projec
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-surface rounded-lg border border-border p-6"
+            className="bg-surface rounded-lg border border-border p-6 flex items-start gap-4"
           >
-            <div className="text-sm text-ink-muted mb-1">Active Projects</div>
-            <div className="text-3xl font-bold text-ink">{activeProjects}</div>
+            <FolderOpen size={24} className="text-accent shrink-0 mt-1" />
+            <div>
+              <div className="text-sm text-ink-muted mb-1">Active Projects</div>
+              <div className="text-3xl font-bold text-ink">{activeProjects}</div>
+            </div>
           </motion.div>
 
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="bg-surface rounded-lg border border-border p-6"
+            className="bg-surface rounded-lg border border-border p-6 flex items-start gap-4"
           >
-            <div className="text-sm text-ink-muted mb-1">Total Points</div>
-            <div className="text-3xl font-bold text-ink">{totalPoints}</div>
+            <Zap size={24} className="text-warning shrink-0 mt-1" />
+            <div>
+              <div className="text-sm text-ink-muted mb-1">Total Points</div>
+              <div className="text-3xl font-bold text-ink">{totalPoints}</div>
+            </div>
           </motion.div>
 
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="bg-surface rounded-lg border border-border p-6"
+            className="bg-surface rounded-lg border border-border p-6 flex items-start gap-4"
           >
-            <div className="text-sm text-ink-muted mb-1">Completed</div>
-            <div className="text-3xl font-bold text-ink">
-              {totalPoints > 0 ? Math.round((donePoints / totalPoints) * 100) : 0}%
+            <CheckCircle2 size={24} className="text-accent-strong shrink-0 mt-1" />
+            <div>
+              <div className="text-sm text-ink-muted mb-1">Completed</div>
+              <div className="text-3xl font-bold text-ink">
+                {totalPoints > 0 ? Math.round((donePoints / totalPoints) * 100) : 0}%
+              </div>
             </div>
           </motion.div>
         </div>
@@ -131,9 +141,10 @@ export default function OverviewHome({ onOpenProject }: { onOpenProject: (projec
 
         {/* Recycle Bin Info */}
         {recycleItems.length > 0 && (
-          <div className="mt-10 p-4 bg-danger-subtle rounded-lg border border-danger/20">
-            <p className="text-sm text-danger-strong">
-              <span className="font-medium">{recycleItems.length}</span> items in Recycle Bin (will be permanently deleted in {30} days)
+          <div className="mt-10 p-4 bg-danger-subtle rounded-lg border border-danger/20 flex items-start gap-3">
+            <Trash2 size={20} className="text-danger shrink-0 mt-0.5" />
+            <p className="text-sm text-danger-strong flex-1">
+              <span className="font-medium">{recycleItems.length}</span> items in Recycle Bin (will be permanently deleted in <span className="font-medium">30</span> days)
             </p>
           </div>
         )}

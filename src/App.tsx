@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { Project } from './types'
 import TitleBar from './components/TitleBar'
 import Sidebar from './components/Sidebar'
@@ -8,6 +8,7 @@ import ProjectBoard from './components/ProjectBoard'
 import NotesPage from './components/NotesPage'
 import RecycleBin from './components/RecycleBin'
 import ArchiveView from './components/ArchiveView'
+import SettingsModal from './components/SettingsModal'
 
 type View = 'home' | 'projects' | 'notes' | 'archive' | 'recycle'
 
@@ -16,6 +17,32 @@ function App() {
   const [activeProject, setActiveProject] = useState<Project | null>(null)
   const [startCreatingNote, setStartCreatingNote] = useState(false)
   const [startCreatingProject, setStartCreatingProject] = useState(false)
+  const [isDarkMode, setIsDarkMode] = useState(false)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+
+  // Load theme preference from localStorage on mount
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme')
+    const prefersDark = savedTheme ? savedTheme === 'dark' : false
+    setIsDarkMode(prefersDark)
+    applyTheme(prefersDark)
+  }, [])
+
+  // Apply theme to document
+  const applyTheme = (dark: boolean) => {
+    if (dark) {
+      document.documentElement.setAttribute('data-theme', 'dark')
+    } else {
+      document.documentElement.removeAttribute('data-theme')
+    }
+  }
+
+  // Handle theme toggle
+  const handleThemeToggle = (dark: boolean) => {
+    setIsDarkMode(dark)
+    applyTheme(dark)
+    localStorage.setItem('theme', dark ? 'dark' : 'light')
+  }
 
   const handleNavigate = (v: View) => {
     setActiveProject(null)        // always exit any open project
@@ -75,11 +102,15 @@ function App() {
           view={view}
           isInProject={activeProject !== null}
           onNavigate={handleNavigate}
+          isDarkMode={isDarkMode}
+          onThemeToggle={handleThemeToggle}
+          onOpenSettings={() => setIsSettingsOpen(true)}
         />
         <div className="flex-1 overflow-hidden">
           {content()}
         </div>
       </div>
+      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
     </div>
   )
 }

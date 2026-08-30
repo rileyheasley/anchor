@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
+import { Plus, Trash2, X, ChevronLeft } from 'lucide-react'
 import type { Project, KanbanColumn, Card, Note } from '../types'
 import { clickSound, createSound, deleteSound, completeSound, moveSound } from '../sounds'
 
@@ -158,7 +159,7 @@ export default function ProjectBoard({ project, onClose }: { project: Project, o
   }
 
   return (
-    <div className="min-h-screen bg-surface-sunken flex flex-col">
+    <div className="h-full bg-surface-sunken flex flex-col">
       <div className="flex flex-1 overflow-hidden">
         {/* Board */}
         <div className="flex-1 overflow-x-auto p-6">
@@ -183,7 +184,9 @@ export default function ProjectBoard({ project, onClose }: { project: Project, o
                     <span className="text-xs text-ink-faint">{cardsInColumn(col.id).length}</span>
                     {col.is_done ? <span className="text-xs text-success">✓</span> : null}
                   </div>
-                  <button onClick={() => handleDeleteColumn(col.id)} className="text-ink-faint/70 hover:text-danger text-sm cursor-pointer transition-colors">×</button>
+                  <button onClick={() => handleDeleteColumn(col.id)} className="text-ink-faint/70 hover:text-danger p-1 cursor-pointer transition-colors" title="Delete column">
+                    <Trash2 size={16} />
+                  </button>
                 </div>
 
                 <div className="space-y-2">
@@ -275,14 +278,21 @@ export default function ProjectBoard({ project, onClose }: { project: Project, o
                       className="w-full px-2 py-1.5 text-sm border border-border-strong rounded focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                     />
                     <div className="flex gap-1 mt-1">
-                      <button onClick={() => handleAddCard(col.id)} className="text-xs px-2 py-1 bg-primary text-ink-inverse rounded hover:bg-primary-hover cursor-pointer transition-colors">Add</button>
-                      <button onClick={() => { setAddingTo(null); setNewTitle('') }} className="text-xs px-2 py-1 text-ink-muted hover:bg-border-strong rounded cursor-pointer transition-colors">Cancel</button>
+                      <button onClick={() => handleAddCard(col.id)} className="text-xs px-2 py-1 bg-primary text-ink-inverse rounded hover:bg-primary-hover cursor-pointer transition-colors flex items-center gap-1">
+                        <Plus size={14} />
+                        Add
+                      </button>
+                      <button onClick={() => { setAddingTo(null); setNewTitle('') }} className="text-xs px-2 py-1 text-ink-muted hover:bg-border-strong rounded cursor-pointer transition-colors flex items-center gap-1">
+                        <X size={14} />
+                        Cancel
+                      </button>
                     </div>
                   </div>
                 ) : (
                   <button onClick={() => { setAddingTo(col.id); setNewTitle('') }}
-                    className="mt-2 w-full text-left text-sm text-ink-faint hover:text-ink-secondary hover:bg-border-strong px-2 py-1 rounded cursor-pointer transition-colors">
-                    + Add card
+                    className="mt-2 w-full text-left text-sm text-ink-faint hover:text-ink-secondary hover:bg-border-strong px-2 py-1 rounded cursor-pointer transition-colors flex items-center gap-2">
+                    <Plus size={16} />
+                    Add card
                   </button>
                 )}
               </div>
@@ -300,14 +310,21 @@ export default function ProjectBoard({ project, onClose }: { project: Project, o
                   className="w-full px-2 py-1.5 text-sm border border-border-strong rounded focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                 />
                 <div className="flex gap-1 mt-2">
-                  <button onClick={handleAddColumn} className="text-xs px-2 py-1 bg-primary text-ink-inverse rounded hover:bg-primary-hover cursor-pointer transition-colors">Add</button>
-                  <button onClick={() => { setAddingColumn(false); setNewColName('') }} className="text-xs px-2 py-1 text-ink-muted hover:bg-border-strong rounded cursor-pointer transition-colors">Cancel</button>
+                  <button onClick={handleAddColumn} className="text-xs px-2 py-1 bg-primary text-ink-inverse rounded hover:bg-primary-hover cursor-pointer transition-colors flex items-center gap-1">
+                    <Plus size={14} />
+                    Add
+                  </button>
+                  <button onClick={() => { setAddingColumn(false); setNewColName('') }} className="text-xs px-2 py-1 text-ink-muted hover:bg-border-strong rounded cursor-pointer transition-colors flex items-center gap-1">
+                    <X size={14} />
+                    Cancel
+                  </button>
                 </div>
               </div>
             ) : (
               <button onClick={() => setAddingColumn(true)}
-                className="bg-surface-muted hover:bg-border-strong rounded-lg p-3 w-72 shrink-0 text-sm text-ink-faint hover:text-ink-secondary cursor-pointer transition-colors text-left">
-                + Add column
+                className="bg-surface-muted hover:bg-border-strong rounded-lg p-3 w-72 shrink-0 text-sm text-ink-faint hover:text-ink-secondary cursor-pointer transition-colors text-left flex items-center gap-2">
+                <Plus size={16} />
+                Add column
               </button>
             )}
           </div>
@@ -327,8 +344,11 @@ export default function ProjectBoard({ project, onClose }: { project: Project, o
                 <span className="text-sm font-medium text-ink-secondary truncate mr-2">{selectedCard.title}</span>
                 <button
                   onClick={() => { if (noteDirty) saveNoteContent(); setSelectedCard(null) }}
-                  className="text-ink-faint hover:text-ink-secondary cursor-pointer text-lg leading-none shrink-0"
-                >×</button>
+                  className="text-ink-faint hover:text-ink-secondary cursor-pointer p-1 shrink-0"
+                  title="Close"
+                >
+                  <ChevronLeft size={18} />
+                </button>
               </div>
 
               <div className="p-4 space-y-5">

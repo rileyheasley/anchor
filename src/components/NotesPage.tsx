@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
+import { Plus, Trash2, FileText, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { Note } from '../types'
 import { createSound, deleteSound, clickSound } from '../sounds'
 import MarkdownEditor from './MarkdownEditor'
+import ResizableNotesSidebar from './ResizableNotesSidebar'
 
 export default function NotesPage({
   startCreating: startCreatingProp = false,
@@ -20,6 +22,7 @@ export default function NotesPage({
   const [newTitle, setNewTitle] = useState('')
   const [creating, setCreating] = useState(false)
   const [dirty, setDirty] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -91,80 +94,151 @@ export default function NotesPage({
   if (!vaultPath) {
     return (
       <div className="min-h-screen bg-surface-sunken flex flex-col items-center justify-center gap-4 text-center px-8">
-          <p className="text-ink-muted text-lg">Choose a folder to store your notes</p>
-          <p className="text-ink-faint text-sm max-w-sm">Notes are saved as markdown files on disk. Pick any folder — Anchor will create a <code className="bg-surface-muted px-1 rounded">notes/</code> and <code className="bg-surface-muted px-1 rounded">projects/</code> subfolder inside it.</p>
-          <button
-            onClick={handleChooseVault}
-            className="mt-2 px-6 py-3 bg-primary text-ink-inverse rounded-lg text-sm font-medium hover:bg-primary-hover transition-colors cursor-pointer"
-          >
-            Choose folder
-          </button>
-        </div>
+        <p className="text-ink-muted text-lg">Choose a folder to store your notes</p>
+        <p className="text-ink-faint text-sm max-w-sm">Notes are saved as markdown files on disk. Pick any folder — Anchor will create a <code className="bg-surface-muted px-1 rounded">notes/</code> and <code className="bg-surface-muted px-1 rounded">projects/</code> subfolder inside it.</p>
+        <button
+          onClick={handleChooseVault}
+          className="mt-2 px-6 py-3 bg-primary text-ink-inverse rounded-lg text-sm font-medium hover:bg-primary-hover transition-colors cursor-pointer"
+        >
+          Choose folder
+        </button>
+      </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-surface-sunken flex flex-col">
+    <div className="h-full bg-surface-sunken flex flex-col">
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
-        <div className="w-64 bg-surface border-r border-border flex flex-col shrink-0 overflow-y-auto">
-          {/* Header with New Note button */}
-          <div className="p-3 border-b border-border-subtle flex items-center justify-between gap-2">
-            <span className="text-xs uppercase tracking-wide text-ink-faint font-medium">Notes</span>
+        {/* Resizable Notes Sidebar */}
+        <ResizableNotesSidebar
+          isCollapsed={sidebarCollapsed}
+          onCollapsedChange={setSidebarCollapsed}
+          minWidth={60}
+          maxWidth={500}
+          defaultWidth={280}
+          collapsedWidth={60}
+        >
+          {/* Header with New Note button - always visible */}
+          <div className={`border-b border-border-subtle flex items-center shrink-0 ${
+            sidebarCollapsed 
+              ? 'justify-center p-2' 
+              : 'justify-between gap-2 p-3'
+          }`}>
+            {!sidebarCollapsed && (
+              <span className="text-xs uppercase tracking-wide text-ink-faint font-medium">Notes</span>
+            )}
             <button
               onClick={() => { setCreating(true); onNewNote?.() }}
-              className="px-2 py-1 text-xs bg-primary text-ink-inverse rounded hover:bg-primary-hover transition-colors cursor-pointer font-medium"
+              className="p-1.5 bg-primary text-ink-inverse rounded hover:bg-primary-hover transition-colors cursor-pointer font-medium"
               title="Create new note"
             >
-              +
+              <Plus size={16} />
             </button>
           </div>
 
-          {creating && (
-            <div className="p-3 border-b border-border-subtle">
-              <input
-                autoFocus
-                type="text"
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleCreate()
-                  if (e.key === 'Escape') { setCreating(false); setNewTitle('') }
-                }}
-                placeholder="Note title..."
-                className="w-full px-2 py-1.5 text-sm border border-border-strong rounded focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-              />
-            </div>
-          )}
+          {/* Notes Content - unified flex container */}
+          <div className="flex flex-1 flex-col overflow-hidden">
+            {/* Expanded view */}
+            {!sidebarCollapsed && (
+              <>
+                {creating && (
+                  <div className="p-3 border-b border-border-subtle shrink-0">
+                    <input
+                      autoFocus
+                      type="text"
+                      value={newTitle}
+                      onChange={(e) => setNewTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleCreate()
+                        if (e.key === 'Escape') { setCreating(false); setNewTitle('') }
+                      }}
+                      placeholder="Note title..."
+                      className="w-full px-2 py-1.5 text-sm border border-border-strong rounded focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    />
+                  </div>
+                )}
 
-          <AnimatePresence>
-            {notes.map((note) => (
-              <motion.div
-                key={note.id}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -10 }}
-                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                onClick={() => handleOpenNote(note)}
-                className={`px-4 py-3 cursor-pointer border-b border-border-subtle group flex items-center justify-between hover:bg-surface-sunken transition-colors ${
-                  activeNote?.id === note.id ? 'bg-accent-subtle border-l-2 border-l-accent' : ''
-                }`}
-              >
-                <span className="text-sm text-ink-secondary truncate">{note.title}</span>
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleDelete(note.id) }}
-                  className="text-ink-faint/70 hover:text-danger text-sm opacity-0 group-hover:opacity-100 transition-all cursor-pointer shrink-0"
-                >
-                  ×
-                </button>
-              </motion.div>
-            ))}
-          </AnimatePresence>
+                <div className="overflow-y-auto flex-1">
+                  <AnimatePresence>
+                    {notes.map((note) => (
+                      <motion.div
+                        key={note.id}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -10 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                        onClick={() => handleOpenNote(note)}
+                        className={`px-4 py-3 cursor-pointer border-b border-border-subtle group flex items-center justify-between hover:bg-surface-sunken transition-colors ${
+                          activeNote?.id === note.id ? 'bg-accent-subtle border-l-2 border-l-accent' : ''
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <FileText size={16} className="shrink-0 text-ink-muted" />
+                          <span className="text-sm text-ink-secondary truncate">{note.title}</span>
+                        </div>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDelete(note.id) }}
+                          className="text-ink-faint/70 hover:text-danger opacity-0 group-hover:opacity-100 transition-all cursor-pointer shrink-0 ml-2"
+                          title="Delete note"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
 
-          {notes.length === 0 && !creating && (
-            <p className="text-sm text-ink-faint text-center py-8 px-4">No notes yet</p>
-          )}
-        </div>
+                  {notes.length === 0 && !creating && (
+                    <p className="text-sm text-ink-faint text-center py-8 px-4">No notes yet</p>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Collapsed icon-only view */}
+            {sidebarCollapsed && (
+              <div className="px-2 py-3 overflow-y-auto space-y-0.5">
+                <AnimatePresence>
+                  {notes.map((note) => (
+                    <motion.button
+                      key={note.id}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -10 }}
+                      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                      onClick={() => handleOpenNote(note)}
+                      title={note.title}
+                      className={`w-10 h-10 flex items-center justify-center rounded-lg transition-colors ${
+                        activeNote?.id === note.id
+                          ? 'bg-accent text-ink-inverse'
+                          : 'text-ink-muted hover:bg-surface-sunken hover:text-ink-secondary'
+                      }`}
+                    >
+                      <FileText size={18} />
+                    </motion.button>
+                  ))}
+                </AnimatePresence>
+              </div>
+            )}
+          </div>
+
+          {/* Footer - Collapse Button */}
+          <div className={`border-t border-border-subtle px-2 py-2 flex gap-1 shrink-0 ${
+            sidebarCollapsed ? 'justify-center' : 'justify-start'
+          }`}>
+            <button
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              title={sidebarCollapsed ? 'Expand notes' : 'Collapse notes'}
+              className="flex items-center justify-center p-2 rounded-lg text-sm transition-colors text-ink-muted hover:bg-surface-sunken hover:text-ink-secondary"
+            >
+              {sidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+            </button>
+            {!sidebarCollapsed && (
+              <span className="flex items-center px-1 text-sm transition-colors text-ink-muted">
+                {sidebarCollapsed ? 'Expand' : 'Collapse'}
+              </span>
+            )}
+          </div>
+        </ResizableNotesSidebar>
 
         {/* Editor */}
         <div className="flex-1 flex flex-col overflow-hidden">
