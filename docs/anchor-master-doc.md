@@ -103,7 +103,8 @@ A standalone note can be linked to a project. Linking sets `project_id` — the 
 | UI | React + Tailwind | High AI-assisted-coding support, fast iteration |
 | Animation | Motion for React (`motion`) | Successor to Framer Motion — same spring/easing API, smaller bundle |
 | Data | `sql.js` (SQLite compiled to WASM) | Real SQL without native compilation — works cross-platform, no rebuild step |
-| Notes | Markdown files on disk | Readable/portable outside the app, matches Obsidian-style ownership |
+| Notes | Markdown files on disk, edited via TipTap + `tiptap-markdown` | WYSIWYG rich-text editing (Obsidian-style) while `.md` stays the on-disk source of truth |
+| Styling | Tailwind v4 + single `@theme` token file (`src/theme.css`) | One master source for all color tokens — components consume semantic classes, never raw palette colors |
 | Repo | GitHub — `github.com/rileyheasley/anchor` | Standard version control |
 
 ## Current State
@@ -114,6 +115,9 @@ A standalone note can be linked to a project. Linking sets `project_id` — the 
 - Full data layer live: schema, project/column/card CRUD, soft delete, progress calculation
 - Home page built: project list, priority, progress bars, create/delete
 - Kanban board built: columns, cards, points, priority, move between columns
+- Notes system built: vault folder setup, standalone + project + card-scoped notes, soft delete
+- Notes editor is WYSIWYG rich-text (TipTap), not a plain textarea — headings, bold/italic, bullet/numbered/task lists, quotes, code blocks, via right-click context menu; content still round-trips to plain `.md` on disk
+- Design tokens centralized in `src/theme.css` — all semantic colors (surface/border/ink/primary/accent/success/warning/danger/special) defined once via Tailwind v4 `@theme`
 - Motion animations and sound effects wired in (Motion for React + Web Audio API)
 - Codebase cleaned: typed `Priority` union, removed raw IPC exposure, no dead files
 
@@ -125,13 +129,15 @@ A standalone note can be linked to a project. Linking sets `project_id` — the 
 4. ~~Build home page (project list with priority + progress bars)~~ ✅
 5. ~~Build per-project kanban board with points system~~ ✅
 6. ~~Layer in signature interaction (motion + sound)~~ ✅
-7. Notes system — vault folder setup, markdown files on disk, link notes to cards/projects
+7. ~~Notes system — vault folder setup, markdown files on disk, WYSIWYG rich-text editing~~ ✅
 8. Recycle bin — view and restore soft-deleted projects/cards/notes, auto-purge after 30 days
 9. Archive view — browse and unarchive projects
 10. Polish home page — due date countdown, project sort, empty states
 11. Polish kanban board — drag-and-drop reorder, card detail view (expand to full note)
 12. ~~App shell polish — frameless window, Inter font, drag bar, window defaults~~ ✅
-13. Production build — packaging via `electron-builder`, test on Mac + Windows
+13. ~~Design system pass — centralize colors into a single token file~~ ✅
+14. Explicit UI to link an existing standalone note to a project (currently only set at creation time)
+15. Production build — packaging via `electron-builder`, test on Mac + Windows
 
 ## Notes / Learnings
 
@@ -141,6 +147,8 @@ A standalone note can be linked to a project. Linking sets `project_id` — the 
 - **Avoid native Node modules in Electron.** `better-sqlite3` required compiling against Electron's bundled Node ABI, which caused SIGSEGV crashes across machines. `sql.js` (pure WASM) sidesteps this entirely.
 - **`npm install-scripts approve <pkg>`** may be needed to let Electron's own postinstall script run.
 - **Committed a large file before `.gitignore` caught it?** `git rm --cached` removes it from tracking but not from history. If the commits haven't been pushed, `git reset --mixed origin/main` undoes them cleanly (keeps working tree changes) so you can recommit once.
+- **Tailwind v4 preflight sets `list-style: none` on all `ul`/`ol`.** Any custom-rendered markup relying on real bullets/numbers (e.g. rich-text editor output) needs `list-style` explicitly restored in scoped CSS — otherwise list commands "work" structurally but render with no visible marker.
+- **Seed/sample data must follow the same file-path convention the app's own write logic uses.** The initial seed inserted DB rows with bare filenames while runtime note creation writes to `vault/notes/…` — keep seed logic and runtime logic sharing one convention, or seeded rows silently point at the wrong path.
 
 ---
 *Working title: Anchor. Living doc, update as decisions are made.*

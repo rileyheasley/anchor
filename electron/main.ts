@@ -440,12 +440,11 @@ app.whenReady().then(async () => {
 
       fs.mkdirSync(path.join(vault, relDir), { recursive: true })
 
-      const safeTitle = data.title.replace(/[<>:"/\\|?*]/g, '-')
-      const filename = path.join(relDir, `${safeTitle}.md`)
+      const id = crypto.randomUUID()
+      const filename = path.join(relDir, `${id}.md`)
       const absPath = path.join(vault, filename)
       fs.writeFileSync(absPath, `# ${data.title}\n`)
 
-      const id = crypto.randomUUID()
       execute(
         'INSERT INTO notes (id, title, filename, project_id, card_id) VALUES (?, ?, ?, ?, ?)',
         [id, data.title, filename, data.project_id ?? null, data.card_id ?? null]
