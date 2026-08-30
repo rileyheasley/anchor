@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Home, FolderOpen, FileText, Archive, Trash2, ChevronLeft, ChevronRight, Moon, Sun, Settings } from 'lucide-react'
 import DraggableSidebar from './DraggableSidebar'
 import IconNavItem from './IconNavItem'
+import { clickSound } from '../sounds'
 
 type View = 'home' | 'projects' | 'notes' | 'archive' | 'recycle'
 
@@ -80,7 +81,7 @@ export default function Sidebar({
       }`}>
         {/* Theme Toggle */}
         <button
-          onClick={() => onThemeToggle(!isDarkMode)}
+          onClick={() => { clickSound(); onThemeToggle(!isDarkMode) }}
           title={isDarkMode ? 'Light mode' : 'Dark mode'}
           className="flex items-center justify-center p-2 rounded-lg text-sm transition-colors text-ink-muted hover:bg-surface-sunken hover:text-ink-secondary"
         >
@@ -89,7 +90,7 @@ export default function Sidebar({
 
         {/* Settings */}
         <button
-          onClick={onOpenSettings}
+          onClick={() => { clickSound(); onOpenSettings() }}
           title="Settings"
           className="flex items-center justify-center p-2 rounded-lg text-sm transition-colors text-ink-muted hover:bg-surface-sunken hover:text-ink-secondary"
         >
@@ -98,7 +99,7 @@ export default function Sidebar({
 
         {/* Collapse Toggle */}
         <button
-          onClick={() => setIsCollapsed(!isCollapsed)}
+          onClick={() => { clickSound(); setIsCollapsed(!isCollapsed) }}
           title={isCollapsed ? 'Expand' : 'Collapse'}
           className="flex items-center justify-center p-2 rounded-lg text-sm transition-colors text-ink-muted hover:bg-surface-sunken hover:text-ink-secondary"
         >

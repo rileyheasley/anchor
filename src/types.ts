@@ -63,6 +63,7 @@ declare global {
         maximize: () => Promise<void>
         close: () => Promise<void>
         isMaximized: () => Promise<boolean>
+        setTitleBarTheme: (dark: boolean) => Promise<void>
       }
       projects: {
         list: () => Promise<Project[]>

@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('api', {
     maximize: () => ipcRenderer.invoke('window:maximize'),
     close: () => ipcRenderer.invoke('window:close'),
     isMaximized: () => ipcRenderer.invoke('window:isMaximized'),
+    setTitleBarTheme: (dark: boolean) => ipcRenderer.invoke('window:setTitleBarTheme', dark),
   },
   projects: {
     list: () => ipcRenderer.invoke('projects:list'),

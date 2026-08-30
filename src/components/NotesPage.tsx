@@ -45,6 +45,7 @@ export default function NotesPage({
   }
 
   const handleChooseVault = async () => {
+    clickSound()
     const chosen = await window.api.vault.choose()
     if (chosen) {
       setVaultPath(chosen)
@@ -128,7 +129,7 @@ export default function NotesPage({
               <span className="text-xs uppercase tracking-wide text-ink-faint font-medium">Notes</span>
             )}
             <button
-              onClick={() => { setCreating(true); onNewNote?.() }}
+              onClick={() => { clickSound(); setCreating(true); onNewNote?.() }}
               className="p-1.5 bg-primary text-ink-inverse rounded hover:bg-primary-hover transition-colors cursor-pointer font-medium"
               title="Create new note"
             >
@@ -226,7 +227,7 @@ export default function NotesPage({
             sidebarCollapsed ? 'justify-center' : 'justify-start'
           }`}>
             <button
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              onClick={() => { clickSound(); setSidebarCollapsed(!sidebarCollapsed) }}
               title={sidebarCollapsed ? 'Expand notes' : 'Collapse notes'}
               className="flex items-center justify-center p-2 rounded-lg text-sm transition-colors text-ink-muted hover:bg-surface-sunken hover:text-ink-secondary"
             >

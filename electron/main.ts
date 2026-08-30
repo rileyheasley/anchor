@@ -307,6 +307,12 @@ function purgeSoftDeleted() {
   console.log('Purged soft-deleted items older than 30 days')
 }
 
+// Titlebar overlay colors, kept in sync with the theme tokens in src/theme.css
+const TITLEBAR_OVERLAY = {
+  light: { color: '#fdfcf9', symbolColor: '#3d3a30' },
+  dark: { color: '#1a1a1e', symbolColor: '#c8c4b8' },
+}
+
 function createWindow() {
   win = new BrowserWindow({
     width: 1280,
@@ -315,8 +321,7 @@ function createWindow() {
     minHeight: 600,
     titleBarStyle: 'hidden',
     titleBarOverlay: process.platform === 'win32' ? {
-      color: '#ffffff',
-      symbolColor: '#374151',
+      ...TITLEBAR_OVERLAY.light,
       height: 40,
     } : false,
     webPreferences: {
@@ -373,6 +378,10 @@ app.whenReady().then(async () => {
     })
     ipcMain.handle('window:close', () => win?.close())
     ipcMain.handle('window:isMaximized', () => win?.isMaximized() ?? false)
+    ipcMain.handle('window:setTitleBarTheme', (_event, dark: boolean) => {
+      if (process.platform !== 'win32') return
+      win?.setTitleBarOverlay({ ...(dark ? TITLEBAR_OVERLAY.dark : TITLEBAR_OVERLAY.light), height: 40 })
+    })
 
     // ── Settings handlers ──
 

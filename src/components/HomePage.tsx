@@ -152,7 +152,7 @@ export default function HomePage({
               className="flex-1 px-3 py-2 border border-border-strong rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
             />
             <button onClick={handleCreate} className="px-4 py-2 bg-primary text-ink-inverse text-sm rounded-lg hover:bg-primary-hover transition-colors cursor-pointer">Create</button>
-            <button onClick={() => { setCreating(false); setNewName('') }} className="px-4 py-2 text-ink-muted text-sm rounded-lg hover:bg-surface-muted transition-colors cursor-pointer">Cancel</button>
+            <button onClick={() => { clickSound(); setCreating(false); setNewName('') }} className="px-4 py-2 text-ink-muted text-sm rounded-lg hover:bg-surface-muted transition-colors cursor-pointer">Cancel</button>
           </div>
         )}
 
@@ -173,7 +173,7 @@ export default function HomePage({
               ))}
             </div>
             <button
-              onClick={() => { setCreating(true); onNewProject?.() }}
+              onClick={() => { clickSound(); setCreating(true); onNewProject?.() }}
               className="px-3 py-2 bg-primary text-ink-inverse text-sm rounded-lg hover:bg-primary-hover transition-colors cursor-pointer font-medium flex items-center gap-2"
             >
               <Plus size={16} />
@@ -185,7 +185,7 @@ export default function HomePage({
         {projects.length === 0 && !creating && (
           <div className="mb-6 flex justify-end">
             <button
-              onClick={() => { setCreating(true); onNewProject?.() }}
+              onClick={() => { clickSound(); setCreating(true); onNewProject?.() }}
               className="px-3 py-2 bg-primary text-ink-inverse text-sm rounded-lg hover:bg-primary-hover transition-colors cursor-pointer font-medium flex items-center gap-2"
             >
               <Plus size={16} />
@@ -215,7 +215,7 @@ export default function HomePage({
                   transition={{ delay: i * 0.04, type: 'spring', stiffness: 500, damping: 30 }}
                   whileHover={{ scale: 1.01, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
                   whileTap={{ scale: 0.99 }}
-                  onClick={() => onOpenProject(p)}
+                  onClick={() => { clickSound(); onOpenProject(p) }}
                   className={`bg-surface rounded-lg border border-border border-l-4 ${PRIORITY_COLORS[p.priority]} p-4 cursor-pointer`}
                 >
                   <div className="flex items-center justify-between mb-2">

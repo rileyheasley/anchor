@@ -282,14 +282,14 @@ export default function ProjectBoard({ project, onClose }: { project: Project, o
                         <Plus size={14} />
                         Add
                       </button>
-                      <button onClick={() => { setAddingTo(null); setNewTitle('') }} className="text-xs px-2 py-1 text-ink-muted hover:bg-border-strong rounded cursor-pointer transition-colors flex items-center gap-1">
+                      <button onClick={() => { clickSound(); setAddingTo(null); setNewTitle('') }} className="text-xs px-2 py-1 text-ink-muted hover:bg-border-strong rounded cursor-pointer transition-colors flex items-center gap-1">
                         <X size={14} />
                         Cancel
                       </button>
                     </div>
                   </div>
                 ) : (
-                  <button onClick={() => { setAddingTo(col.id); setNewTitle('') }}
+                  <button onClick={() => { clickSound(); setAddingTo(col.id); setNewTitle('') }}
                     className="mt-2 w-full text-left text-sm text-ink-faint hover:text-ink-secondary hover:bg-border-strong px-2 py-1 rounded cursor-pointer transition-colors flex items-center gap-2">
                     <Plus size={16} />
                     Add card
@@ -314,14 +314,14 @@ export default function ProjectBoard({ project, onClose }: { project: Project, o
                     <Plus size={14} />
                     Add
                   </button>
-                  <button onClick={() => { setAddingColumn(false); setNewColName('') }} className="text-xs px-2 py-1 text-ink-muted hover:bg-border-strong rounded cursor-pointer transition-colors flex items-center gap-1">
+                  <button onClick={() => { clickSound(); setAddingColumn(false); setNewColName('') }} className="text-xs px-2 py-1 text-ink-muted hover:bg-border-strong rounded cursor-pointer transition-colors flex items-center gap-1">
                     <X size={14} />
                     Cancel
                   </button>
                 </div>
               </div>
             ) : (
-              <button onClick={() => setAddingColumn(true)}
+              <button onClick={() => { clickSound(); setAddingColumn(true) }}
                 className="bg-surface-muted hover:bg-border-strong rounded-lg p-3 w-72 shrink-0 text-sm text-ink-faint hover:text-ink-secondary cursor-pointer transition-colors text-left flex items-center gap-2">
                 <Plus size={16} />
                 Add column
@@ -343,7 +343,7 @@ export default function ProjectBoard({ project, onClose }: { project: Project, o
               <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle shrink-0">
                 <span className="text-sm font-medium text-ink-secondary truncate mr-2">{selectedCard.title}</span>
                 <button
-                  onClick={() => { if (noteDirty) saveNoteContent(); setSelectedCard(null) }}
+                  onClick={() => { clickSound(); if (noteDirty) saveNoteContent(); setSelectedCard(null) }}
                   className="text-ink-faint hover:text-ink-secondary cursor-pointer p-1 shrink-0"
                   title="Close"
                 >

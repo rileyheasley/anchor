@@ -109,16 +109,18 @@ A standalone note can be linked to a project. Linking sets `project_id` — the 
 
 ## Current State
 
-- Frameless window with custom drag bar (`titleBarStyle: 'hidden'`), native overlay controls on Windows, native traffic lights on Mac
-- Inter Variable font loaded offline via `@fontsource-variable/inter`; `user-select: none` globally, restored on inputs
+- Frameless window with custom drag bar (`titleBarStyle: 'hidden'`); Windows uses a native titlebar overlay whose colors are synced to the app theme via IPC (`window:setTitleBarTheme`), Mac uses native traffic lights
+- Space Grotesk Variable font loaded offline via `@fontsource-variable/space-grotesk`; `user-select: none` globally, restored on inputs
 - `createWindow()` has sensible defaults: 1280×800, min 960×600
 - Full data layer live: schema, project/column/card CRUD, soft delete, progress calculation
 - Home page built: project list, priority, progress bars, create/delete
 - Kanban board built: columns, cards, points, priority, move between columns
 - Notes system built: vault folder setup, standalone + project + card-scoped notes, soft delete
 - Notes editor is WYSIWYG rich-text (TipTap), not a plain textarea — headings, bold/italic, bullet/numbered/task lists, quotes, code blocks, via right-click context menu; content still round-trips to plain `.md` on disk
-- Design tokens centralized in `src/theme.css` — all semantic colors (surface/border/ink/primary/accent/success/warning/danger/special) defined once via Tailwind v4 `@theme`
-- Motion animations and sound effects wired in (Motion for React + Web Audio API)
+- Design tokens centralized in `src/theme.css` — all semantic colors (surface/border/ink/primary/accent/success/warning/danger/special) defined once via Tailwind v4 `@theme`; dark-mode badge tokens (`accent/danger/special-strong`) were WCAG-audited and fixed to meet AA contrast on their `-subtle` backgrounds
+- Design assets scaffolded under `src/assets/` (`icons/`, `logos/`, `images/`) with a README on when to use these vs. top-level `public/`; app logo (`logo.svg`) is in place and wired into the title bar (theme-aware via CSS mask) and window favicon
+- Custom themed scrollbar (thin, rounded, uses `border-strong`/`ink-faint` tokens) replaces the OS default everywhere
+- Motion animations and sound effects wired in (Motion for React + Web Audio API); sounds redesigned for a deep "thocky" mechanical-keyboard character (filtered noise transient + pitch-dropping lowpass tone body) and audited so every clickable button in the app has a sound
 - Codebase cleaned: typed `Priority` union, removed raw IPC exposure, no dead files
 
 ## Goal / Roadmap
@@ -134,10 +136,12 @@ A standalone note can be linked to a project. Linking sets `project_id` — the 
 9. Archive view — browse and unarchive projects
 10. Polish home page — due date countdown, project sort, empty states
 11. Polish kanban board — drag-and-drop reorder, card detail view (expand to full note)
-12. ~~App shell polish — frameless window, Inter font, drag bar, window defaults~~ ✅
+12. ~~App shell polish — frameless window, drag bar, window defaults~~ ✅
 13. ~~Design system pass — centralize colors into a single token file~~ ✅
 14. Explicit UI to link an existing standalone note to a project (currently only set at creation time)
-15. Production build — packaging via `electron-builder`, test on Mac + Windows
+15. ~~Branding — logo asset, design asset folders, dark-mode contrast audit, themed scrollbar~~ ✅
+16. ~~Sound design pass — "thocky" character, full button coverage~~ ✅
+17. Production build — packaging via `electron-builder`, test on Mac + Windows (still needs a platform icon — logo is currently SVG-only)
 
 ## Notes / Learnings
 
@@ -149,6 +153,9 @@ A standalone note can be linked to a project. Linking sets `project_id` — the 
 - **Committed a large file before `.gitignore` caught it?** `git rm --cached` removes it from tracking but not from history. If the commits haven't been pushed, `git reset --mixed origin/main` undoes them cleanly (keeps working tree changes) so you can recommit once.
 - **Tailwind v4 preflight sets `list-style: none` on all `ul`/`ol`.** Any custom-rendered markup relying on real bullets/numbers (e.g. rich-text editor output) needs `list-style` explicitly restored in scoped CSS — otherwise list commands "work" structurally but render with no visible marker.
 - **Seed/sample data must follow the same file-path convention the app's own write logic uses.** The initial seed inserted DB rows with bare filenames while runtime note creation writes to `vault/notes/…` — keep seed logic and runtime logic sharing one convention, or seeded rows silently point at the wrong path.
+- **Theme is toggled via `data-theme` attribute, not a `.dark` class** — Tailwind's `dark:` variant doesn't apply here. For anything that needs to track theme (icon fills, etc.), use a CSS custom property (e.g. `currentColor`/mask against `--color-ink-*`) instead of a `dark:` prefix.
+- **Electron's `titleBarOverlay` colors are static** — they don't auto-follow renderer CSS/theme changes. Update them from the main process via `win.setTitleBarOverlay()` over IPC whenever the theme toggles.
+- **When auditing contrast, check "-strong" text on "-subtle" background pairs, not just text-on-surface** — that badge pattern (priority pills, type tags) is where dark-mode tokens are most likely to fail AA, since both colors are usually built independently at design time.
 
 ---
 *Working title: Anchor. Living doc, update as decisions are made.*

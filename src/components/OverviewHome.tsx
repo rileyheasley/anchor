@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { FolderOpen, CheckCircle2, Zap, Trash2 } from 'lucide-react'
 import type { Project, RecycleItem } from '../types'
+import { clickSound } from '../sounds'
 
 export default function OverviewHome({ onOpenProject }: { onOpenProject: (project: Project) => void }) {
   const [projects, setProjects] = useState<Project[]>([])
@@ -107,7 +108,7 @@ export default function OverviewHome({ onOpenProject }: { onOpenProject: (projec
                       transition={{ delay: i * 0.05 }}
                       whileHover={{ scale: 1.01, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
                       whileTap={{ scale: 0.99 }}
-                      onClick={() => onOpenProject(p)}
+                      onClick={() => { clickSound(); onOpenProject(p) }}
                       className="w-full bg-surface rounded-lg border border-border p-4 text-left hover:border-border-strong transition-colors cursor-pointer"
                     >
                       <div className="flex items-center justify-between mb-2">

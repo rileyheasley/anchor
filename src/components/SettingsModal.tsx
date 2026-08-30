@@ -1,4 +1,5 @@
 import { X } from 'lucide-react'
+import { clickSound } from '../sounds'
 
 interface SettingsModalProps {
   isOpen: boolean
@@ -15,7 +16,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         <div className="flex items-center justify-between p-4 border-b border-border-subtle">
           <h2 className="text-lg font-medium text-ink">Settings</h2>
           <button
-            onClick={onClose}
+            onClick={() => { clickSound(); onClose() }}
             className="p-1 rounded-lg text-ink-muted hover:bg-surface-sunken hover:text-ink transition-colors"
             title="Close settings"
           >

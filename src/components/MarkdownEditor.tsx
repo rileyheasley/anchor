@@ -5,6 +5,7 @@ import Placeholder from '@tiptap/extension-placeholder'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
 import { Markdown } from 'tiptap-markdown'
+import { clickSound } from '../sounds'
 
 interface ContextMenuState {
   x: number
@@ -114,6 +115,7 @@ export default function MarkdownEditor({
               <button
                 key={item.label}
                 onClick={() => {
+                  clickSound()
                   item.action(editor)
                   setMenu(null)
                 }}

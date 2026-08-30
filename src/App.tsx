@@ -35,6 +35,7 @@ function App() {
     } else {
       document.documentElement.removeAttribute('data-theme')
     }
+    window.api?.window.setTitleBarTheme(dark)
   }
 
   // Handle theme toggle

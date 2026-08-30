@@ -45,7 +45,7 @@ export default function ArchiveView({ onOpenProject }: { onOpenProject: (p: Proj
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, x: -60 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                onClick={() => onOpenProject(p)}
+                onClick={() => { clickSound(); onOpenProject(p) }}
                 className="bg-surface rounded-lg border border-border p-4 cursor-pointer hover:shadow-md transition-shadow opacity-75 hover:opacity-100"
               >
                 <div className="flex items-center justify-between mb-2">
