@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { Plus, Trash2, Archive, ArrowUp } from 'lucide-react'
+import { Plus, Trash2, Archive } from 'lucide-react'
 import type { Project, Priority } from '../types'
-import { clickSound, createSound, deleteSound } from '../sounds'
+import { clickSound, deleteSound } from '../sounds'
+import ProjectCreationModal from './ProjectCreationModal'
 
 const PRIORITY_COLORS: Record<string, string> = {
   none: 'border-l-ink-faint',
@@ -48,15 +49,15 @@ export default function HomePage({
   onNewProject?: () => void
 }) {
   const [projects, setProjects] = useState<Project[]>([])
-  const [newName, setNewName] = useState('')
-  const [creating, setCreating] = useState(false)
+  const [isCreatingModalOpen, setIsCreatingModalOpen] = useState(false)
+  const [isCreating, setIsCreating] = useState(false)
   const [sortBy, setSortBy] = useState<SortMode>('priority')
 
   useEffect(() => { loadProjects() }, [])
 
   useEffect(() => {
     if (startCreatingProp) {
-      setCreating(true)
+      setIsCreatingModalOpen(true)
       onCreateHandled?.()
     }
   }, [startCreatingProp])
@@ -83,16 +84,16 @@ export default function HomePage({
     return a.name.localeCompare(b.name)
   })
 
-  const handleCreate = async () => {
-    if (!newName.trim()) return
+  const handleCreate = async (data: { name: string; priority: Priority; due_date: string | null }) => {
+    setIsCreating(true)
     try {
-      await window.api.projects.create({ name: newName })
-      createSound()
-      setNewName('')
-      setCreating(false)
+      await window.api.projects.create(data)
       await loadProjects()
     } catch (error) {
       console.error('Failed to create project:', error)
+      throw error
+    } finally {
+      setIsCreating(false)
     }
   }
 
@@ -122,7 +123,7 @@ export default function HomePage({
     e.stopPropagation()
     clickSound()
     try {
-      await window.api.projects.update({ id, priority })
+      await window.api.projects.update({ id, priority: priority as Priority })
       await loadProjects()
     } catch (error) {
       console.error('Failed to update priority:', error)
@@ -137,25 +138,6 @@ export default function HomePage({
   return (
     <div className="min-h-screen bg-surface-sunken">
       <main className="max-w-4xl mx-auto px-6 py-8">
-        {creating && (
-          <div className="mb-6 flex gap-2">
-            <input
-              autoFocus
-              type="text"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleCreate()
-                if (e.key === 'Escape') { setCreating(false); setNewName('') }
-              }}
-              placeholder="Project name..."
-              className="flex-1 px-3 py-2 border border-border-strong rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-            />
-            <button onClick={handleCreate} className="px-4 py-2 bg-primary text-ink-inverse text-sm rounded-lg hover:bg-primary-hover transition-colors cursor-pointer">Create</button>
-            <button onClick={() => { clickSound(); setCreating(false); setNewName('') }} className="px-4 py-2 text-ink-muted text-sm rounded-lg hover:bg-surface-muted transition-colors cursor-pointer">Cancel</button>
-          </div>
-        )}
-
         {projects.length > 0 && (
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-1">
@@ -173,7 +155,7 @@ export default function HomePage({
               ))}
             </div>
             <button
-              onClick={() => { clickSound(); setCreating(true); onNewProject?.() }}
+              onClick={() => { clickSound(); setIsCreatingModalOpen(true); onNewProject?.() }}
               className="px-3 py-2 bg-primary text-ink-inverse text-sm rounded-lg hover:bg-primary-hover transition-colors cursor-pointer font-medium flex items-center gap-2"
             >
               <Plus size={16} />
@@ -182,10 +164,10 @@ export default function HomePage({
           </div>
         )}
 
-        {projects.length === 0 && !creating && (
+        {projects.length === 0 && !isCreatingModalOpen && (
           <div className="mb-6 flex justify-end">
             <button
-              onClick={() => { clickSound(); setCreating(true); onNewProject?.() }}
+              onClick={() => { clickSound(); setIsCreatingModalOpen(true); onNewProject?.() }}
               className="px-3 py-2 bg-primary text-ink-inverse text-sm rounded-lg hover:bg-primary-hover transition-colors cursor-pointer font-medium flex items-center gap-2"
             >
               <Plus size={16} />
@@ -194,7 +176,7 @@ export default function HomePage({
           </div>
         )}
 
-        {projects.length === 0 && !creating && (
+        {projects.length === 0 && !isCreatingModalOpen && (
           <div className="text-center py-24 text-ink-faint">
             <p className="text-2xl mb-2">🪝</p>
             <p className="text-base font-medium text-ink-muted">No projects yet</p>
@@ -275,6 +257,13 @@ export default function HomePage({
           </AnimatePresence>
         </div>
       </main>
+
+      <ProjectCreationModal
+        isOpen={isCreatingModalOpen}
+        onClose={() => setIsCreatingModalOpen(false)}
+        onCreate={handleCreate}
+        isLoading={isCreating}
+      />
     </div>
   )
 }

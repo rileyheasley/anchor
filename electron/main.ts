@@ -170,6 +170,7 @@ function createSchema() {
     filename TEXT NOT NULL,
     project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
     card_id TEXT REFERENCES cards(id) ON DELETE SET NULL,
+    position INTEGER NOT NULL DEFAULT 0,
     deleted_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -179,6 +180,17 @@ function createSchema() {
     key TEXT PRIMARY KEY,
     value TEXT
   )`)
+
+  migrateSchema()
+}
+
+function migrateSchema() {
+  if (!db) return
+  const columns = queryAll("PRAGMA table_info(notes)")
+  const hasPosition = columns.some((col) => col.name === 'position')
+  if (!hasPosition) {
+    db.run('ALTER TABLE notes ADD COLUMN position INTEGER NOT NULL DEFAULT 0')
+  }
 }
 
 function seedSampleData() {
@@ -285,6 +297,22 @@ function noteFilePath(filename: string): string | null {
   const vault = getVaultPath()
   if (!vault) return null
   return path.join(vault, filename)
+}
+
+// Derives a plain-text title from the first non-empty markdown line
+function deriveTitleFromContent(content: string): string {
+  const firstLine = content.split('\n').find((line) => line.trim().length > 0) ?? ''
+  let text = firstLine.trim()
+  text = text.replace(/^#{1,6}\s+/, '')
+  text = text.replace(/^[-*+]\s+/, '')
+  text = text.replace(/^\d+\.\s+/, '')
+  text = text.replace(/^>\s+/, '')
+  text = text.replace(/(\*\*|__)(.*?)\1/g, '$2')
+  text = text.replace(/(\*|_)(.*?)\1/g, '$2')
+  text = text.replace(/`([^`]+)`/g, '$1')
+  text = text.replace(/~~(.*?)~~/g, '$1')
+  text = text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+  return text.trim() || 'Untitled'
 }
 
 function purgeSoftDeleted() {
@@ -419,7 +447,7 @@ app.whenReady().then(async () => {
       }
       if (filter?.project_id) {
         return queryAll(
-          'SELECT * FROM notes WHERE project_id = ? AND card_id IS NULL AND deleted_at IS NULL ORDER BY updated_at DESC',
+          'SELECT * FROM notes WHERE project_id = ? AND card_id IS NULL AND deleted_at IS NULL ORDER BY position ASC, created_at ASC',
           [filter.project_id]
         )
       }
@@ -454,12 +482,48 @@ app.whenReady().then(async () => {
       const absPath = path.join(vault, filename)
       fs.writeFileSync(absPath, `# ${data.title}\n`)
 
+      // New project notes are appended to the end of the manual stack order
+      let position = 0
+      if (data.project_id && !data.card_id) {
+        const row = queryOne(
+          'SELECT MAX(position) AS maxPos FROM notes WHERE project_id = ? AND card_id IS NULL AND deleted_at IS NULL',
+          [data.project_id]
+        )
+        position = ((row?.maxPos as number | null) ?? -1) + 1
+      }
+
       execute(
-        'INSERT INTO notes (id, title, filename, project_id, card_id) VALUES (?, ?, ?, ?, ?)',
-        [id, data.title, filename, data.project_id ?? null, data.card_id ?? null]
+        'INSERT INTO notes (id, title, filename, project_id, card_id, position) VALUES (?, ?, ?, ?, ?, ?)',
+        [id, data.title, filename, data.project_id ?? null, data.card_id ?? null, position]
       )
       saveDatabase()
       return queryOne('SELECT * FROM notes WHERE id = ?', [id])
+    })
+
+    ipcMain.handle('notes:reorder', async (_event, data: { ids: string[] }) => {
+      data.ids.forEach((id, index) => {
+        execute('UPDATE notes SET position = ? WHERE id = ? AND deleted_at IS NULL', [index, id])
+      })
+      saveDatabase()
+    })
+
+    ipcMain.handle('notes:update', async (_event, data: { id: string, title?: string }) => {
+      const fields: string[] = []
+      const values: unknown[] = []
+
+      if (data.title !== undefined) {
+        fields.push('title = ?')
+        values.push(data.title)
+      }
+
+      if (fields.length === 0) return queryOne('SELECT * FROM notes WHERE id = ?', [data.id])
+
+      fields.push("updated_at = datetime('now')")
+      values.push(data.id)
+
+      execute(`UPDATE notes SET ${fields.join(', ')} WHERE id = ? AND deleted_at IS NULL`, values)
+      saveDatabase()
+      return queryOne('SELECT * FROM notes WHERE id = ?', [data.id])
     })
 
     ipcMain.handle('notes:getContent', (_event, id: string) => {
@@ -471,12 +535,17 @@ app.whenReady().then(async () => {
     })
 
     ipcMain.handle('notes:saveContent', (_event, id: string, content: string) => {
-      const note = queryOne('SELECT filename FROM notes WHERE id = ?', [id])
+      const note = queryOne('SELECT filename, project_id, card_id FROM notes WHERE id = ?', [id])
       if (!note) throw new Error('Note not found')
       const fp = noteFilePath(note.filename as string)
       if (!fp) throw new Error('No vault configured')
       fs.writeFileSync(fp, content, 'utf-8')
-      execute("UPDATE notes SET updated_at = datetime('now') WHERE id = ?", [id])
+      // Standalone notes derive their title from the content; project/card notes keep their explicit title
+      if (note.project_id == null && note.card_id == null) {
+        execute("UPDATE notes SET title = ?, updated_at = datetime('now') WHERE id = ?", [deriveTitleFromContent(content), id])
+      } else {
+        execute("UPDATE notes SET updated_at = datetime('now') WHERE id = ?", [id])
+      }
       saveDatabase()
     })
 
@@ -562,9 +631,15 @@ app.whenReady().then(async () => {
       return projects
     })
 
-    ipcMain.handle('projects:create', async (_event, data: { name: string }) => {
+    ipcMain.handle('projects:create', async (_event, data: { name: string, priority?: string, due_date?: string | null }) => {
       const projectId = crypto.randomUUID()
-      execute('INSERT INTO projects (id, name) VALUES (?, ?)', [projectId, data.name])
+      const priority = data.priority || 'none'
+      const dueDate = data.due_date || null
+
+      execute(
+        'INSERT INTO projects (id, name, priority, due_date) VALUES (?, ?, ?, ?)',
+        [projectId, data.name, priority, dueDate]
+      )
 
       const defaultColumns = [
         { name: 'To Do', isDone: 0 },

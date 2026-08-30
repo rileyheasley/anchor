@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { Plus, Trash2, X, ChevronLeft } from 'lucide-react'
-import type { Project, KanbanColumn, Card, Note } from '../types'
+import type { Project, KanbanColumn, Card, Note, Priority } from '../types'
 import { clickSound, createSound, deleteSound, completeSound, moveSound } from '../sounds'
+import ProjectHeader from './ProjectHeader'
 
 const PRIORITY_BADGES: Record<string, string> = {
   none: 'bg-surface-muted text-ink-muted',
@@ -29,6 +30,9 @@ export default function ProjectBoard({ project, onClose }: { project: Project, o
   const [noteContent, setNoteContent] = useState('')
   const [noteDirty, setNoteDirty] = useState(false)
   const noteSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Project update state
+  const [isUpdatingProject, setIsUpdatingProject] = useState(false)
 
   useEffect(() => { loadBoard() }, [project.id])
   useEffect(() => { if (selectedCard) loadCardNote(selectedCard) }, [selectedCard?.id])
@@ -127,7 +131,7 @@ export default function ProjectBoard({ project, onClose }: { project: Project, o
   const handleUpdatePriority = async (cardId: string, priority: string) => {
     clickSound()
     try {
-      await window.api.cards.update({ id: cardId, priority })
+      await window.api.cards.update({ id: cardId, priority: priority as Priority })
       await loadBoard()
       if (selectedCard?.id === cardId) setSelectedCard(prev => prev ? { ...prev, priority: priority as Card['priority'] } : prev)
     } catch (error) { console.error('Failed to update priority:', error) }
@@ -158,8 +162,30 @@ export default function ProjectBoard({ project, onClose }: { project: Project, o
     clickSound()
   }
 
+  const handleUpdateProject = async (data: { name?: string; priority?: Priority; due_date?: string | null }) => {
+    setIsUpdatingProject(true)
+    try {
+      await window.api.projects.update({ id: project.id, ...data })
+      // Note: The project prop is from parent component, so they handle re-rendering
+    } catch (error) {
+      console.error('Failed to update project:', error)
+      throw error
+    } finally {
+      setIsUpdatingProject(false)
+    }
+  }
+
   return (
     <div className="h-full bg-surface-sunken flex flex-col">
+      <ProjectHeader
+        project={project}
+        onUpdateProject={handleUpdateProject}
+        totalPoints={cards.reduce((sum, c) => sum + (c.points ?? 0), 0)}
+        donePoints={cards
+          .filter((c) => columns.find((col) => col.id === c.column_id)?.is_done)
+          .reduce((sum, c) => sum + (c.points ?? 0), 0)}
+        isLoading={isUpdatingProject}
+      />
       <div className="flex flex-1 overflow-hidden">
         {/* Board */}
         <div className="flex-1 overflow-x-auto p-6">

@@ -67,7 +67,7 @@ declare global {
       }
       projects: {
         list: () => Promise<Project[]>
-        create: (data: { name: string }) => Promise<Project>
+        create: (data: { name: string, priority?: Priority, due_date?: string | null }) => Promise<Project>
         update: (data: { id: string, name?: string, priority?: Priority, due_date?: string | null }) => Promise<Project>
         archive: (id: string) => Promise<void>
         delete: (id: string) => Promise<void>
@@ -98,6 +98,8 @@ declare global {
       notes: {
         list: (filter?: { project_id?: string, card_id?: string, standalone?: boolean }) => Promise<Note[]>
         create: (data: { title: string, project_id?: string, card_id?: string }) => Promise<Note>
+        update: (data: { id: string, title?: string }) => Promise<Note>
+        reorder: (data: { ids: string[] }) => Promise<void>
         getContent: (id: string) => Promise<string | null>
         saveContent: (id: string, content: string) => Promise<void>
         delete: (id: string) => Promise<void>

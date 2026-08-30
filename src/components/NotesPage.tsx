@@ -6,6 +6,22 @@ import { createSound, deleteSound, clickSound } from '../sounds'
 import MarkdownEditor from './MarkdownEditor'
 import ResizableNotesSidebar from './ResizableNotesSidebar'
 
+// Derives a plain-text title from the first non-empty markdown line
+function deriveTitleFromContent(content: string): string {
+  const firstLine = content.split('\n').find((line) => line.trim().length > 0) ?? ''
+  let text = firstLine.trim()
+  text = text.replace(/^#{1,6}\s+/, '')
+  text = text.replace(/^[-*+]\s+/, '')
+  text = text.replace(/^\d+\.\s+/, '')
+  text = text.replace(/^>\s+/, '')
+  text = text.replace(/(\*\*|__)(.*?)\1/g, '$2')
+  text = text.replace(/(\*|_)(.*?)\1/g, '$2')
+  text = text.replace(/`([^`]+)`/g, '$1')
+  text = text.replace(/~~(.*?)~~/g, '$1')
+  text = text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+  return text.trim() || 'Untitled'
+}
+
 export default function NotesPage({
   startCreating: startCreatingProp = false,
   onCreateHandled,
@@ -65,6 +81,10 @@ export default function NotesPage({
   const handleContentChange = (val: string) => {
     setContent(val)
     setDirty(true)
+    if (activeNote) {
+      const derivedTitle = deriveTitleFromContent(val)
+      setNotes((prev) => prev.map((n) => (n.id === activeNote.id ? { ...n, title: derivedTitle } : n)))
+    }
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => saveActive(val), 1500)
   }
@@ -244,17 +264,11 @@ export default function NotesPage({
         {/* Editor */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {activeNote ? (
-            <>
-              <div className="px-6 py-3 border-b border-border bg-surface flex items-center justify-between">
-                <h2 className="font-medium text-ink">{activeNote.title}</h2>
-                {dirty && <span className="text-xs text-ink-faint">Saving…</span>}
-              </div>
-              <MarkdownEditor
-                content={content}
-                onChange={handleContentChange}
-                onBlur={() => saveActive()}
-              />
-            </>
+            <MarkdownEditor
+              content={content}
+              onChange={handleContentChange}
+              onBlur={() => saveActive()}
+            />
           ) : (
             <div className="flex-1 flex items-center justify-center text-ink-faint text-sm">
               Select a note to edit
