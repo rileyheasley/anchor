@@ -55,6 +55,17 @@ export interface Note {
   updated_at: string
 }
 
+export interface Todo {
+  id: string
+  text: string
+  priority: Priority
+  due_date: string | null
+  done: number
+  position: number
+  created_at: string
+  updated_at: string
+}
+
 export interface RecycleItem {
   type: 'project' | 'card' | 'note'
   id: string
@@ -89,6 +100,41 @@ export interface SearchResults {
   projects: SearchProjectResult[]
   cards: SearchCardResult[]
   notes: SearchNoteResult[]
+}
+
+export interface OverviewDueCard {
+  id: string
+  title: string
+  project_id: string
+  project_name: string
+  due_date: string
+  priority: Priority
+}
+
+export interface OverviewStaleProject {
+  id: string
+  name: string
+  priority: Priority
+  status: ProjectStatus
+  last_activity: string
+}
+
+export interface OverviewRecentNote {
+  id: string
+  title: string
+  project_id: string | null
+  card_id: string | null
+  resolved_project_id: string | null
+  project_name: string | null
+  updated_at: string
+}
+
+export interface OverviewData {
+  dueCards: OverviewDueCard[]
+  staleProjects: OverviewStaleProject[]
+  statusRows: { status: ProjectStatus, count: number }[]
+  pointsTrend: { this_week: number, last_week: number }
+  recentNotes: OverviewRecentNote[]
 }
 
 declare global {
@@ -157,6 +203,17 @@ declare global {
       }
       search: {
         query: (query: string) => Promise<SearchResults>
+      }
+      overview: {
+        get: () => Promise<OverviewData>
+      }
+      todos: {
+        list: () => Promise<Todo[]>
+        create: (data: { text: string }) => Promise<Todo>
+        update: (data: { id: string, text?: string, priority?: Priority, due_date?: string | null }) => Promise<Todo>
+        toggle: (id: string) => Promise<Todo>
+        reorder: (data: { ids: string[] }) => Promise<void>
+        delete: (id: string) => Promise<void>
       }
     }
   }

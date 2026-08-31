@@ -22,15 +22,21 @@ input, textarea, [contenteditable] {
   user-select: text;
 }
 
-/* Custom scrollbar — themed to match surface/border tokens instead of the OS default */
+/* Custom scrollbar — track is always transparent (no visible background); the thumb
+   itself only fades in while the container is hovered/scrolled, like an overlay scrollbar. */
 * {
   scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 0.2s ease;
+}
+
+*:hover {
   scrollbar-color: var(--color-border-strong) transparent;
 }
 
 *::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
 }
 
 *::-webkit-scrollbar-track {
@@ -38,10 +44,15 @@ input, textarea, [contenteditable] {
 }
 
 *::-webkit-scrollbar-thumb {
-  background-color: var(--color-border-strong);
+  background-color: transparent;
   border-radius: 9999px;
   border: 2px solid transparent;
   background-clip: padding-box;
+  transition: background-color 0.2s ease;
+}
+
+*:hover::-webkit-scrollbar-thumb {
+  background-color: var(--color-border-strong);
 }
 
 *::-webkit-scrollbar-thumb:hover {

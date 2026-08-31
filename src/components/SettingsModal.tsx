@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { motion, AnimatePresence } from 'motion/react'
 import { X, Keyboard, SlidersHorizontal, Palette, Info, FolderOpen, Volume2 } from 'lucide-react'
 import { clickSound } from '../sounds'
 import { useEscapeKey } from '../hooks/useEscapeKey'
@@ -27,9 +28,10 @@ const SECTIONS: { id: Section; label: string; icon: typeof SlidersHorizontal }[]
 
 function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) {
   return (
-    <button
+    <motion.button
       role="switch"
       aria-checked={checked}
+      whileTap={{ scale: 0.92 }}
       onClick={() => { clickSound(); onChange(!checked) }}
       className={`relative w-10 h-6 rounded-full shrink-0 transition-colors cursor-pointer ${
         checked ? 'bg-primary' : 'bg-surface-muted border border-border-strong'
@@ -40,7 +42,7 @@ function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange: (chec
           checked ? 'translate-x-4' : 'translate-x-0'
         }`}
       />
-    </button>
+    </motion.button>
   )
 }
 
@@ -74,29 +76,41 @@ export default function SettingsModal({
     if (chosen) setVaultPath(chosen)
   }
 
-  if (!isOpen) return null
-
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={handleClose}>
-      <div
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={handleClose}
+        >
+      <motion.div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label="Settings"
         tabIndex={-1}
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
         onClick={(e) => e.stopPropagation()}
         className="bg-surface border border-border-subtle rounded-lg shadow-lg w-[42rem] h-[32rem] flex flex-col"
       >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-border-subtle shrink-0">
           <h2 className="font-heading text-lg font-medium text-ink">Settings</h2>
-          <button
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={handleClose}
             className="p-1 rounded-lg text-ink-muted hover:bg-surface-sunken hover:text-ink transition-colors cursor-pointer"
             title="Close settings"
           >
             <X size={20} />
-          </button>
+          </motion.button>
         </div>
 
         {/* Body */}
@@ -104,8 +118,10 @@ export default function SettingsModal({
           {/* Section nav */}
           <nav className="w-44 shrink-0 border-r border-border-subtle p-2 space-y-0.5 overflow-y-auto">
             {SECTIONS.map(({ id, label, icon: Icon }) => (
-              <button
+              <motion.button
                 key={id}
+                whileHover={{ x: 2 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => { clickSound(); setSection(id) }}
                 className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left cursor-pointer transition-colors ${
                   section === id
@@ -115,7 +131,7 @@ export default function SettingsModal({
               >
                 <Icon size={16} />
                 {label}
-              </button>
+              </motion.button>
             ))}
           </nav>
 
@@ -131,12 +147,14 @@ export default function SettingsModal({
                       {vaultPath ?? 'No folder chosen'}
                     </span>
                   </div>
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
                     onClick={handleChooseVault}
                     className="px-3 py-1.5 text-xs font-medium rounded-lg bg-surface-muted text-ink-secondary hover:bg-border-strong transition-colors cursor-pointer"
                   >
                     Change folder…
-                  </button>
+                  </motion.button>
                   <p className="text-xs text-ink-faint mt-2">Notes and project files are stored as markdown in this folder.</p>
                 </div>
 
@@ -159,8 +177,10 @@ export default function SettingsModal({
                 <h3 className="text-xs font-semibold text-ink-faint uppercase tracking-wide mb-3">Theme</h3>
                 <div className="grid grid-cols-2 gap-2">
                   {THEME_OPTIONS.map(({ mode, label, icon: Icon }) => (
-                    <button
+                    <motion.button
                       key={mode}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
                       onClick={() => { clickSound(); onThemeChange(mode) }}
                       className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm cursor-pointer transition-colors ${
                         themeMode === mode
@@ -170,7 +190,7 @@ export default function SettingsModal({
                     >
                       <Icon size={16} />
                       {label}
-                    </button>
+                    </motion.button>
                   ))}
                 </div>
               </div>
@@ -215,7 +235,9 @@ export default function SettingsModal({
             )}
           </div>
         </div>
-      </div>
-    </div>
+      </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }

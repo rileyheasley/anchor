@@ -102,13 +102,15 @@ export default function Sidebar({
       }`}>
         {/* Theme Menu */}
         <div className="relative" ref={themeMenuRef}>
-          <button
+          <motion.button
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.92 }}
             onClick={() => { clickSound(); setIsThemeMenuOpen((open) => !open) }}
             title="Theme"
             className="flex items-center justify-center p-2 rounded-lg text-sm transition-colors text-ink-muted hover:bg-surface-sunken hover:text-ink-secondary"
           >
             <ActiveThemeIcon size={18} />
-          </button>
+          </motion.button>
 
           <AnimatePresence>
             {isThemeMenuOpen && (
@@ -120,8 +122,10 @@ export default function Sidebar({
                 className="absolute bottom-full left-0 mb-2 bg-surface border border-border-strong rounded-lg shadow-lg py-1 min-w-[140px] z-50"
               >
                 {THEME_OPTIONS.map(({ mode, label, icon: Icon }) => (
-                  <button
+                  <motion.button
                     key={mode}
+                    whileHover={{ x: 2 }}
+                    whileTap={{ scale: 0.98 }}
                     onClick={() => { clickSound(); onThemeChange(mode); setIsThemeMenuOpen(false) }}
                     className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left cursor-pointer transition-colors ${
                       themeMode === mode
@@ -131,7 +135,7 @@ export default function Sidebar({
                   >
                     <Icon size={16} />
                     {label}
-                  </button>
+                  </motion.button>
                 ))}
               </motion.div>
             )}
@@ -139,31 +143,37 @@ export default function Sidebar({
         </div>
 
         {/* Search */}
-        <button
+        <motion.button
+          whileHover={{ scale: 1.08 }}
+          whileTap={{ scale: 0.92 }}
           onClick={() => { clickSound(); onOpenSearch() }}
           title="Search"
           className="flex items-center justify-center p-2 rounded-lg text-sm transition-colors text-ink-muted hover:bg-surface-sunken hover:text-ink-secondary"
         >
           <Search size={18} />
-        </button>
+        </motion.button>
 
         {/* Settings */}
-        <button
+        <motion.button
+          whileHover={{ scale: 1.08 }}
+          whileTap={{ scale: 0.92 }}
           onClick={() => { clickSound(); onOpenSettings() }}
           title="Settings"
           className="flex items-center justify-center p-2 rounded-lg text-sm transition-colors text-ink-muted hover:bg-surface-sunken hover:text-ink-secondary"
         >
           <Settings size={18} />
-        </button>
+        </motion.button>
 
         {/* Collapse Toggle */}
-        <button
+        <motion.button
+          whileHover={{ scale: 1.08 }}
+          whileTap={{ scale: 0.92 }}
           onClick={() => { clickSound(); setIsCollapsed(!isCollapsed) }}
           title={isCollapsed ? 'Expand' : 'Collapse'}
           className="flex items-center justify-center p-2 rounded-lg text-sm transition-colors text-ink-muted hover:bg-surface-sunken hover:text-ink-secondary"
         >
           {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-        </button>
+        </motion.button>
       </div>
     </DraggableSidebar>
   )

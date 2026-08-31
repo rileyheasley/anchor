@@ -213,7 +213,7 @@ export default function HomePage({
   const SORT_LABELS: Record<SortMode, string> = { priority: 'Priority', status: 'Status', dueDate: 'Due date', name: 'Name' }
 
   return (
-    <div className="min-h-screen bg-surface-sunken">
+    <div className="h-full overflow-y-auto bg-surface-sunken">
       <main className="max-w-4xl mx-auto px-6 py-8">
         {projects.length > 0 && (
           <div className="flex items-center justify-between mb-4">
@@ -224,7 +224,9 @@ export default function HomePage({
                 onChange={setSortBy}
               />
               <div className="flex items-center gap-0.5 border border-border rounded-lg p-0.5">
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.08 }}
+                  whileTap={{ scale: 0.92 }}
                   onClick={() => handleViewModeChange('list')}
                   title="List view"
                   className={`p-1.5 rounded cursor-pointer transition-colors ${
@@ -232,8 +234,10 @@ export default function HomePage({
                   }`}
                 >
                   <List size={14} />
-                </button>
-                <button
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.08 }}
+                  whileTap={{ scale: 0.92 }}
                   onClick={() => handleViewModeChange('grid')}
                   title="Grid view"
                   className={`p-1.5 rounded cursor-pointer transition-colors ${
@@ -241,11 +245,13 @@ export default function HomePage({
                   }`}
                 >
                   <LayoutGrid size={14} />
-                </button>
+                </motion.button>
               </div>
 
               <div className="relative" ref={filterMenuRef}>
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
                   onClick={() => { clickSound(); setIsFilterOpen((open) => !open) }}
                   title="Filter"
                   className={`flex items-center gap-1.5 text-xs px-2 py-1.5 rounded-lg border cursor-pointer transition-colors ${
@@ -261,7 +267,7 @@ export default function HomePage({
                       {activeFilterCount}
                     </span>
                   )}
-                </button>
+                </motion.button>
 
                 <AnimatePresence>
                   {isFilterOpen && (
@@ -275,13 +281,15 @@ export default function HomePage({
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-xs font-medium text-ink-secondary">Filter projects</span>
                         {activeFilterCount > 0 && (
-                          <button
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
                             onClick={clearFilters}
                             className="flex items-center gap-1 text-xs text-ink-faint hover:text-danger cursor-pointer transition-colors"
                           >
                             <X size={12} />
                             Clear
-                          </button>
+                          </motion.button>
                         )}
                       </div>
 
@@ -289,8 +297,10 @@ export default function HomePage({
                         <span className="text-xs text-ink-faint uppercase tracking-wide block mb-1.5">Status</span>
                         <div className="flex flex-wrap gap-1.5">
                           {STATUS_OPTIONS.map((s) => (
-                            <button
+                            <motion.button
                               key={s}
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
                               onClick={() => toggleStatusFilter(s)}
                               className={`text-xs px-2 py-1 rounded-lg cursor-pointer transition-colors ${
                                 statusFilter.has(s)
@@ -299,7 +309,7 @@ export default function HomePage({
                               }`}
                             >
                               {STATUS_LABELS[s]}
-                            </button>
+                            </motion.button>
                           ))}
                         </div>
                       </div>
@@ -308,8 +318,10 @@ export default function HomePage({
                         <span className="text-xs text-ink-faint uppercase tracking-wide block mb-1.5">Priority</span>
                         <div className="flex flex-wrap gap-1.5">
                           {PRIORITY_OPTIONS.map((pri) => (
-                            <button
+                            <motion.button
                               key={pri}
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
                               onClick={() => togglePriorityFilter(pri)}
                               className={`text-xs px-2 py-1 rounded-lg cursor-pointer transition-colors ${
                                 priorityFilter.has(pri)
@@ -318,7 +330,7 @@ export default function HomePage({
                               }`}
                             >
                               {pri.charAt(0).toUpperCase() + pri.slice(1)}
-                            </button>
+                            </motion.button>
                           ))}
                         </div>
                       </div>
@@ -327,25 +339,29 @@ export default function HomePage({
                 </AnimatePresence>
               </div>
             </div>
-            <button
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
               onClick={() => { clickSound(); setIsCreatingModalOpen(true); onNewProject?.() }}
               className="px-3 py-2 bg-primary text-ink-inverse text-sm rounded-lg hover:bg-primary-hover transition-colors cursor-pointer font-medium flex items-center gap-2"
             >
               <Plus size={16} />
               New Project
-            </button>
+            </motion.button>
           </div>
         )}
 
         {projects.length === 0 && !isCreatingModalOpen && (
           <div className="mb-6 flex justify-end">
-            <button
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
               onClick={() => { clickSound(); setIsCreatingModalOpen(true); onNewProject?.() }}
               className="px-3 py-2 bg-primary text-ink-inverse text-sm rounded-lg hover:bg-primary-hover transition-colors cursor-pointer font-medium flex items-center gap-2"
             >
               <Plus size={16} />
               New Project
-            </button>
+            </motion.button>
           </div>
         )}
 
@@ -359,12 +375,14 @@ export default function HomePage({
         {projects.length > 0 && filtered.length === 0 && (
           <div className="text-center py-24 text-ink-faint">
             <p className="text-base font-medium text-ink-muted">No projects match your filters</p>
-            <button
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
               onClick={clearFilters}
               className="mt-3 text-sm text-accent-hover hover:underline cursor-pointer"
             >
               Clear filters
-            </button>
+            </motion.button>
           </div>
         )}
 

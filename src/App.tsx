@@ -129,6 +129,28 @@ function App() {
     }
   }
 
+  const openCard = async (cardId: string, projectId: string) => {
+    const project = await openProjectById(projectId)
+    if (project) {
+      navigateToProject(project)
+      setFocusCardId(cardId)
+    }
+  }
+
+  // Project/card-scoped notes navigate to their parent project (no deep link into the
+  // note modal yet); standalone notes open directly in the Notes view.
+  const openNote = async (noteId: string, projectId: string | null) => {
+    if (projectId) {
+      const project = await openProjectById(projectId)
+      if (project) navigateToProject(project)
+    } else {
+      setActiveProject(null)
+      setView('notes')
+      setFocusNoteId(noteId)
+      pushHistory({ view: 'notes', projectId: null })
+    }
+  }
+
   const handleSearchSelect = async (selection: SearchSelection) => {
     if (selection.type === 'project') {
       const project = await openProjectById(selection.id)
@@ -136,24 +158,10 @@ function App() {
       return
     }
     if (selection.type === 'card') {
-      const project = await openProjectById(selection.projectId)
-      if (project) {
-        navigateToProject(project)
-        setFocusCardId(selection.id)
-      }
+      await openCard(selection.id, selection.projectId)
       return
     }
-    // Note: project/card-scoped notes navigate to their parent project (no deep link
-    // into the note modal yet); standalone notes open directly in the Notes view.
-    if (selection.projectId) {
-      const project = await openProjectById(selection.projectId)
-      if (project) navigateToProject(project)
-    } else {
-      setActiveProject(null)
-      setView('notes')
-      setFocusNoteId(selection.id)
-      pushHistory({ view: 'notes', projectId: null })
-    }
+    await openNote(selection.id, selection.projectId)
   }
 
   // Session history drives the mouse/OS back-forward buttons: replay whatever view or
@@ -235,7 +243,16 @@ function App() {
       )
     }
     if (view === 'home') {
-      return <OverviewHome onOpenProject={navigateToProject} />
+      return (
+        <OverviewHome
+          onOpenProject={navigateToProject}
+          onOpenCard={openCard}
+          onOpenNote={openNote}
+          onNewProject={handleNewProject}
+          onNewNote={handleNewNote}
+          onOpenSearch={() => setIsSearchOpen(true)}
+        />
+      )
     }
     if (view === 'projects') {
       return (

@@ -65,7 +65,7 @@ export default function RecycleBin() {
   }
 
   return (
-    <div className="min-h-screen bg-surface-sunken">
+    <div className="h-full overflow-y-auto bg-surface-sunken">
       <main className="max-w-3xl mx-auto px-6 py-8">
         {!loading && items.length === 0 && (
           <div className="text-center py-16 text-ink-faint">
@@ -99,20 +99,24 @@ export default function RecycleBin() {
                     <Clock size={14} />
                     Purges in {daysUntilPurge(item.deleted_at)}d
                   </span>
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                     onClick={() => handleRestore(item.type, item.id)}
                     className="text-xs px-2 py-1 text-accent-hover hover:bg-accent-subtle rounded cursor-pointer transition-colors flex items-center gap-1"
                   >
                     <RotateCcw size={14} />
                     Restore
-                  </button>
-                  <button
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                     onClick={() => handlePurge(item.type, item.id)}
                     className="text-xs px-2 py-1 text-danger hover:bg-danger-subtle rounded cursor-pointer transition-colors flex items-center gap-1"
                   >
                     <Trash2 size={14} />
                     Delete now
-                  </button>
+                  </motion.button>
                 </div>
               </motion.div>
             ))}

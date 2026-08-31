@@ -31,7 +31,7 @@ export default function ArchiveView({ onOpenProject }: { onOpenProject: (p: Proj
     p.total_points > 0 ? Math.round((p.done_points / p.total_points) * 100) : 0
 
   return (
-    <div className="min-h-screen bg-surface-sunken">
+    <div className="h-full overflow-y-auto bg-surface-sunken">
       <main className="max-w-3xl mx-auto px-6 py-8">
         {!loading && projects.length === 0 && (
           <div className="text-center py-16 text-ink-faint">
@@ -58,13 +58,15 @@ export default function ArchiveView({ onOpenProject }: { onOpenProject: (p: Proj
               >
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="font-heading font-medium text-ink-secondary">{p.name}</h3>
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                     onClick={(e) => { e.stopPropagation(); handleRestore(p.id) }}
                     className="text-xs px-3 py-1 text-accent-hover hover:bg-accent-subtle rounded-full border border-accent/30 cursor-pointer transition-colors flex items-center gap-1"
                   >
                     <RotateCcw size={14} />
                     Restore
-                  </button>
+                  </motion.button>
                 </div>
 
                 <div className="flex items-center gap-1.5 flex-wrap mb-2">

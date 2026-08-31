@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { motion, AnimatePresence } from 'motion/react'
 import { useEditor, EditorContent, type Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -117,38 +118,45 @@ export default function MarkdownEditor({
     <div className="flex-1 overflow-y-auto bg-surface relative" onContextMenu={handleContextMenu}>
       <EditorContent editor={editor} className="markdown-editor h-full p-6" />
 
-      {menu && (
-        <div
-          ref={menuRef}
-          className="fixed z-50 bg-surface border border-border rounded-lg shadow-lg py-1 min-w-[170px] text-sm"
-          style={{
-            top: menuPlacement?.top ?? menu.y,
-            left: menuPlacement?.left ?? menu.x,
-            visibility: menuPlacement ? 'visible' : 'hidden',
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {MENU_ITEMS.map((item, i) =>
-            item === 'separator' ? (
-              <div key={i} className="my-1 border-t border-border-subtle" />
-            ) : (
-              <button
-                key={item.label}
-                onClick={() => {
-                  clickSound()
-                  item.action(editor)
-                  setMenu(null)
-                }}
-                className={`w-full text-left px-3 py-1.5 hover:bg-surface-sunken cursor-pointer transition-colors ${
-                  item.isActive?.(editor) ? 'text-accent-hover font-medium' : 'text-ink-secondary'
-                }`}
-              >
-                {item.label}
-              </button>
-            )
-          )}
-        </div>
-      )}
+      <AnimatePresence>
+        {menu && (
+          <motion.div
+            ref={menuRef}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: menuPlacement ? 1 : 0, scale: menuPlacement ? 1 : 0.95 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.12, ease: 'easeOut' }}
+            className="fixed z-50 bg-surface border border-border rounded-lg shadow-lg py-1 min-w-[170px] text-sm"
+            style={{
+              top: menuPlacement?.top ?? menu.y,
+              left: menuPlacement?.left ?? menu.x,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {MENU_ITEMS.map((item, i) =>
+              item === 'separator' ? (
+                <div key={i} className="my-1 border-t border-border-subtle" />
+              ) : (
+                <motion.button
+                  key={item.label}
+                  whileHover={{ x: 2 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => {
+                    clickSound()
+                    item.action(editor)
+                    setMenu(null)
+                  }}
+                  className={`w-full text-left px-3 py-1.5 hover:bg-surface-sunken cursor-pointer transition-colors ${
+                    item.isActive?.(editor) ? 'text-accent-hover font-medium' : 'text-ink-secondary'
+                  }`}
+                >
+                  {item.label}
+                </motion.button>
+              )
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

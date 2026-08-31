@@ -808,6 +808,124 @@ app.whenReady().then(async () => {
       saveDatabase()
     })
 
+    // ── Todo handlers ──
+
+    ipcMain.handle('todos:list', async () => {
+      return queryAll('SELECT * FROM todos ORDER BY done ASC, position ASC')
+    })
+
+    ipcMain.handle('todos:create', async (_event, data: { text: string }) => {
+      const maxPos = queryOne('SELECT COALESCE(MAX(position), -1) AS max_pos FROM todos')
+      const id = randomUUID()
+      execute(
+        'INSERT INTO todos (id, text, position) VALUES (?, ?, ?)',
+        [id, data.text, (maxPos?.max_pos as number) + 1]
+      )
+      saveDatabase()
+      return queryOne('SELECT * FROM todos WHERE id = ?', [id])
+    })
+
+    ipcMain.handle('todos:update', async (_event, data: { id: string, text?: string, priority?: string, due_date?: string | null }) => {
+      const fields: string[] = []
+      const values: unknown[] = []
+
+      if (data.text !== undefined) { fields.push('text = ?'); values.push(data.text) }
+      if (data.priority !== undefined) { fields.push('priority = ?'); values.push(data.priority) }
+      if (data.due_date !== undefined) { fields.push('due_date = ?'); values.push(data.due_date) }
+
+      if (fields.length === 0) return null
+
+      fields.push("updated_at = datetime('now')")
+      values.push(data.id)
+
+      execute(`UPDATE todos SET ${fields.join(', ')} WHERE id = ?`, values)
+      saveDatabase()
+      return queryOne('SELECT * FROM todos WHERE id = ?', [data.id])
+    })
+
+    ipcMain.handle('todos:toggle', async (_event, id: string) => {
+      execute("UPDATE todos SET done = NOT done, updated_at = datetime('now') WHERE id = ?", [id])
+      saveDatabase()
+      return queryOne('SELECT * FROM todos WHERE id = ?', [id])
+    })
+
+    ipcMain.handle('todos:reorder', async (_event, data: { ids: string[] }) => {
+      for (let i = 0; i < data.ids.length; i++) {
+        execute("UPDATE todos SET position = ?, updated_at = datetime('now') WHERE id = ?", [i, data.ids[i]])
+      }
+      saveDatabase()
+    })
+
+    ipcMain.handle('todos:delete', async (_event, id: string) => {
+      execute('DELETE FROM todos WHERE id = ?', [id])
+      saveDatabase()
+    })
+
+    // ── Overview handler ──
+
+    ipcMain.handle('overview:get', async () => {
+      const dueCards = queryAll(
+        `SELECT c.id, c.title, c.project_id, p.name AS project_name, c.due_date, c.priority
+         FROM cards c
+         JOIN projects p ON p.id = c.project_id
+         JOIN kanban_columns kc ON kc.id = c.column_id
+         WHERE c.deleted_at IS NULL AND p.deleted_at IS NULL AND p.archived = 0
+           AND kc.is_done = 0 AND c.due_date IS NOT NULL
+           AND date(c.due_date) <= date('now', '+7 days')
+         ORDER BY c.due_date ASC
+         LIMIT 8`
+      )
+
+      // A project counts as stale once it's on hold, or once nothing on it has moved in 14 days.
+      const staleProjects = queryAll(
+        `SELECT * FROM (
+           SELECT p.id, p.name, p.priority, p.status,
+             MAX(p.updated_at, COALESCE(MAX(c.updated_at), '')) AS last_activity
+           FROM projects p
+           LEFT JOIN cards c ON c.project_id = p.id AND c.deleted_at IS NULL
+           WHERE p.deleted_at IS NULL AND p.archived = 0 AND p.status != 'done'
+           GROUP BY p.id
+         ) t
+         WHERE t.status = 'on_hold' OR t.last_activity <= datetime('now', '-14 days')
+         ORDER BY t.last_activity ASC
+         LIMIT 5`
+      )
+
+      const statusRows = queryAll(
+        `SELECT status, COUNT(*) AS count FROM projects
+         WHERE deleted_at IS NULL AND archived = 0
+         GROUP BY status`
+      )
+
+      // No completed_at column exists, so a card's own updated_at (set on every move) stands in
+      // for when it was finished — close enough for a week-over-week trend.
+      const pointsTrend = queryOne(
+        `SELECT
+           COALESCE(SUM(CASE WHEN c.updated_at >= datetime('now', '-7 days') THEN c.points ELSE 0 END), 0) AS this_week,
+           COALESCE(SUM(CASE WHEN c.updated_at >= datetime('now', '-14 days') AND c.updated_at < datetime('now', '-7 days') THEN c.points ELSE 0 END), 0) AS last_week
+         FROM cards c
+         JOIN kanban_columns kc ON kc.id = c.column_id
+         JOIN projects p ON p.id = c.project_id
+         WHERE c.deleted_at IS NULL AND p.deleted_at IS NULL AND p.archived = 0 AND kc.is_done = 1`
+      )
+
+      const recentNotes = queryAll(
+        `SELECT n.id, n.title, n.project_id, n.card_id,
+           COALESCE(n.project_id, cp.id) AS resolved_project_id,
+           COALESCE(p.name, cp.name) AS project_name,
+           n.updated_at
+         FROM notes n
+         LEFT JOIN projects p ON p.id = n.project_id
+         LEFT JOIN cards c2 ON c2.id = n.card_id
+         LEFT JOIN projects cp ON cp.id = c2.project_id
+         WHERE n.deleted_at IS NULL
+         ORDER BY n.updated_at DESC
+         LIMIT 5`
+      )
+
+      return { dueCards, staleProjects, statusRows, pointsTrend, recentNotes }
+    })
+
     // ── Search handler ──
 
     ipcMain.handle('search:query', (_event, query: string) => {

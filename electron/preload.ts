@@ -65,4 +65,15 @@ contextBridge.exposeInMainWorld('api', {
   search: {
     query: (query: string) => ipcRenderer.invoke('search:query', query),
   },
+  overview: {
+    get: () => ipcRenderer.invoke('overview:get'),
+  },
+  todos: {
+    list: () => ipcRenderer.invoke('todos:list'),
+    create: (data: { text: string }) => ipcRenderer.invoke('todos:create', data),
+    update: (data: { id: string, text?: string, priority?: string, due_date?: string | null }) => ipcRenderer.invoke('todos:update', data),
+    toggle: (id: string) => ipcRenderer.invoke('todos:toggle', id),
+    reorder: (data: { ids: string[] }) => ipcRenderer.invoke('todos:reorder', data),
+    delete: (id: string) => ipcRenderer.invoke('todos:delete', id),
+  },
 })

@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { motion, AnimatePresence } from 'motion/react'
 import { ChevronRight, type LucideIcon } from 'lucide-react'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { clickSound } from '../sounds'
@@ -76,18 +77,24 @@ export default function ContextMenu({
     setPlacement({ top, left })
   }, [position])
 
-  if (!position) return null
-
   return (
-    <div
-      ref={menuRef}
-      style={{ position: 'fixed', top: placement?.top ?? position.y, left: placement?.left ?? position.x, visibility: placement ? 'visible' : 'hidden' }}
-      className="z-[100] bg-surface border border-border rounded-lg shadow-lg py-1 min-w-[180px] text-sm"
-      onClick={(e) => e.stopPropagation()}
-      onContextMenu={(e) => e.preventDefault()}
-    >
-      <MenuEntries items={items} onClose={onClose} />
-    </div>
+    <AnimatePresence>
+      {position && (
+        <motion.div
+          ref={menuRef}
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: placement ? 1 : 0, scale: placement ? 1 : 0.95 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          transition={{ duration: 0.12, ease: 'easeOut' }}
+          style={{ position: 'fixed', top: placement?.top ?? position.y, left: placement?.left ?? position.x }}
+          className="z-[100] bg-surface border border-border rounded-lg shadow-lg py-1 min-w-[180px] text-sm"
+          onClick={(e) => e.stopPropagation()}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <MenuEntries items={items} onClose={onClose} />
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }
 
@@ -100,9 +107,11 @@ function MenuEntries({ items, onClose }: { items: ContextMenuEntry[]; onClose: (
         ) : 'items' in entry ? (
           <SubmenuRow key={entry.label} entry={entry} onClose={onClose} />
         ) : (
-          <button
+          <motion.button
             key={entry.label}
             disabled={entry.disabled}
+            whileHover={entry.disabled ? undefined : { x: 2 }}
+            whileTap={entry.disabled ? undefined : { scale: 0.98 }}
             onClick={() => {
               if (entry.disabled) return
               clickSound()
@@ -119,7 +128,7 @@ function MenuEntries({ items, onClose }: { items: ContextMenuEntry[]; onClose: (
           >
             {entry.icon && <entry.icon size={14} className="shrink-0" />}
             {entry.label}
-          </button>
+          </motion.button>
         )
       )}
     </>
@@ -155,15 +164,21 @@ function SubmenuRow({ entry, onClose }: { entry: ContextMenuSubmenu; onClose: ()
         <ChevronRight size={13} className="shrink-0 text-ink-faint" />
       </div>
 
-      {open && !entry.disabled && (
-        <div
-          className={`absolute top-0 z-[110] bg-surface border border-border rounded-lg shadow-lg py-1 min-w-[180px] text-sm ${
-            side === 'right' ? 'left-full' : 'right-full'
-          }`}
-        >
-          <MenuEntries items={entry.items} onClose={onClose} />
-        </div>
-      )}
+      <AnimatePresence>
+        {open && !entry.disabled && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.12, ease: 'easeOut' }}
+            className={`absolute top-0 z-[110] bg-surface border border-border rounded-lg shadow-lg py-1 min-w-[180px] text-sm ${
+              side === 'right' ? 'left-full' : 'right-full'
+            }`}
+          >
+            <MenuEntries items={entry.items} onClose={onClose} />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

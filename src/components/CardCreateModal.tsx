@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { motion, AnimatePresence } from 'motion/react'
 import { X } from 'lucide-react'
 import type { Priority } from '../types'
 import { clickSound, createSound } from '../sounds'
@@ -66,30 +67,42 @@ export default function CardCreateModal({
   useEscapeKey(handleClose, isOpen)
   useFocusTrap(panelRef, isOpen)
 
-  if (!isOpen) return null
-
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={handleClose}>
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Add Card"
-        tabIndex={-1}
-        onClick={(e) => e.stopPropagation()}
-        className="bg-surface border border-border-subtle rounded-lg shadow-lg w-full max-w-md flex flex-col"
-      >
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={handleClose}
+        >
+          <motion.div
+            ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Add Card"
+            tabIndex={-1}
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-surface border border-border-subtle rounded-lg shadow-lg w-full max-w-md flex flex-col"
+          >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-border-subtle">
           <h2 className="font-heading text-lg font-medium text-ink">Add Card</h2>
-          <button
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={handleClose}
             disabled={isLoading}
             className="p-1 rounded-lg text-ink-muted hover:bg-surface-sunken hover:text-ink transition-colors disabled:opacity-50 cursor-pointer"
             title="Close"
           >
             <X size={20} />
-          </button>
+          </motion.button>
         </div>
 
         {/* Content */}
@@ -117,9 +130,11 @@ export default function CardCreateModal({
             <label className="text-xs text-ink-faint uppercase tracking-wide block mb-2">Points</label>
             <div className="flex gap-1.5">
               {[1, 2, 3, 4, 5].map((pt) => (
-                <button
+                <motion.button
                   key={pt}
                   type="button"
+                  whileHover={{ scale: 1.08 }}
+                  whileTap={{ scale: 0.92 }}
                   onClick={() => setPoints((current) => (current === pt ? null : pt))}
                   disabled={isLoading}
                   className={`w-9 h-9 text-sm rounded-lg cursor-pointer transition-colors font-medium disabled:opacity-50 ${
@@ -127,7 +142,7 @@ export default function CardCreateModal({
                   }`}
                 >
                   {pt}
-                </button>
+                </motion.button>
               ))}
             </div>
           </div>
@@ -137,9 +152,11 @@ export default function CardCreateModal({
             <label className="text-xs text-ink-faint uppercase tracking-wide block mb-2">Priority</label>
             <div className="flex gap-1.5 flex-wrap">
               {PRIORITY_OPTIONS.map((p) => (
-                <button
+                <motion.button
                   key={p}
                   type="button"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                   onClick={() => setPriority(p)}
                   disabled={isLoading}
                   className={`text-xs px-3 py-1.5 rounded-lg cursor-pointer transition-colors disabled:opacity-50 ${
@@ -149,7 +166,7 @@ export default function CardCreateModal({
                   }`}
                 >
                   {p.charAt(0).toUpperCase() + p.slice(1)}
-                </button>
+                </motion.button>
               ))}
             </div>
           </div>
@@ -173,22 +190,28 @@ export default function CardCreateModal({
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-2 p-4 border-t border-border-subtle">
-          <button
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
             onClick={handleClose}
             disabled={isLoading}
             className="px-4 py-2 text-ink-muted text-sm rounded-lg hover:bg-surface-muted transition-colors disabled:opacity-50 cursor-pointer"
           >
             Cancel
-          </button>
-          <button
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
             onClick={handleCreate}
             disabled={isLoading || !title.trim()}
             className="px-4 py-2 bg-primary text-ink-inverse text-sm rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer font-medium"
           >
             {isLoading ? 'Adding...' : 'Add Card'}
-          </button>
+          </motion.button>
         </div>
-      </div>
-    </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }

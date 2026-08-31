@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { Plus, FolderOpen, Trash2, Link2, ChevronDown } from 'lucide-react'
 import type { Project, Priority, ProjectStatus, Note } from '../types'
-import { clickSound, createSound, deleteSound } from '../sounds'
+import { clickSound, createSound, deleteSound, moveSound } from '../sounds'
 import NoteCard from './NoteCard'
 import NoteEditModal from './NoteEditModal'
 import ConfirmDialog from './ConfirmDialog'
@@ -269,6 +269,7 @@ export default function ProjectHeader({
 
     setNotes(newNotes)
     setDraggedNote(null)
+    moveSound()
     window.api.notes.reorder({ ids: newNotes.map(n => n.id) }).catch((error) => {
       console.error('Failed to persist note order:', error)
     })
@@ -311,7 +312,9 @@ export default function ProjectHeader({
             className="font-heading text-2xl font-bold bg-surface-sunken text-ink border border-border-strong rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-50"
           />
         ) : (
-          <button
+          <motion.button
+            whileHover={{ scale: 1.005 }}
+            whileTap={{ scale: 0.995 }}
             onClick={() => {
               clickSound()
               setIsEditingName(true)
@@ -319,7 +322,7 @@ export default function ProjectHeader({
             className="font-heading text-2xl font-bold text-ink hover:text-accent-hover transition-colors cursor-pointer text-left w-full break-words"
           >
             {project.name}
-          </button>
+          </motion.button>
         )}
       </div>
 
@@ -328,7 +331,9 @@ export default function ProjectHeader({
         <div className="flex items-center gap-2 flex-wrap">
           {/* Status dropdown */}
           <div className="relative" ref={statusMenuRef}>
-            <button
+            <motion.button
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.96 }}
               onClick={() => {
                 clickSound()
                 setIsStatusMenuOpen((open) => !open)
@@ -339,7 +344,7 @@ export default function ProjectHeader({
             >
               {STATUS_LABELS[displayStatus]}
               <ChevronDown size={12} />
-            </button>
+            </motion.button>
 
             <AnimatePresence>
               {isStatusMenuOpen && (
@@ -351,15 +356,17 @@ export default function ProjectHeader({
                   className="absolute top-full left-0 mt-2 bg-surface border border-border-strong rounded-lg shadow-lg py-1 min-w-[150px] z-50"
                 >
                   {STATUS_OPTIONS.map((s) => (
-                    <button
+                    <motion.button
                       key={s}
+                      whileHover={{ x: 2 }}
+                      whileTap={{ scale: 0.98 }}
                       onClick={() => handleUpdateStatus(s)}
                       className={`w-full text-left px-3 py-1.5 text-xs cursor-pointer transition-colors hover:bg-surface-sunken ${
                         displayStatus === s ? 'font-semibold text-ink' : 'text-ink-secondary'
                       }`}
                     >
                       {STATUS_LABELS[s]}
-                    </button>
+                    </motion.button>
                   ))}
                 </motion.div>
               )}
@@ -368,7 +375,9 @@ export default function ProjectHeader({
 
           {/* Priority dropdown */}
           <div className="relative" ref={priorityMenuRef}>
-            <button
+            <motion.button
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.96 }}
               onClick={() => {
                 clickSound()
                 setIsPriorityMenuOpen((open) => !open)
@@ -379,7 +388,7 @@ export default function ProjectHeader({
             >
               {displayPriority.charAt(0).toUpperCase() + displayPriority.slice(1)}
               <ChevronDown size={12} />
-            </button>
+            </motion.button>
 
             <AnimatePresence>
               {isPriorityMenuOpen && (
@@ -391,15 +400,17 @@ export default function ProjectHeader({
                   className="absolute top-full left-0 mt-2 bg-surface border border-border-strong rounded-lg shadow-lg py-1 min-w-[130px] z-50"
                 >
                   {(['none', 'low', 'medium', 'high'] as const).map((p) => (
-                    <button
+                    <motion.button
                       key={p}
+                      whileHover={{ x: 2 }}
+                      whileTap={{ scale: 0.98 }}
                       onClick={() => handleUpdatePriority(p)}
                       className={`w-full text-left px-3 py-1.5 text-xs cursor-pointer transition-colors hover:bg-surface-sunken ${
                         displayPriority === p ? 'font-semibold text-ink' : 'text-ink-secondary'
                       }`}
                     >
                       {p.charAt(0).toUpperCase() + p.slice(1)}
-                    </button>
+                    </motion.button>
                   ))}
                 </motion.div>
               )}
@@ -463,24 +474,28 @@ export default function ProjectHeader({
           ) : (
             <p className="text-xs text-ink-faint">No notes yet.</p>
           )}
-          <button
+          <motion.button
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.92 }}
             onClick={handleCreateNote}
             disabled={isLoading}
             className="p-2 rounded-lg bg-primary text-ink-inverse hover:bg-primary-hover transition-colors disabled:opacity-50 cursor-pointer flex items-center justify-center"
             title="New note"
           >
             <Plus size={16} />
-          </button>
+          </motion.button>
 
           <div className="relative" ref={linkMenuRef}>
-            <button
+            <motion.button
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
               onClick={handleOpenLinkMenu}
               disabled={isLoading}
               className="p-2 rounded-lg bg-surface-muted text-ink-muted hover:bg-border-strong hover:text-ink-secondary transition-colors disabled:opacity-50 cursor-pointer flex items-center justify-center"
               title="Link an existing note"
             >
               <Link2 size={16} />
-            </button>
+            </motion.button>
 
             <AnimatePresence>
               {isLinkMenuOpen && (
@@ -495,13 +510,15 @@ export default function ProjectHeader({
                     <p className="text-xs text-ink-faint px-3 py-2">No standalone notes to link</p>
                   ) : (
                     standaloneNotes.map((note) => (
-                      <button
+                      <motion.button
                         key={note.id}
+                        whileHover={{ x: 2 }}
+                        whileTap={{ scale: 0.98 }}
                         onClick={() => handleLinkNote(note)}
                         className="w-full text-left px-3 py-1.5 text-sm text-ink-secondary hover:bg-surface-sunken cursor-pointer transition-colors truncate"
                       >
                         {note.title}
-                      </button>
+                      </motion.button>
                     ))
                   )}
                 </motion.div>

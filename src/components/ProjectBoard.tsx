@@ -224,6 +224,7 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
     })
     try {
       await window.api.cards.reorder({ column_id: columnId, card_ids: reordered.map((c) => c.id) })
+      moveSound()
     } catch (error) {
       console.error('Failed to reorder cards:', error)
       await loadBoard()
@@ -330,6 +331,7 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
     setColumns(newColumns)
     try {
       await window.api.columns.reorder({ project_id: project.id, column_ids: newColumns.map(c => c.id) })
+      moveSound()
     } catch (error) {
       console.error('Failed to reorder columns:', error)
       await loadBoard()
@@ -459,9 +461,12 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
                     <span className="text-xs text-ink-faint">{cardsInColumn(col.id).length}</span>
                     {col.is_done ? <span className="text-xs text-success">✓</span> : null}
                   </div>
-                  <button onClick={() => handleDeleteColumn(col.id)} className="text-ink-faint/70 hover:text-danger p-1 cursor-pointer transition-colors" title="Delete column">
+                  <motion.button
+                    whileHover={{ scale: 1.15 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => handleDeleteColumn(col.id)} className="text-ink-faint/70 hover:text-danger p-1 cursor-pointer transition-colors" title="Delete column">
                     <Trash2 size={16} />
-                  </button>
+                  </motion.button>
                 </div>
 
                 <div className="space-y-2">
@@ -518,7 +523,7 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
                                   e.stopPropagation()
                                   handleDeleteCard(card.id)
                                 }}
-                                className="text-ink-faint/50 hover:text-danger text-lg leading-none cursor-pointer transition-colors shrink-0 opacity-0 group-hover:opacity-100"
+                                className="text-ink-faint/50 hover:text-danger hover:scale-125 text-lg leading-none cursor-pointer transition-all shrink-0 opacity-0 group-hover:opacity-100"
                               >
                                 ×
                               </button>
@@ -556,11 +561,14 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
                   </AnimatePresence>
                 </div>
 
-                <button onClick={() => { clickSound(); setCreatingInColumn(col.id) }}
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => { clickSound(); setCreatingInColumn(col.id) }}
                   className="mt-2 w-full text-left text-sm text-ink-faint hover:text-ink-secondary hover:bg-border-strong px-2 py-1 rounded cursor-pointer transition-colors flex items-center gap-2">
                   <Plus size={16} />
                   Add card
-                </button>
+                </motion.button>
               </div>
             )
             })}
@@ -586,22 +594,25 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
                   <span className="text-sm text-ink-secondary">Mark as done column</span>
                 </label>
                 <div className="flex gap-1 mt-2">
-                  <button onClick={handleAddColumn} className="text-xs px-2 py-1 bg-primary text-ink-inverse rounded hover:bg-primary-hover cursor-pointer transition-colors flex items-center gap-1">
+                  <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={handleAddColumn} className="text-xs px-2 py-1 bg-primary text-ink-inverse rounded hover:bg-primary-hover cursor-pointer transition-colors flex items-center gap-1">
                     <Plus size={14} />
                     Add
-                  </button>
-                  <button onClick={() => { clickSound(); setAddingColumn(false); setNewColName(''); setNewColIsDone(false) }} className="text-xs px-2 py-1 text-ink-muted hover:bg-border-strong rounded cursor-pointer transition-colors flex items-center gap-1">
+                  </motion.button>
+                  <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => { clickSound(); setAddingColumn(false); setNewColName(''); setNewColIsDone(false) }} className="text-xs px-2 py-1 text-ink-muted hover:bg-border-strong rounded cursor-pointer transition-colors flex items-center gap-1">
                     <X size={14} />
                     Cancel
-                  </button>
+                  </motion.button>
                 </div>
               </div>
             ) : (
-              <button onClick={() => { clickSound(); setAddingColumn(true) }}
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => { clickSound(); setAddingColumn(true) }}
                 className="bg-surface-muted hover:bg-border-strong rounded-lg p-3 w-72 shrink-0 text-sm text-ink-faint hover:text-ink-secondary cursor-pointer transition-colors text-left flex items-center gap-2">
                 <Plus size={16} />
                 Add column
-              </button>
+              </motion.button>
             )}
           </div>
           </div>
@@ -633,13 +644,15 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
               {/* Header */}
               <div className="flex items-center justify-between p-4 border-b border-border-subtle shrink-0">
                 <h2 className="font-heading text-lg font-medium text-ink truncate mr-2">{selectedCard.title}</h2>
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                   onClick={() => { clickSound(); if (noteDirty) saveNoteContent(); setSelectedCard(null) }}
                   className="p-1 rounded-lg text-ink-muted hover:bg-surface-sunken hover:text-ink transition-colors cursor-pointer shrink-0"
                   title="Close"
                 >
                   <X size={20} />
-                </button>
+                </motion.button>
               </div>
 
               {/* Content */}
@@ -648,10 +661,10 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
                   <label className="text-xs text-ink-faint uppercase tracking-wide block mb-2">Points</label>
                   <div className="flex gap-1.5">
                     {[1,2,3,4,5].map((pt) => (
-                      <button key={pt} onClick={() => handleUpdatePoints(selectedCard.id, pt)}
+                      <motion.button key={pt} whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }} onClick={() => handleUpdatePoints(selectedCard.id, pt)}
                         className={`w-9 h-9 text-sm rounded-lg cursor-pointer transition-colors font-medium ${
                           selectedCard.points === pt ? 'bg-accent text-ink-inverse' : 'bg-surface-muted text-ink-muted hover:bg-border-strong'
-                        }`}>{pt}</button>
+                        }`}>{pt}</motion.button>
                     ))}
                   </div>
                 </div>
@@ -660,10 +673,10 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
                   <label className="text-xs text-ink-faint uppercase tracking-wide block mb-2">Priority</label>
                   <div className="flex gap-1.5 flex-wrap">
                     {(['none','low','medium','high'] as const).map((pri) => (
-                      <button key={pri} onClick={() => handleUpdatePriority(selectedCard.id, pri)}
+                      <motion.button key={pri} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => handleUpdatePriority(selectedCard.id, pri)}
                         className={`text-xs px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${
                           selectedCard.priority === pri ? PRIORITY_BADGES[pri] + ' font-semibold' : 'bg-surface-muted text-ink-faint hover:bg-border-strong'
-                        }`}>{pri}</button>
+                        }`}>{pri}</motion.button>
                     ))}
                   </div>
                 </div>
@@ -672,10 +685,10 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
                   <label className="text-xs text-ink-faint uppercase tracking-wide block mb-2">Column</label>
                   <div className="flex gap-1.5 flex-wrap">
                     {columns.map((col) => (
-                      <button key={col.id} onClick={() => handleMoveCard(selectedCard.id, col.id)}
+                      <motion.button key={col.id} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => handleMoveCard(selectedCard.id, col.id)}
                         className={`text-xs px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${
                           selectedCard.column_id === col.id ? 'bg-primary text-ink-inverse' : 'bg-surface-muted text-ink-muted hover:bg-border-strong'
-                        }`}>{col.name}</button>
+                        }`}>{col.name}</motion.button>
                     ))}
                   </div>
                 </div>
@@ -695,12 +708,14 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
                       />
                     </div>
                   ) : (
-                    <button
+                    <motion.button
+                      whileHover={{ scale: 1.01 }}
+                      whileTap={{ scale: 0.99 }}
                       onClick={handleCreateCardNote}
                       className="w-full py-4 text-sm text-ink-faint hover:text-ink-secondary border border-dashed border-border rounded-lg cursor-pointer hover:border-border-strong transition-colors"
                     >
                       + Create note
-                    </button>
+                    </motion.button>
                   )}
                 </div>
               </div>

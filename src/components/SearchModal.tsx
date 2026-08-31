@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { motion, AnimatePresence } from 'motion/react'
 import { Search, FolderOpen, Layers, FileText } from 'lucide-react'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useFocusTrap } from '../hooks/useFocusTrap'
@@ -73,18 +74,28 @@ export default function SearchModal({
     if (first) handleSelect(first)
   }
 
-  if (!isOpen) return null
-
   const hasResults = results.projects.length + results.cards.length + results.notes.length > 0
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-start justify-center pt-[15vh] z-50" onClick={onClose}>
-      <div
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/50 flex items-start justify-center pt-[15vh] z-50"
+          onClick={onClose}
+        >
+      <motion.div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label="Search"
         tabIndex={-1}
+        initial={{ scale: 0.97, opacity: 0, y: -8 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.97, opacity: 0, y: -8 }}
+        transition={{ type: 'spring', stiffness: 350, damping: 32 }}
         onClick={(e) => e.stopPropagation()}
         className="bg-surface border border-border-subtle rounded-lg shadow-lg w-full max-w-lg flex flex-col max-h-[60vh]"
       >
@@ -113,14 +124,16 @@ export default function SearchModal({
             <div className="mb-1">
               <div className="text-xs text-ink-faint uppercase tracking-wide px-4 py-1.5">Projects</div>
               {results.projects.map((p) => (
-                <button
+                <motion.button
                   key={p.id}
+                  whileHover={{ x: 3 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={() => handleSelect({ type: 'project', id: p.id })}
                   className="w-full flex items-center gap-2 text-left px-4 py-2 text-sm text-ink-secondary hover:bg-surface-sunken cursor-pointer transition-colors"
                 >
                   <FolderOpen size={14} className="text-ink-faint shrink-0" />
                   <span className="truncate">{p.name}</span>
-                </button>
+                </motion.button>
               ))}
             </div>
           )}
@@ -129,15 +142,17 @@ export default function SearchModal({
             <div className="mb-1">
               <div className="text-xs text-ink-faint uppercase tracking-wide px-4 py-1.5">Cards</div>
               {results.cards.map((c) => (
-                <button
+                <motion.button
                   key={c.id}
+                  whileHover={{ x: 3 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={() => handleSelect({ type: 'card', id: c.id, projectId: c.project_id })}
                   className="w-full flex items-center gap-2 text-left px-4 py-2 text-sm text-ink-secondary hover:bg-surface-sunken cursor-pointer transition-colors"
                 >
                   <Layers size={14} className="text-ink-faint shrink-0" />
                   <span className="truncate flex-1">{c.title}</span>
                   <span className="text-xs text-ink-faint truncate shrink-0 max-w-[35%]">{c.project_name}</span>
-                </button>
+                </motion.button>
               ))}
             </div>
           )}
@@ -146,8 +161,10 @@ export default function SearchModal({
             <div>
               <div className="text-xs text-ink-faint uppercase tracking-wide px-4 py-1.5">Notes</div>
               {results.notes.map((n) => (
-                <button
+                <motion.button
                   key={n.id}
+                  whileHover={{ x: 3 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={() => handleSelect({ type: 'note', id: n.id, projectId: n.resolved_project_id })}
                   className="w-full flex items-center gap-2 text-left px-4 py-2 text-sm text-ink-secondary hover:bg-surface-sunken cursor-pointer transition-colors"
                 >
@@ -156,12 +173,14 @@ export default function SearchModal({
                   {n.project_name && (
                     <span className="text-xs text-ink-faint truncate shrink-0 max-w-[35%]">{n.project_name}</span>
                   )}
-                </button>
+                </motion.button>
               ))}
             </div>
           )}
         </div>
-      </div>
-    </div>
+      </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }

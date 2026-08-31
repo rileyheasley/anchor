@@ -31,7 +31,9 @@ export default function SortDropdown<T extends string>({ options, value, onChang
 
   return (
     <div className="relative" ref={menuRef}>
-      <button
+      <motion.button
+        whileHover={{ scale: 1.03 }}
+        whileTap={{ scale: 0.97 }}
         onClick={() => { clickSound(); setIsOpen((open) => !open) }}
         title="Sort"
         className="flex items-center gap-1.5 text-xs px-2 py-1.5 rounded-lg border border-border text-ink-faint hover:bg-surface-muted cursor-pointer transition-colors"
@@ -39,7 +41,7 @@ export default function SortDropdown<T extends string>({ options, value, onChang
         <ArrowUpDown size={14} />
         Sort: <span className="text-ink-secondary font-medium">{currentLabel}</span>
         <ChevronDown size={12} />
-      </button>
+      </motion.button>
 
       <AnimatePresence>
         {isOpen && (
@@ -51,15 +53,17 @@ export default function SortDropdown<T extends string>({ options, value, onChang
             className="absolute top-full left-0 mt-2 bg-surface border border-border-strong rounded-lg shadow-lg py-1 min-w-[160px] z-50"
           >
             {options.map((opt) => (
-              <button
+              <motion.button
                 key={opt.value}
+                whileHover={{ x: 2 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => { clickSound(); onChange(opt.value); setIsOpen(false) }}
                 className={`w-full text-left px-3 py-1.5 text-xs cursor-pointer transition-colors hover:bg-surface-sunken ${
                   value === opt.value ? 'font-semibold text-ink' : 'text-ink-secondary'
                 }`}
               >
                 {opt.label}
-              </button>
+              </motion.button>
             ))}
           </motion.div>
         )}
