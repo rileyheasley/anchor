@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import fs from 'node:fs'
 import initSqlJs, { type Database } from 'sql.js'
+import { createSchema, listActiveProjects, listArchivedProjects } from './db'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -78,7 +79,7 @@ async function initializeDatabase() {
     }
 
     db.run('PRAGMA foreign_keys = ON')
-    createSchema()
+    createSchema(db)
 
     if (isNewDatabase) {
       seedSampleData()
@@ -123,81 +124,6 @@ function queryOne(sql: string, params?: unknown[]): Record<string, unknown> | nu
 function execute(sql: string, params?: unknown[]) {
   if (!db) throw new Error('Database not initialized')
   db.run(sql, params)
-}
-
-function createSchema() {
-  if (!db) return
-
-  db.run(`CREATE TABLE IF NOT EXISTS projects (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    priority TEXT NOT NULL DEFAULT 'none' CHECK (priority IN ('none', 'low', 'medium', 'high')),
-    status TEXT NOT NULL DEFAULT 'planning' CHECK (status IN ('planning', 'in_progress', 'on_hold', 'done')),
-    due_date TEXT,
-    archived INTEGER NOT NULL DEFAULT 0,
-    deleted_at TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-  )`)
-
-  db.run(`CREATE TABLE IF NOT EXISTS kanban_columns (
-    id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    position INTEGER NOT NULL DEFAULT 0,
-    is_done INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-  )`)
-
-  db.run(`CREATE TABLE IF NOT EXISTS cards (
-    id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    column_id TEXT NOT NULL REFERENCES kanban_columns(id) ON DELETE CASCADE,
-    title TEXT NOT NULL,
-    points INTEGER CHECK (points BETWEEN 1 AND 5),
-    priority TEXT NOT NULL DEFAULT 'none' CHECK (priority IN ('none', 'low', 'medium', 'high')),
-    due_date TEXT,
-    position INTEGER NOT NULL DEFAULT 0,
-    note_filename TEXT,
-    deleted_at TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-  )`)
-
-  db.run(`CREATE TABLE IF NOT EXISTS notes (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    filename TEXT NOT NULL,
-    project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
-    card_id TEXT REFERENCES cards(id) ON DELETE SET NULL,
-    position INTEGER NOT NULL DEFAULT 0,
-    deleted_at TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-  )`)
-
-  db.run(`CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY,
-    value TEXT
-  )`)
-
-  migrateSchema()
-}
-
-function migrateSchema() {
-  if (!db) return
-  const noteColumns = queryAll("PRAGMA table_info(notes)")
-  const hasPosition = noteColumns.some((col) => col.name === 'position')
-  if (!hasPosition) {
-    db.run('ALTER TABLE notes ADD COLUMN position INTEGER NOT NULL DEFAULT 0')
-  }
-
-  const projectColumns = queryAll("PRAGMA table_info(projects)")
-  const hasStatus = projectColumns.some((col) => col.name === 'status')
-  if (!hasStatus) {
-    db.run("ALTER TABLE projects ADD COLUMN status TEXT NOT NULL DEFAULT 'planning'")
-  }
 }
 
 function seedSampleData() {
@@ -537,13 +463,17 @@ app.whenReady().then(async () => {
       saveDatabase()
     })
 
-    ipcMain.handle('notes:update', async (_event, data: { id: string, title?: string }) => {
+    ipcMain.handle('notes:update', async (_event, data: { id: string, title?: string, project_id?: string | null }) => {
       const fields: string[] = []
       const values: unknown[] = []
 
       if (data.title !== undefined) {
         fields.push('title = ?')
         values.push(data.title)
+      }
+      if (data.project_id !== undefined) {
+        fields.push('project_id = ?')
+        values.push(data.project_id)
       }
 
       if (fields.length === 0) return queryOne('SELECT * FROM notes WHERE id = ?', [data.id])
@@ -639,19 +569,7 @@ app.whenReady().then(async () => {
     // ── Archive handlers ──
 
     ipcMain.handle('archive:list', () => {
-      return queryAll(
-        `SELECT p.id, p.name, p.priority, p.status, p.due_date, p.archived, p.created_at, p.updated_at,
-          COALESCE(SUM(CASE WHEN kc.is_done = 1 THEN c.points ELSE 0 END), 0) AS done_points,
-          COALESCE(SUM(c.points), 0) AS total_points,
-          COUNT(c.id) AS total_cards,
-          COALESCE(SUM(CASE WHEN kc.is_done = 1 THEN 1 ELSE 0 END), 0) AS done_cards
-        FROM projects p
-        LEFT JOIN cards c ON c.project_id = p.id AND c.deleted_at IS NULL
-        LEFT JOIN kanban_columns kc ON kc.id = c.column_id
-        WHERE p.deleted_at IS NULL AND p.archived = 1
-        GROUP BY p.id
-        ORDER BY p.name COLLATE NOCASE`
-      )
+      return listArchivedProjects(db!)
     })
 
     ipcMain.handle('archive:restore', (_event, id: string) => {
@@ -660,29 +578,7 @@ app.whenReady().then(async () => {
     })
 
     ipcMain.handle('projects:list', async () => {
-      const projects = queryAll(`
-        SELECT
-          p.id, p.name, p.priority, p.status, p.due_date, p.archived,
-          p.created_at, p.updated_at,
-          COALESCE(SUM(CASE WHEN kc.is_done = 1 THEN c.points ELSE 0 END), 0) AS done_points,
-          COALESCE(SUM(c.points), 0) AS total_points,
-          COUNT(c.id) AS total_cards,
-          COALESCE(SUM(CASE WHEN kc.is_done = 1 THEN 1 ELSE 0 END), 0) AS done_cards
-        FROM projects p
-        LEFT JOIN cards c ON c.project_id = p.id AND c.deleted_at IS NULL
-        LEFT JOIN kanban_columns kc ON kc.id = c.column_id
-        WHERE p.deleted_at IS NULL AND p.archived = 0
-        GROUP BY p.id
-        ORDER BY
-          CASE p.priority
-            WHEN 'high' THEN 0
-            WHEN 'medium' THEN 1
-            WHEN 'low' THEN 2
-            WHEN 'none' THEN 3
-          END,
-          p.name COLLATE NOCASE
-      `)
-      return projects
+      return listActiveProjects(db!)
     })
 
     ipcMain.handle('projects:create', async (_event, data: { name: string, priority?: string, status?: string, due_date?: string | null }) => {
@@ -870,7 +766,45 @@ app.whenReady().then(async () => {
       execute("UPDATE cards SET deleted_at = datetime('now'), updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL", [id])
       saveDatabase()
     })
-    
+
+    // ── Search handler ──
+
+    ipcMain.handle('search:query', (_event, query: string) => {
+      const q = query.trim()
+      if (!q) return { projects: [], cards: [], notes: [] }
+      const like = `%${q.replace(/[\\%_]/g, (c) => '\\' + c)}%`
+
+      const projects = queryAll(
+        `SELECT id, name, priority, status FROM projects
+         WHERE deleted_at IS NULL AND name LIKE ? ESCAPE '\\' COLLATE NOCASE
+         ORDER BY name COLLATE NOCASE LIMIT 8`,
+        [like]
+      )
+
+      const cards = queryAll(
+        `SELECT c.id, c.title, c.project_id, p.name AS project_name
+         FROM cards c JOIN projects p ON p.id = c.project_id
+         WHERE c.deleted_at IS NULL AND p.deleted_at IS NULL AND c.title LIKE ? ESCAPE '\\' COLLATE NOCASE
+         ORDER BY c.title COLLATE NOCASE LIMIT 8`,
+        [like]
+      )
+
+      const notes = queryAll(
+        `SELECT n.id, n.title, n.project_id, n.card_id,
+           COALESCE(n.project_id, cp.id) AS resolved_project_id,
+           COALESCE(p.name, cp.name) AS project_name
+         FROM notes n
+         LEFT JOIN projects p ON p.id = n.project_id
+         LEFT JOIN cards c2 ON c2.id = n.card_id
+         LEFT JOIN projects cp ON cp.id = c2.project_id
+         WHERE n.deleted_at IS NULL AND n.title LIKE ? ESCAPE '\\' COLLATE NOCASE
+         ORDER BY n.title COLLATE NOCASE LIMIT 8`,
+        [like]
+      )
+
+      return { projects, cards, notes }
+    })
+
     createWindow()
   } catch (error) {
     console.error('App initialization failed:', error)

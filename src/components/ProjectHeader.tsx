@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react'
-import { AnimatePresence } from 'motion/react'
-import { Plus, FolderOpen, Trash2 } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { motion, AnimatePresence } from 'motion/react'
+import { Plus, FolderOpen, Trash2, Link2 } from 'lucide-react'
 import type { Project, Priority, ProjectStatus, Note } from '../types'
 import { clickSound, createSound, deleteSound } from '../sounds'
 import NoteCard from './NoteCard'
 import NoteEditModal from './NoteEditModal'
 import ConfirmDialog from './ConfirmDialog'
 import ContextMenu, { type ContextMenuPosition } from './ContextMenu'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 import { PRIORITY_BADGES, dueDateInfo } from '../utils/priority'
 import { STATUS_OPTIONS, STATUS_BADGES, STATUS_LABELS } from '../utils/status'
 
@@ -32,6 +33,9 @@ export default function ProjectHeader({
   const [draggedNote, setDraggedNote] = useState<Note | null>(null)
   const [noteMenu, setNoteMenu] = useState<{ note: Note; position: ContextMenuPosition } | null>(null)
   const [confirmDeleteNote, setConfirmDeleteNote] = useState<Note | null>(null)
+  const [standaloneNotes, setStandaloneNotes] = useState<Note[]>([])
+  const [isLinkMenuOpen, setIsLinkMenuOpen] = useState(false)
+  const linkMenuRef = useRef<HTMLDivElement>(null)
   const [displayPriority, setDisplayPriority] = useState<Priority>(project.priority)
   const [displayStatus, setDisplayStatus] = useState<ProjectStatus>(project.status)
   const [displayDueDate, setDisplayDueDate] = useState<string | null>(project.due_date)
@@ -101,6 +105,42 @@ export default function ProjectHeader({
       console.error('Failed to update due date:', error)
       setDisplayDueDate(project.due_date)
     }
+  }
+
+  useEscapeKey(() => setIsLinkMenuOpen(false), isLinkMenuOpen)
+
+  useEffect(() => {
+    if (!isLinkMenuOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (linkMenuRef.current && !linkMenuRef.current.contains(e.target as Node)) {
+        setIsLinkMenuOpen(false)
+      }
+    }
+    window.addEventListener('mousedown', handleClickOutside)
+    return () => window.removeEventListener('mousedown', handleClickOutside)
+  }, [isLinkMenuOpen])
+
+  const handleOpenLinkMenu = async () => {
+    clickSound()
+    if (!isLinkMenuOpen) {
+      try {
+        setStandaloneNotes(await window.api.notes.list({ standalone: true }))
+      } catch (error) {
+        console.error('Failed to load standalone notes:', error)
+      }
+    }
+    setIsLinkMenuOpen((open) => !open)
+  }
+
+  const handleLinkNote = async (note: Note) => {
+    clickSound()
+    try {
+      await window.api.notes.update({ id: note.id, project_id: project.id })
+      await loadProjectNotes()
+    } catch (error) {
+      console.error('Failed to link note:', error)
+    }
+    setIsLinkMenuOpen(false)
   }
 
   const handleCreateNote = async () => {
@@ -318,8 +358,8 @@ export default function ProjectHeader({
       <div>
         <h3 className="text-xs text-ink-faint uppercase tracking-wide font-medium mb-3">Project Notes</h3>
 
-        {notes.length > 0 ? (
-          <div className="flex flex-wrap gap-2 items-center">
+        <div className="flex flex-wrap gap-2 items-center">
+          {notes.length > 0 ? (
             <AnimatePresence>
               {notes.map((note) => (
                 <NoteCard
@@ -337,28 +377,55 @@ export default function ProjectHeader({
                 />
               ))}
             </AnimatePresence>
+          ) : (
+            <p className="text-xs text-ink-faint">No notes yet.</p>
+          )}
+          <button
+            onClick={handleCreateNote}
+            disabled={isLoading}
+            className="p-2 rounded-lg bg-primary text-ink-inverse hover:bg-primary-hover transition-colors disabled:opacity-50 cursor-pointer flex items-center justify-center"
+            title="New note"
+          >
+            <Plus size={16} />
+          </button>
+
+          <div className="relative" ref={linkMenuRef}>
             <button
-              onClick={handleCreateNote}
+              onClick={handleOpenLinkMenu}
               disabled={isLoading}
-              className="p-2 rounded-lg bg-primary text-ink-inverse hover:bg-primary-hover transition-colors disabled:opacity-50 cursor-pointer flex items-center justify-center"
-              title="New note"
+              className="p-2 rounded-lg bg-surface-muted text-ink-muted hover:bg-border-strong hover:text-ink-secondary transition-colors disabled:opacity-50 cursor-pointer flex items-center justify-center"
+              title="Link an existing note"
             >
-              <Plus size={16} />
+              <Link2 size={16} />
             </button>
+
+            <AnimatePresence>
+              {isLinkMenuOpen && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 4 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 4 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                  className="absolute top-full left-0 mt-2 bg-surface border border-border-strong rounded-lg shadow-lg py-1 min-w-[220px] max-h-64 overflow-y-auto z-50"
+                >
+                  {standaloneNotes.length === 0 ? (
+                    <p className="text-xs text-ink-faint px-3 py-2">No standalone notes to link</p>
+                  ) : (
+                    standaloneNotes.map((note) => (
+                      <button
+                        key={note.id}
+                        onClick={() => handleLinkNote(note)}
+                        className="w-full text-left px-3 py-1.5 text-sm text-ink-secondary hover:bg-surface-sunken cursor-pointer transition-colors truncate"
+                      >
+                        {note.title}
+                      </button>
+                    ))
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            <p className="text-xs text-ink-faint">No notes yet. Click the button to create one.</p>
-            <button
-              onClick={handleCreateNote}
-              disabled={isLoading}
-              className="p-2 rounded-lg bg-primary text-ink-inverse hover:bg-primary-hover transition-colors disabled:opacity-50 cursor-pointer flex items-center justify-center"
-              title="New note"
-            >
-              <Plus size={16} />
-            </button>
-          </div>
-        )}
+        </div>
       </div>
 
       <NoteEditModal

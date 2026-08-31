@@ -4,6 +4,8 @@ import { RotateCcw, FolderOpen } from 'lucide-react'
 import type { Project } from '../types'
 import { clickSound } from '../sounds'
 import ContextMenu, { type ContextMenuPosition } from './ContextMenu'
+import { PRIORITY_BADGES, dueDateInfo } from '../utils/priority'
+import { STATUS_BADGES, STATUS_LABELS } from '../utils/status'
 
 export default function ArchiveView({ onOpenProject }: { onOpenProject: (p: Project) => void }) {
   const [projects, setProjects] = useState<Project[]>([])
@@ -40,7 +42,9 @@ export default function ArchiveView({ onOpenProject }: { onOpenProject: (p: Proj
 
         <div className="space-y-3">
           <AnimatePresence>
-            {projects.map((p) => (
+            {projects.map((p) => {
+              const dueInfo = dueDateInfo(p.due_date)
+              return (
               <motion.div
                 key={p.id}
                 layout
@@ -63,6 +67,16 @@ export default function ArchiveView({ onOpenProject }: { onOpenProject: (p: Proj
                   </button>
                 </div>
 
+                <div className="flex items-center gap-1.5 flex-wrap mb-2">
+                  {dueInfo && <span className={`text-xs ${dueInfo.color}`}>{dueInfo.label}</span>}
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_BADGES[p.status]}`}>
+                    {STATUS_LABELS[p.status]}
+                  </span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${PRIORITY_BADGES[p.priority]}`}>
+                    {p.priority}
+                  </span>
+                </div>
+
                 <div className="flex items-center gap-3">
                   <div className="flex-1 bg-surface-muted rounded-full h-1.5 overflow-hidden">
                     <div
@@ -71,11 +85,15 @@ export default function ArchiveView({ onOpenProject }: { onOpenProject: (p: Proj
                     />
                   </div>
                   <span className="text-xs text-ink-faint whitespace-nowrap">
-                    {p.total_points > 0 ? `${p.done_points}/${p.total_points} pts` : 'No cards'}
+                    {p.total_points > 0 ? `${p.done_points}/${p.total_points} pts` : 'No points'}
                   </span>
                 </div>
+                <div className="text-xs text-ink-faint mt-1">
+                  {p.total_cards > 0 ? `${p.done_cards}/${p.total_cards} tasks` : 'No tasks'}
+                </div>
               </motion.div>
-            ))}
+              )
+            })}
           </AnimatePresence>
         </div>
       </main>

@@ -9,7 +9,19 @@ import ContextMenu, { type ContextMenuEntry, type ContextMenuPosition } from './
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { PRIORITY_BADGES } from '../utils/priority'
 
-export default function ProjectBoard({ project, onClose, onProjectUpdate }: { project: Project, onClose: () => void, onProjectUpdate?: (updatedProject: Project) => void }) {
+type CardSortMode = 'manual' | 'priority' | 'dueDate' | 'points' | 'name' | 'created'
+
+const CARD_PRIORITY_ORDER: Record<Priority, number> = { high: 0, medium: 1, low: 2, none: 3 }
+const CARD_SORT_LABELS: Record<CardSortMode, string> = {
+  manual: 'Manual',
+  priority: 'Priority',
+  dueDate: 'Due date',
+  points: 'Points',
+  name: 'Name',
+  created: 'Date created',
+}
+
+export default function ProjectBoard({ project, onClose, onProjectUpdate, focusCardId, onFocusCardHandled }: { project: Project, onClose: () => void, onProjectUpdate?: (updatedProject: Project) => void, focusCardId?: string | null, onFocusCardHandled?: () => void }) {
   const [columns, setColumns] = useState<KanbanColumn[]>([])
   const [cards, setCards] = useState<Card[]>([])
   const [addingTo, setAddingTo] = useState<string | null>(null)
@@ -17,6 +29,7 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate }: { pr
   const [newColName, setNewColName] = useState('')
   const [newColIsDone, setNewColIsDone] = useState(false)
   const [addingColumn, setAddingColumn] = useState(false)
+  const [cardSort, setCardSort] = useState<CardSortMode>('manual')
 
   // Deletion confirmation state
   const [confirmDelete, setConfirmDelete] = useState<{ type: 'column' | 'card', id: string } | null>(null)
@@ -49,6 +62,16 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate }: { pr
   useEffect(() => { loadBoard() }, [project.id])
   useEffect(() => { if (selectedCard) loadCardNote(selectedCard) }, [selectedCard?.id])
   useEffect(() => { selectedCardIdRef.current = selectedCard?.id ?? null }, [selectedCard])
+
+  // Deep-link support: open a specific card's detail panel once it's loaded (e.g. from search)
+  useEffect(() => {
+    if (!focusCardId || cards.length === 0) return
+    const card = cards.find((c) => c.id === focusCardId)
+    if (card) {
+      setSelectedCard(card)
+      onFocusCardHandled?.()
+    }
+  }, [focusCardId, cards])
 
   useEffect(() => {
     return () => {
@@ -113,8 +136,28 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate }: { pr
     setNoteDirty(false)
   }
 
-  const cardsInColumn = (columnId: string) =>
-    cards.filter((c) => c.column_id === columnId).sort((a, b) => a.position - b.position)
+  const cardsInColumn = (columnId: string) => {
+    const list = cards.filter((c) => c.column_id === columnId)
+    switch (cardSort) {
+      case 'priority':
+        return list.sort((a, b) => CARD_PRIORITY_ORDER[a.priority] - CARD_PRIORITY_ORDER[b.priority] || a.position - b.position)
+      case 'dueDate':
+        return list.sort((a, b) => {
+          if (!a.due_date && !b.due_date) return a.position - b.position
+          if (!a.due_date) return 1
+          if (!b.due_date) return -1
+          return a.due_date.localeCompare(b.due_date)
+        })
+      case 'points':
+        return list.sort((a, b) => (b.points ?? 0) - (a.points ?? 0) || a.position - b.position)
+      case 'name':
+        return list.sort((a, b) => a.title.localeCompare(b.title))
+      case 'created':
+        return list.sort((a, b) => a.created_at.localeCompare(b.created_at))
+      default:
+        return list.sort((a, b) => a.position - b.position)
+    }
+  }
 
   const handleAddCard = async (columnId: string) => {
     if (!newTitle.trim()) return
@@ -175,7 +218,7 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate }: { pr
     const sourceCard = cards.find((c) => c.id === draggingId)
     if (!sourceCard) return
     if (sourceCard.column_id === targetCard.column_id) {
-      await handleReorderCards(draggingId, targetCard.id)
+      if (cardSort === 'manual') await handleReorderCards(draggingId, targetCard.id)
       return
     }
     try {
@@ -331,6 +374,20 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate }: { pr
           .reduce((sum, c) => sum + (c.points ?? 0), 0)}
         isLoading={isUpdatingProject}
       />
+      <div className="flex items-center gap-1 px-6 py-2 border-b border-border-subtle bg-surface shrink-0">
+        <span className="text-xs text-ink-faint mr-1">Sort cards:</span>
+        {(Object.keys(CARD_SORT_LABELS) as CardSortMode[]).map((mode) => (
+          <button
+            key={mode}
+            onClick={() => { clickSound(); setCardSort(mode) }}
+            className={`text-xs px-2 py-1 rounded cursor-pointer transition-colors ${
+              cardSort === mode ? 'bg-primary text-ink-inverse' : 'text-ink-faint hover:bg-surface-muted'
+            }`}
+          >
+            {CARD_SORT_LABELS[mode]}
+          </button>
+        ))}
+      </div>
       <div className="flex flex-1 overflow-hidden">
         {/* Board */}
         {/* Overflow is suppressed mid-drag: Chromium's native drag auto-scroll otherwise

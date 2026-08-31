@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Home, FolderOpen, FileText, Archive, Trash2, ChevronLeft, ChevronRight, Moon, Sun, Monitor, Heart, Settings } from 'lucide-react'
+import { Home, FolderOpen, FileText, Archive, Trash2, ChevronLeft, ChevronRight, Moon, Sun, Monitor, Heart, Settings, Search } from 'lucide-react'
 import DraggableSidebar from './DraggableSidebar'
 import IconNavItem from './IconNavItem'
 import { clickSound } from '../sounds'
@@ -15,6 +15,7 @@ interface SidebarProps {
   themeMode: ThemeMode
   onThemeChange: (mode: ThemeMode) => void
   onOpenSettings: () => void
+  onOpenSearch: () => void
 }
 
 const THEME_OPTIONS: { mode: ThemeMode; label: string; icon: typeof Sun }[] = [
@@ -29,7 +30,8 @@ export default function Sidebar({
   onNavigate,
   themeMode,
   onThemeChange,
-  onOpenSettings
+  onOpenSettings,
+  onOpenSearch,
 }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false)
@@ -141,6 +143,15 @@ export default function Sidebar({
             )}
           </AnimatePresence>
         </div>
+
+        {/* Search */}
+        <button
+          onClick={() => { clickSound(); onOpenSearch() }}
+          title="Search"
+          className="flex items-center justify-center p-2 rounded-lg text-sm transition-colors text-ink-muted hover:bg-surface-sunken hover:text-ink-secondary"
+        >
+          <Search size={18} />
+        </button>
 
         {/* Settings */}
         <button

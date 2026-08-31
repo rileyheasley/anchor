@@ -61,6 +61,35 @@ export interface RecycleItem {
   deleted_at: string
 }
 
+export interface SearchProjectResult {
+  id: string
+  name: string
+  priority: Priority
+  status: ProjectStatus
+}
+
+export interface SearchCardResult {
+  id: string
+  title: string
+  project_id: string
+  project_name: string
+}
+
+export interface SearchNoteResult {
+  id: string
+  title: string
+  project_id: string | null
+  card_id: string | null
+  resolved_project_id: string | null
+  project_name: string | null
+}
+
+export interface SearchResults {
+  projects: SearchProjectResult[]
+  cards: SearchCardResult[]
+  notes: SearchNoteResult[]
+}
+
 declare global {
   interface Window {
     api: {
@@ -104,7 +133,7 @@ declare global {
       notes: {
         list: (filter?: { project_id?: string, card_id?: string, standalone?: boolean }) => Promise<Note[]>
         create: (data: { title: string, project_id?: string, card_id?: string }) => Promise<Note>
-        update: (data: { id: string, title?: string }) => Promise<Note>
+        update: (data: { id: string, title?: string, project_id?: string | null }) => Promise<Note>
         reorder: (data: { ids: string[] }) => Promise<void>
         getContent: (id: string) => Promise<string | null>
         saveContent: (id: string, content: string) => Promise<void>
@@ -118,6 +147,9 @@ declare global {
       archive: {
         list: () => Promise<Project[]>
         restore: (id: string) => Promise<void>
+      }
+      search: {
+        query: (query: string) => Promise<SearchResults>
       }
     }
   }

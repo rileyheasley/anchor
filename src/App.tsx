@@ -9,6 +9,7 @@ import NotesPage from './components/NotesPage'
 import RecycleBin from './components/RecycleBin'
 import ArchiveView from './components/ArchiveView'
 import SettingsModal from './components/SettingsModal'
+import SearchModal, { type SearchSelection } from './components/SearchModal'
 
 type View = 'home' | 'projects' | 'notes' | 'archive' | 'recycle'
 
@@ -20,6 +21,9 @@ function App() {
   const [themeMode, setThemeMode] = useState<ThemeMode>('light')
   const [systemPrefersDark, setSystemPrefersDark] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [focusCardId, setFocusCardId] = useState<string | null>(null)
+  const [focusNoteId, setFocusNoteId] = useState<string | null>(null)
 
   const resolvedTheme: ResolvedTheme = themeMode === 'system' ? (systemPrefersDark ? 'dark' : 'light') : themeMode
 
@@ -73,7 +77,46 @@ function App() {
     setView('projects')
   }
 
-  // Global keyboard shortcuts: Mod+, settings, Mod+1-5 navigation, Mod+N new item (context-aware)
+  const openProjectById = async (id: string): Promise<Project | null> => {
+    try {
+      const active = await window.api.projects.list()
+      const found = active.find((p) => p.id === id)
+      if (found) return found
+      const archived = await window.api.archive.list()
+      return archived.find((p) => p.id === id) ?? null
+    } catch (error) {
+      console.error('Failed to load project for navigation:', error)
+      return null
+    }
+  }
+
+  const handleSearchSelect = async (selection: SearchSelection) => {
+    if (selection.type === 'project') {
+      const project = await openProjectById(selection.id)
+      if (project) setActiveProject(project)
+      return
+    }
+    if (selection.type === 'card') {
+      const project = await openProjectById(selection.projectId)
+      if (project) {
+        setActiveProject(project)
+        setFocusCardId(selection.id)
+      }
+      return
+    }
+    // Note: project/card-scoped notes navigate to their parent project (no deep link
+    // into the note modal yet); standalone notes open directly in the Notes view.
+    if (selection.projectId) {
+      const project = await openProjectById(selection.projectId)
+      if (project) setActiveProject(project)
+    } else {
+      setActiveProject(null)
+      setView('notes')
+      setFocusNoteId(selection.id)
+    }
+  }
+
+  // Global keyboard shortcuts: Mod+, settings, Mod+K search, Mod+1-5 navigation, Mod+N new item (context-aware)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey
@@ -82,6 +125,11 @@ function App() {
         case ',':
           e.preventDefault()
           setIsSettingsOpen((prev) => !prev)
+          break
+        case 'k':
+        case 'K':
+          e.preventDefault()
+          setIsSearchOpen((prev) => !prev)
           break
         case '1':
           e.preventDefault()
@@ -117,7 +165,15 @@ function App() {
 
   const content = () => {
     if (activeProject) {
-      return <ProjectBoard project={activeProject} onClose={() => setActiveProject(null)} onProjectUpdate={setActiveProject} />
+      return (
+        <ProjectBoard
+          project={activeProject}
+          onClose={() => setActiveProject(null)}
+          onProjectUpdate={setActiveProject}
+          focusCardId={focusCardId}
+          onFocusCardHandled={() => setFocusCardId(null)}
+        />
+      )
     }
     if (view === 'home') {
       return <OverviewHome onOpenProject={setActiveProject} />
@@ -138,6 +194,8 @@ function App() {
           startCreating={startCreatingNote}
           onCreateHandled={() => setStartCreatingNote(false)}
           onNewNote={handleNewNote}
+          focusNoteId={focusNoteId}
+          onFocusNoteHandled={() => setFocusNoteId(null)}
         />
       )
     }
@@ -156,12 +214,14 @@ function App() {
           themeMode={themeMode}
           onThemeChange={handleThemeChange}
           onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenSearch={() => setIsSearchOpen(true)}
         />
         <div className="flex-1 overflow-hidden">
           {content()}
         </div>
       </div>
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      <SearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} onSelect={handleSearchSelect} />
     </div>
   )
 }

@@ -41,7 +41,7 @@ contextBridge.exposeInMainWorld('api', {
   notes: {
     list: (filter?: { project_id?: string, standalone?: boolean }) => ipcRenderer.invoke('notes:list', filter),
     create: (data: { title: string, project_id?: string, card_id?: string }) => ipcRenderer.invoke('notes:create', data),
-    update: (data: { id: string, title?: string }) => ipcRenderer.invoke('notes:update', data),
+    update: (data: { id: string, title?: string, project_id?: string | null }) => ipcRenderer.invoke('notes:update', data),
     reorder: (data: { ids: string[] }) => ipcRenderer.invoke('notes:reorder', data),
     getContent: (id: string) => ipcRenderer.invoke('notes:getContent', id),
     saveContent: (id: string, content: string) => ipcRenderer.invoke('notes:saveContent', id, content),
@@ -55,5 +55,8 @@ contextBridge.exposeInMainWorld('api', {
   archive: {
     list: () => ipcRenderer.invoke('archive:list'),
     restore: (id: string) => ipcRenderer.invoke('archive:restore', id),
+  },
+  search: {
+    query: (query: string) => ipcRenderer.invoke('search:query', query),
   },
 })

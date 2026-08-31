@@ -28,10 +28,14 @@ export default function NotesPage({
   startCreating: startCreatingProp = false,
   onCreateHandled,
   onNewNote,
+  focusNoteId,
+  onFocusNoteHandled,
 }: {
   startCreating?: boolean
   onCreateHandled?: () => void
   onNewNote?: () => void
+  focusNoteId?: string | null
+  onFocusNoteHandled?: () => void
 }) {
   const [vaultPath, setVaultPath] = useState<string | null>(null)
   const [notes, setNotes] = useState<Note[]>([])
@@ -61,6 +65,16 @@ export default function NotesPage({
       onCreateHandled?.()
     }
   }, [startCreatingProp])
+
+  // Deep-link support: open a specific note once the list is loaded (e.g. from search)
+  useEffect(() => {
+    if (!focusNoteId || notes.length === 0) return
+    const note = notes.find((n) => n.id === focusNoteId)
+    if (note) {
+      handleOpenNote(note)
+      onFocusNoteHandled?.()
+    }
+  }, [focusNoteId, notes])
 
   const loadVaultAndNotes = async () => {
     const vp = await window.api.vault.getPath()
