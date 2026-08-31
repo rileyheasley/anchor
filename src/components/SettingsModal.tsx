@@ -5,7 +5,7 @@ import { clickSound } from '../sounds'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { getShortcutGroups } from '../shortcuts'
-import { THEME_OPTIONS } from '../utils/theme'
+import { THEME_OPTIONS, COLOURBLIND_THEME_OPTIONS } from '../utils/theme'
 import type { ThemeMode } from '../types'
 
 interface SettingsModalProps {
@@ -177,6 +177,26 @@ export default function SettingsModal({
                 <h3 className="text-xs font-semibold text-ink-faint uppercase tracking-wide mb-3">Theme</h3>
                 <div className="grid grid-cols-2 gap-2">
                   {THEME_OPTIONS.map(({ mode, label, icon: Icon }) => (
+                    <motion.button
+                      key={mode}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => { clickSound(); onThemeChange(mode) }}
+                      className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm cursor-pointer transition-colors ${
+                        themeMode === mode
+                          ? 'bg-accent-subtle text-accent-strong font-medium ring-1 ring-inset ring-current'
+                          : 'bg-surface-muted text-ink-secondary hover:bg-border-strong'
+                      }`}
+                    >
+                      <Icon size={16} />
+                      {label}
+                    </motion.button>
+                  ))}
+                </div>
+
+                <h3 className="text-xs font-semibold text-ink-faint uppercase tracking-wide mb-3 mt-5">Colourblind</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  {COLOURBLIND_THEME_OPTIONS.map(({ mode, label, icon: Icon }) => (
                     <motion.button
                       key={mode}
                       whileHover={{ scale: 1.02 }}

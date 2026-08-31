@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Home, FolderOpen, FileText, Archive, Trash2, ChevronLeft, ChevronRight, Sun, Settings, Search } from 'lucide-react'
+import { Home, FolderOpen, FileText, Archive, Trash2, ChevronLeft, ChevronRight, Sun, Settings, Search, Eye } from 'lucide-react'
 import DraggableSidebar from './DraggableSidebar'
 import IconNavItem from './IconNavItem'
 import { clickSound } from '../sounds'
 import { useEscapeKey } from '../hooks/useEscapeKey'
-import { THEME_OPTIONS } from '../utils/theme'
+import { THEME_OPTIONS, COLOURBLIND_THEME_OPTIONS, ALL_THEME_OPTIONS } from '../utils/theme'
 import type { ThemeMode } from '../types'
 
 type View = 'home' | 'projects' | 'notes' | 'archive' | 'recycle'
@@ -29,22 +29,28 @@ export default function Sidebar({
 }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false)
+  const [isColourblindMenuOpen, setIsColourblindMenuOpen] = useState(false)
   const themeMenuRef = useRef<HTMLDivElement>(null)
 
-  useEscapeKey(() => setIsThemeMenuOpen(false), isThemeMenuOpen)
+  useEscapeKey(() => {
+    if (isColourblindMenuOpen) setIsColourblindMenuOpen(false)
+    else setIsThemeMenuOpen(false)
+  }, isThemeMenuOpen)
 
   useEffect(() => {
     if (!isThemeMenuOpen) return
     const handleClickOutside = (e: MouseEvent) => {
       if (themeMenuRef.current && !themeMenuRef.current.contains(e.target as Node)) {
         setIsThemeMenuOpen(false)
+        setIsColourblindMenuOpen(false)
       }
     }
     window.addEventListener('mousedown', handleClickOutside)
     return () => window.removeEventListener('mousedown', handleClickOutside)
   }, [isThemeMenuOpen])
 
-  const ActiveThemeIcon = THEME_OPTIONS.find((t) => t.mode === themeMode)?.icon ?? Sun
+  const ActiveThemeIcon = ALL_THEME_OPTIONS.find((t) => t.mode === themeMode)?.icon ?? Sun
+  const isColourblindActive = COLOURBLIND_THEME_OPTIONS.some((t) => t.mode === themeMode)
 
   const navItems = [
     { id: 'home', label: 'Home', icon: Home, view: 'home' as const },
@@ -126,7 +132,7 @@ export default function Sidebar({
                     key={mode}
                     whileHover={{ x: 2 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => { clickSound(); onThemeChange(mode); setIsThemeMenuOpen(false) }}
+                    onClick={() => { clickSound(); onThemeChange(mode); setIsThemeMenuOpen(false); setIsColourblindMenuOpen(false) }}
                     className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left cursor-pointer transition-colors ${
                       themeMode === mode
                         ? 'text-accent-hover font-medium bg-accent-subtle'
@@ -137,6 +143,52 @@ export default function Sidebar({
                     {label}
                   </motion.button>
                 ))}
+
+                <div className="relative">
+                  <motion.button
+                    whileHover={{ x: 2 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setIsColourblindMenuOpen((open) => !open)}
+                    className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left cursor-pointer transition-colors ${
+                      isColourblindActive
+                        ? 'text-accent-hover font-medium bg-accent-subtle'
+                        : 'text-ink-secondary hover:bg-surface-sunken'
+                    }`}
+                  >
+                    <Eye size={16} />
+                    Colourblind
+                    <ChevronRight size={14} className="ml-auto" />
+                  </motion.button>
+
+                  <AnimatePresence>
+                    {isColourblindMenuOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.95, x: 4 }}
+                        animate={{ opacity: 1, scale: 1, x: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, x: 4 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                        className="absolute left-full top-0 ml-1 bg-surface border border-border-strong rounded-lg shadow-lg py-1 min-w-[150px] z-50"
+                      >
+                        {COLOURBLIND_THEME_OPTIONS.map(({ mode, label, icon: Icon }) => (
+                          <motion.button
+                            key={mode}
+                            whileHover={{ x: 2 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => { clickSound(); onThemeChange(mode); setIsThemeMenuOpen(false); setIsColourblindMenuOpen(false) }}
+                            className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left cursor-pointer transition-colors ${
+                              themeMode === mode
+                                ? 'text-accent-hover font-medium bg-accent-subtle'
+                                : 'text-ink-secondary hover:bg-surface-sunken'
+                            }`}
+                          >
+                            <Icon size={16} />
+                            {label}
+                          </motion.button>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>

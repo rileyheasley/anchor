@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import type { Project, ResolvedTheme, ThemeMode } from './types'
 import { setSoundsEnabled } from './sounds'
+import { ALL_THEME_OPTIONS } from './utils/theme'
 import TitleBar from './components/TitleBar'
 import Sidebar from './components/Sidebar'
 import OverviewHome from './components/OverviewHome'
@@ -41,8 +42,8 @@ function App() {
   // Load theme preference from localStorage on mount
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme')
-    const mode: ThemeMode = savedTheme === 'dark' || savedTheme === 'pink' || savedTheme === 'system' ? savedTheme : 'light'
-    setThemeMode(mode)
+    const isValid = ALL_THEME_OPTIONS.some((opt) => opt.mode === savedTheme)
+    setThemeMode(isValid ? (savedTheme as ThemeMode) : 'light')
   }, [])
 
   // Load sound preference from localStorage on mount

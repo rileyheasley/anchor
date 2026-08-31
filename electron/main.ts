@@ -295,6 +295,16 @@ const TITLEBAR_OVERLAY = {
   light: { color: '#fdfcf9', symbolColor: '#3d3a30' },
   dark: { color: '#1a1a1e', symbolColor: '#c8c4b8' },
   pink: { color: '#fff5f8', symbolColor: '#4a2338' },
+  nord: { color: '#2e3440', symbolColor: '#d8dee9' },
+  dracula: { color: '#282a36', symbolColor: '#e2e2dc' },
+  solarized: { color: '#002b36', symbolColor: '#93a1a1' },
+  sepia: { color: '#f4ecd8', symbolColor: '#5c4a30' },
+  forest: { color: '#f2f5ef', symbolColor: '#3d4f33' },
+  ocean: { color: '#0a1e2a', symbolColor: '#b8dbe6' },
+  contrast: { color: '#ffffff', symbolColor: '#000000' },
+  deuteranopia: { color: '#1a1a1e', symbolColor: '#c8c4b8' },
+  protanopia: { color: '#1a1a1e', symbolColor: '#c8c4b8' },
+  tritanopia: { color: '#1a1a1e', symbolColor: '#c8c4b8' },
 }
 
 function createWindow() {

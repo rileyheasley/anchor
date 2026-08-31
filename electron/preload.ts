@@ -9,7 +9,7 @@ contextBridge.exposeInMainWorld('api', {
     maximize: () => ipcRenderer.invoke('window:maximize'),
     close: () => ipcRenderer.invoke('window:close'),
     isMaximized: () => ipcRenderer.invoke('window:isMaximized'),
-    setTitleBarTheme: (theme: 'light' | 'dark' | 'pink') => ipcRenderer.invoke('window:setTitleBarTheme', theme),
+    setTitleBarTheme: (theme: 'light' | 'dark' | 'pink' | 'nord' | 'dracula' | 'solarized' | 'sepia' | 'forest' | 'ocean' | 'contrast' | 'deuteranopia' | 'protanopia' | 'tritanopia') => ipcRenderer.invoke('window:setTitleBarTheme', theme),
   },
   projects: {
     list: () => ipcRenderer.invoke('projects:list'),

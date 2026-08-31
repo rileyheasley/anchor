@@ -1,6 +1,6 @@
 export type Priority = 'none' | 'low' | 'medium' | 'high'
 export type ProjectStatus = 'planning' | 'in_progress' | 'on_hold' | 'done'
-export type ResolvedTheme = 'light' | 'dark' | 'pink'
+export type ResolvedTheme = 'light' | 'dark' | 'pink' | 'nord' | 'dracula' | 'solarized' | 'sepia' | 'forest' | 'ocean' | 'contrast' | 'deuteranopia' | 'protanopia' | 'tritanopia'
 export type ThemeMode = ResolvedTheme | 'system'
 
 export interface Project {
