@@ -1,6 +1,9 @@
 import { ipcRenderer, contextBridge } from 'electron'
 
 contextBridge.exposeInMainWorld('api', {
+  app: {
+    getVersion: () => ipcRenderer.invoke('app:getVersion'),
+  },
   window: {
     minimize: () => ipcRenderer.invoke('window:minimize'),
     maximize: () => ipcRenderer.invoke('window:maximize'),
@@ -42,8 +45,11 @@ contextBridge.exposeInMainWorld('api', {
     list: (filter?: { project_id?: string, standalone?: boolean }) => ipcRenderer.invoke('notes:list', filter),
     create: (data: { title: string, project_id?: string, card_id?: string }) => ipcRenderer.invoke('notes:create', data),
     update: (data: { id: string, title?: string, project_id?: string | null }) => ipcRenderer.invoke('notes:update', data),
+    link: (data: { id: string, project_id: string }) => ipcRenderer.invoke('notes:link', data),
+    unlink: (id: string) => ipcRenderer.invoke('notes:unlink', id),
     reorder: (data: { ids: string[] }) => ipcRenderer.invoke('notes:reorder', data),
     getContent: (id: string) => ipcRenderer.invoke('notes:getContent', id),
+    previewsForProject: (projectId: string) => ipcRenderer.invoke('notes:previewsForProject', projectId),
     saveContent: (id: string, content: string) => ipcRenderer.invoke('notes:saveContent', id, content),
     delete: (id: string) => ipcRenderer.invoke('notes:delete', id),
   },

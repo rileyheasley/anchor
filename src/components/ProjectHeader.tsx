@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { Plus, FolderOpen, Trash2, Link2 } from 'lucide-react'
+import { Plus, FolderOpen, Trash2, Link2, ChevronDown } from 'lucide-react'
 import type { Project, Priority, ProjectStatus, Note } from '../types'
 import { clickSound, createSound, deleteSound } from '../sounds'
 import NoteCard from './NoteCard'
@@ -36,6 +36,10 @@ export default function ProjectHeader({
   const [standaloneNotes, setStandaloneNotes] = useState<Note[]>([])
   const [isLinkMenuOpen, setIsLinkMenuOpen] = useState(false)
   const linkMenuRef = useRef<HTMLDivElement>(null)
+  const [isStatusMenuOpen, setIsStatusMenuOpen] = useState(false)
+  const statusMenuRef = useRef<HTMLDivElement>(null)
+  const [isPriorityMenuOpen, setIsPriorityMenuOpen] = useState(false)
+  const priorityMenuRef = useRef<HTMLDivElement>(null)
   const [displayPriority, setDisplayPriority] = useState<Priority>(project.priority)
   const [displayStatus, setDisplayStatus] = useState<ProjectStatus>(project.status)
   const [displayDueDate, setDisplayDueDate] = useState<string | null>(project.due_date)
@@ -76,6 +80,7 @@ export default function ProjectHeader({
 
   const handleUpdatePriority = async (newPriority: Priority) => {
     clickSound()
+    setIsPriorityMenuOpen(false)
     setDisplayPriority(newPriority)
     try {
       await onUpdateProject({ priority: newPriority })
@@ -87,6 +92,7 @@ export default function ProjectHeader({
 
   const handleUpdateStatus = async (newStatus: ProjectStatus) => {
     clickSound()
+    setIsStatusMenuOpen(false)
     setDisplayStatus(newStatus)
     try {
       await onUpdateProject({ status: newStatus })
@@ -108,6 +114,8 @@ export default function ProjectHeader({
   }
 
   useEscapeKey(() => setIsLinkMenuOpen(false), isLinkMenuOpen)
+  useEscapeKey(() => setIsStatusMenuOpen(false), isStatusMenuOpen)
+  useEscapeKey(() => setIsPriorityMenuOpen(false), isPriorityMenuOpen)
 
   useEffect(() => {
     if (!isLinkMenuOpen) return
@@ -120,11 +128,34 @@ export default function ProjectHeader({
     return () => window.removeEventListener('mousedown', handleClickOutside)
   }, [isLinkMenuOpen])
 
+  useEffect(() => {
+    if (!isStatusMenuOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (statusMenuRef.current && !statusMenuRef.current.contains(e.target as Node)) {
+        setIsStatusMenuOpen(false)
+      }
+    }
+    window.addEventListener('mousedown', handleClickOutside)
+    return () => window.removeEventListener('mousedown', handleClickOutside)
+  }, [isStatusMenuOpen])
+
+  useEffect(() => {
+    if (!isPriorityMenuOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (priorityMenuRef.current && !priorityMenuRef.current.contains(e.target as Node)) {
+        setIsPriorityMenuOpen(false)
+      }
+    }
+    window.addEventListener('mousedown', handleClickOutside)
+    return () => window.removeEventListener('mousedown', handleClickOutside)
+  }, [isPriorityMenuOpen])
+
   const handleOpenLinkMenu = async () => {
     clickSound()
     if (!isLinkMenuOpen) {
       try {
-        setStandaloneNotes(await window.api.notes.list({ standalone: true }))
+        const all = await window.api.notes.list({ standalone: true })
+        setStandaloneNotes(all.filter((n) => n.linked_project_id !== project.id))
       } catch (error) {
         console.error('Failed to load standalone notes:', error)
       }
@@ -135,12 +166,22 @@ export default function ProjectHeader({
   const handleLinkNote = async (note: Note) => {
     clickSound()
     try {
-      await window.api.notes.update({ id: note.id, project_id: project.id })
+      await window.api.notes.link({ id: note.id, project_id: project.id })
       await loadProjectNotes()
     } catch (error) {
       console.error('Failed to link note:', error)
     }
     setIsLinkMenuOpen(false)
+  }
+
+  const handleUnlinkNote = async (note: Note) => {
+    clickSound()
+    try {
+      await window.api.notes.unlink(note.id)
+      await loadProjectNotes()
+    } catch (error) {
+      console.error('Failed to unlink note:', error)
+    }
   }
 
   const handleCreateNote = async () => {
@@ -183,7 +224,11 @@ export default function ProjectHeader({
   const handleDeleteNote = async () => {
     if (!editingNote) return
     try {
-      await window.api.notes.delete(editingNote.id)
+      if (editingNote.linked_project_id === project.id) {
+        await window.api.notes.unlink(editingNote.id)
+      } else {
+        await window.api.notes.delete(editingNote.id)
+      }
       await loadProjectNotes()
     } catch (error) {
       console.error('Failed to delete note:', error)
@@ -245,114 +290,151 @@ export default function ProjectHeader({
   }, [])
 
   return (
-    <div className="border-b border-border-subtle bg-surface px-6 py-4 space-y-4 shrink-0">
-      {/* Title and Actions */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1 min-w-0">
-          {isEditingName ? (
-            <input
-              autoFocus
-              type="text"
-              value={editedName}
-              onChange={(e) => setEditedName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleUpdateName()
-                if (e.key === 'Escape') {
-                  setEditedName(project.name)
-                  setIsEditingName(false)
-                }
-              }}
-              onBlur={handleUpdateName}
-              disabled={isLoading}
-              className="font-heading text-2xl font-bold bg-surface-sunken text-ink border border-border-strong rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-50"
-            />
-          ) : (
+    <div className="border-b border-border-subtle bg-surface px-6 py-4 space-y-3 shrink-0">
+      {/* Title */}
+      <div>
+        {isEditingName ? (
+          <input
+            autoFocus
+            type="text"
+            value={editedName}
+            onChange={(e) => setEditedName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleUpdateName()
+              if (e.key === 'Escape') {
+                setEditedName(project.name)
+                setIsEditingName(false)
+              }
+            }}
+            onBlur={handleUpdateName}
+            disabled={isLoading}
+            className="font-heading text-2xl font-bold bg-surface-sunken text-ink border border-border-strong rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-50"
+          />
+        ) : (
+          <button
+            onClick={() => {
+              clickSound()
+              setIsEditingName(true)
+            }}
+            className="font-heading text-2xl font-bold text-ink hover:text-accent-hover transition-colors cursor-pointer text-left w-full break-words"
+          >
+            {project.name}
+          </button>
+        )}
+      </div>
+
+      {/* Controls + Progress Row */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Status dropdown */}
+          <div className="relative" ref={statusMenuRef}>
             <button
               onClick={() => {
                 clickSound()
-                setIsEditingName(true)
+                setIsStatusMenuOpen((open) => !open)
+                setIsPriorityMenuOpen(false)
               }}
-              className="font-heading text-2xl font-bold text-ink hover:text-accent-hover transition-colors cursor-pointer text-left w-full break-words"
+              disabled={isLoading}
+              className={`flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors disabled:opacity-50 font-semibold ${STATUS_BADGES[displayStatus]}`}
             >
-              {project.name}
+              {STATUS_LABELS[displayStatus]}
+              <ChevronDown size={12} />
             </button>
-          )}
-        </div>
-      </div>
 
-      {/* Metadata Row */}
-      <div className="flex items-center gap-3 flex-wrap">
-        {/* Status */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-ink-faint uppercase tracking-wide">Status:</span>
-          <div className="flex gap-1.5">
-            {STATUS_OPTIONS.map((s) => (
-              <button
-                key={s}
-                onClick={() => handleUpdateStatus(s)}
-                disabled={isLoading}
-                className={`text-xs px-2 py-1 rounded-lg cursor-pointer transition-colors disabled:opacity-50 ${
-                  displayStatus === s
-                    ? STATUS_BADGES[s] + ' font-semibold'
-                    : 'bg-surface-muted text-ink-muted hover:bg-border-strong'
-                }`}
-              >
-                {STATUS_LABELS[s]}
-              </button>
-            ))}
+            <AnimatePresence>
+              {isStatusMenuOpen && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 4 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 4 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                  className="absolute top-full left-0 mt-2 bg-surface border border-border-strong rounded-lg shadow-lg py-1 min-w-[150px] z-50"
+                >
+                  {STATUS_OPTIONS.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => handleUpdateStatus(s)}
+                      className={`w-full text-left px-3 py-1.5 text-xs cursor-pointer transition-colors hover:bg-surface-sunken ${
+                        displayStatus === s ? 'font-semibold text-ink' : 'text-ink-secondary'
+                      }`}
+                    >
+                      {STATUS_LABELS[s]}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
-        </div>
 
-        {/* Priority */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-ink-faint uppercase tracking-wide">Priority:</span>
-          <div className="flex gap-1.5">
-            {(['none', 'low', 'medium', 'high'] as const).map((p) => (
-              <button
-                key={p}
-                onClick={() => handleUpdatePriority(p)}
-                disabled={isLoading}
-                className={`text-xs px-2 py-1 rounded-lg cursor-pointer transition-colors disabled:opacity-50 ${
-                  displayPriority === p
-                    ? PRIORITY_BADGES[p] + ' font-semibold'
-                    : 'bg-surface-muted text-ink-muted hover:bg-border-strong'
-                }`}
-              >
-                {p.charAt(0).toUpperCase() + p.slice(1)}
-              </button>
-            ))}
+          {/* Priority dropdown */}
+          <div className="relative" ref={priorityMenuRef}>
+            <button
+              onClick={() => {
+                clickSound()
+                setIsPriorityMenuOpen((open) => !open)
+                setIsStatusMenuOpen(false)
+              }}
+              disabled={isLoading}
+              className={`flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors disabled:opacity-50 font-semibold ${PRIORITY_BADGES[displayPriority]}`}
+            >
+              {displayPriority.charAt(0).toUpperCase() + displayPriority.slice(1)}
+              <ChevronDown size={12} />
+            </button>
+
+            <AnimatePresence>
+              {isPriorityMenuOpen && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 4 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 4 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                  className="absolute top-full left-0 mt-2 bg-surface border border-border-strong rounded-lg shadow-lg py-1 min-w-[130px] z-50"
+                >
+                  {(['none', 'low', 'medium', 'high'] as const).map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => handleUpdatePriority(p)}
+                      className={`w-full text-left px-3 py-1.5 text-xs cursor-pointer transition-colors hover:bg-surface-sunken ${
+                        displayPriority === p ? 'font-semibold text-ink' : 'text-ink-secondary'
+                      }`}
+                    >
+                      {p.charAt(0).toUpperCase() + p.slice(1)}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
-        </div>
 
-        {/* Due Date */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-ink-faint uppercase tracking-wide">Due:</span>
-          <input
-            type="date"
-            value={displayDueDate ?? ''}
-            onChange={(e) => handleUpdateDueDate(e.target.value || null)}
-            disabled={isLoading}
-            className="bg-surface-sunken text-ink border border-border-strong rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-50"
-            style={{ colorScheme }}
-          />
-          {dueInfo && <span className={`text-xs font-medium ${dueInfo.color}`}>{dueInfo.label}</span>}
-        </div>
-      </div>
-
-      {/* Progress Bar */}
-      {totalPoints > 0 && (
-        <div className="flex items-center gap-3">
-          <div className="flex-1 bg-surface-muted rounded-full h-2 overflow-hidden">
-            <div
-              className="bg-accent h-full rounded-full transition-all duration-500"
-              style={{ width: `${progressPercent}%` }}
+          {/* Due date */}
+          <div className="flex items-center gap-1.5 bg-surface-muted rounded-lg px-2 py-1">
+            <input
+              type="date"
+              value={displayDueDate ?? ''}
+              onChange={(e) => handleUpdateDueDate(e.target.value || null)}
+              disabled={isLoading}
+              className="bg-transparent text-ink text-xs focus:outline-none disabled:opacity-50 cursor-pointer"
+              style={{ colorScheme }}
             />
+            {dueInfo && <span className={`text-xs font-medium whitespace-nowrap ${dueInfo.color}`}>{dueInfo.label}</span>}
           </div>
-          <span className="text-xs text-ink-faint whitespace-nowrap">
-            {donePoints}/{totalPoints} pts ({progressPercent}%)
-          </span>
         </div>
-      )}
+
+        {/* Progress */}
+        {totalPoints > 0 && (
+          <div className="flex items-center gap-2 flex-1 min-w-[160px] max-w-xs">
+            <div className="flex-1 bg-surface-muted rounded-full h-2 overflow-hidden">
+              <div
+                className="bg-accent h-full rounded-full transition-all duration-500"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+            <span className="text-xs text-ink-faint whitespace-nowrap">
+              {donePoints}/{totalPoints} ({progressPercent}%)
+            </span>
+          </div>
+        )}
+      </div>
 
       {/* Notes Section */}
       <div>
@@ -365,6 +447,7 @@ export default function ProjectHeader({
                 <NoteCard
                   key={note.id}
                   note={note}
+                  linked={note.linked_project_id === project.id}
                   onClick={(n) => setEditingNote(n)}
                   onDragStart={(n) => handleDragStart(n)}
                   onDragEnd={() => setDraggedNote(null)}
@@ -434,6 +517,14 @@ export default function ProjectHeader({
         onClose={() => setEditingNote(null)}
         onSave={handleSaveNote}
         onDelete={handleDeleteNote}
+        {...(editingNote?.linked_project_id === project.id
+          ? {
+              deleteTitle: 'Unlink note',
+              confirmTitle: 'Unlink note?',
+              confirmMessage: 'This note will no longer appear on this project, but it will stay on the Notes screen.',
+              confirmButtonText: 'Unlink',
+            }
+          : {})}
       />
 
       <ConfirmDialog
@@ -453,7 +544,9 @@ export default function ProjectHeader({
             ? [
                 { label: 'Open note', icon: FolderOpen, onClick: () => setEditingNote(noteMenu.note) },
                 'separator',
-                { label: 'Delete note', icon: Trash2, danger: true, onClick: () => setConfirmDeleteNote(noteMenu.note) },
+                noteMenu.note.linked_project_id === project.id
+                  ? { label: 'Unlink note', icon: Link2, onClick: () => handleUnlinkNote(noteMenu.note) }
+                  : { label: 'Delete note', icon: Trash2, danger: true, onClick: () => setConfirmDeleteNote(noteMenu.note) },
               ]
             : []
         }

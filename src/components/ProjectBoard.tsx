@@ -1,13 +1,17 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { Plus, Trash2, X, ChevronLeft, FolderOpen, CheckCircle2, Circle, ArrowRightCircle, Flag } from 'lucide-react'
+import { Plus, Trash2, X, FolderOpen, CheckCircle2, Circle, ArrowRightCircle, Flag } from 'lucide-react'
 import type { Project, KanbanColumn, Card, Note, Priority, ProjectStatus } from '../types'
 import { clickSound, createSound, deleteSound, completeSound, moveSound } from '../sounds'
 import ProjectHeader from './ProjectHeader'
+import SortDropdown from './SortDropdown'
+import CardCreateModal from './CardCreateModal'
 import ConfirmDialog from './ConfirmDialog'
 import ContextMenu, { type ContextMenuEntry, type ContextMenuPosition } from './ContextMenu'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { PRIORITY_BADGES } from '../utils/priority'
+import { stripMarkdownPreview } from '../utils/markdown'
+import MarkdownEditor from './MarkdownEditor'
 
 type CardSortMode = 'manual' | 'priority' | 'dueDate' | 'points' | 'name' | 'created'
 
@@ -24,8 +28,8 @@ const CARD_SORT_LABELS: Record<CardSortMode, string> = {
 export default function ProjectBoard({ project, onClose, onProjectUpdate, focusCardId, onFocusCardHandled }: { project: Project, onClose: () => void, onProjectUpdate?: (updatedProject: Project) => void, focusCardId?: string | null, onFocusCardHandled?: () => void }) {
   const [columns, setColumns] = useState<KanbanColumn[]>([])
   const [cards, setCards] = useState<Card[]>([])
-  const [addingTo, setAddingTo] = useState<string | null>(null)
-  const [newTitle, setNewTitle] = useState('')
+  const [creatingInColumn, setCreatingInColumn] = useState<string | null>(null)
+  const [isCreatingCard, setIsCreatingCard] = useState(false)
   const [newColName, setNewColName] = useState('')
   const [newColIsDone, setNewColIsDone] = useState(false)
   const [addingColumn, setAddingColumn] = useState(false)
@@ -46,6 +50,7 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
   // Card detail panel
   const [selectedCard, setSelectedCard] = useState<Card | null>(null)
   const [cardNote, setCardNote] = useState<Note | null>(null)
+  const [notePreviews, setNotePreviews] = useState<Record<string, string>>({})
   const [noteContent, setNoteContent] = useState('')
   const [noteDirty, setNoteDirty] = useState(false)
   const noteSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -85,16 +90,18 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
     if (noteDirty) saveNoteContent()
     setSelectedCard(null)
   }, !!selectedCard && !confirmDelete)
-  useEscapeKey(onClose, !selectedCard && !confirmDelete && !addingTo && !addingColumn)
+  useEscapeKey(onClose, !selectedCard && !confirmDelete && !creatingInColumn && !addingColumn)
 
   const loadBoard = async () => {
     try {
-      const [cols, crds] = await Promise.all([
+      const [cols, crds, previews] = await Promise.all([
         window.api.columns.list(project.id),
         window.api.cards.list(project.id),
+        window.api.notes.previewsForProject(project.id),
       ])
       setColumns(cols)
       setCards(crds)
+      setNotePreviews(previews)
     } catch (error) {
       console.error('Failed to load board:', error)
     }
@@ -126,6 +133,7 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
   const handleNoteContentChange = (val: string) => {
     setNoteContent(val)
     setNoteDirty(true)
+    if (selectedCard) setNotePreviews((prev) => ({ ...prev, [selectedCard.id]: val }))
     if (noteSaveTimer.current) clearTimeout(noteSaveTimer.current)
     noteSaveTimer.current = setTimeout(() => saveNoteContent(val), 1500)
   }
@@ -159,15 +167,25 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
     }
   }
 
-  const handleAddCard = async (columnId: string) => {
-    if (!newTitle.trim()) return
+  const handleCreateCard = async (data: { title: string; points: number | null; priority: Priority; due_date: string | null }) => {
+    if (!creatingInColumn) return
+    setIsCreatingCard(true)
     try {
-      await window.api.cards.create({ project_id: project.id, column_id: columnId, title: newTitle })
-      setNewTitle('')
-      setAddingTo(null)
-      createSound()
+      await window.api.cards.create({
+        project_id: project.id,
+        column_id: creatingInColumn,
+        title: data.title,
+        points: data.points ?? undefined,
+        priority: data.priority,
+        due_date: data.due_date ?? undefined,
+      })
       await loadBoard()
-    } catch (error) { console.error('Failed to create card:', error) }
+    } catch (error) {
+      console.error('Failed to create card:', error)
+      throw error
+    } finally {
+      setIsCreatingCard(false)
+    }
   }
 
   const handleDeleteCard = async (id: string) => {
@@ -298,7 +316,7 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
   ]
 
   const buildColumnMenuItems = (col: KanbanColumn): ContextMenuEntry[] => [
-    { label: 'Add card', icon: Plus, onClick: () => { setAddingTo(col.id); setNewTitle('') } },
+    { label: 'Add card', icon: Plus, onClick: () => setCreatingInColumn(col.id) },
     { label: col.is_done ? 'Unmark as done column' : 'Mark as done column', icon: CheckCircle2, onClick: () => handleToggleColumnDone(col) },
     'separator',
     { label: 'Delete column', icon: Trash2, danger: true, onClick: () => setConfirmDelete({ type: 'column', id: col.id }) },
@@ -374,25 +392,19 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
           .reduce((sum, c) => sum + (c.points ?? 0), 0)}
         isLoading={isUpdatingProject}
       />
-      <div className="flex items-center gap-1 px-6 py-2 border-b border-border-subtle bg-surface shrink-0">
-        <span className="text-xs text-ink-faint mr-1">Sort cards:</span>
-        {(Object.keys(CARD_SORT_LABELS) as CardSortMode[]).map((mode) => (
-          <button
-            key={mode}
-            onClick={() => { clickSound(); setCardSort(mode) }}
-            className={`text-xs px-2 py-1 rounded cursor-pointer transition-colors ${
-              cardSort === mode ? 'bg-primary text-ink-inverse' : 'text-ink-faint hover:bg-surface-muted'
-            }`}
-          >
-            {CARD_SORT_LABELS[mode]}
-          </button>
-        ))}
-      </div>
       <div className="flex flex-1 overflow-hidden">
         {/* Board */}
-        {/* Overflow is suppressed mid-drag: Chromium's native drag auto-scroll otherwise
-            flashes the OS-default scrollbar over our themed one. */}
-        <div className={`flex-1 p-6 ${draggingId || draggingColId ? 'overflow-hidden' : 'overflow-x-auto'}`}>
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex items-center px-6 pt-4 shrink-0">
+            <SortDropdown
+              options={(Object.keys(CARD_SORT_LABELS) as CardSortMode[]).map((mode) => ({ value: mode, label: CARD_SORT_LABELS[mode] }))}
+              value={cardSort}
+              onChange={setCardSort}
+            />
+          </div>
+          {/* Overflow is suppressed mid-drag: Chromium's native drag auto-scroll otherwise
+              flashes the OS-default scrollbar over our themed one. */}
+          <div className={`flex-1 px-6 pb-6 pt-3 ${draggingId || draggingColId ? 'overflow-hidden' : 'overflow-x-auto'}`}>
           <div className="flex gap-4 h-full items-start">
             {columns.map((col, colIndex) => {
               const isColumnDragTarget = dragOverColIndex === colIndex && draggingColId && draggingColId !== col.id
@@ -512,6 +524,13 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
                               </button>
                             </div>
 
+                            {/* Note preview */}
+                            {notePreviews[card.id] && (
+                              <p className="text-xs text-ink-faint line-clamp-2 leading-snug">
+                                {stripMarkdownPreview(notePreviews[card.id])}
+                              </p>
+                            )}
+
                             {/* Metadata Footer */}
                             <div className="flex items-center justify-between gap-2 text-xs text-ink-faint">
                               <div className="flex items-center gap-2">
@@ -537,35 +556,11 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
                   </AnimatePresence>
                 </div>
 
-                {addingTo === col.id ? (
-                  <div className="mt-2">
-                    <input autoFocus type="text" value={newTitle}
-                      onChange={(e) => setNewTitle(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleAddCard(col.id)
-                        if (e.key === 'Escape') { setAddingTo(null); setNewTitle('') }
-                      }}
-                      placeholder="Card title..."
-                      className="w-full px-2 py-1.5 text-sm border border-border-strong rounded bg-surface-sunken text-ink placeholder-ink-faint focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                    />
-                    <div className="flex gap-1 mt-1">
-                      <button onClick={() => handleAddCard(col.id)} className="text-xs px-2 py-1 bg-primary text-ink-inverse rounded hover:bg-primary-hover cursor-pointer transition-colors flex items-center gap-1">
-                        <Plus size={14} />
-                        Add
-                      </button>
-                      <button onClick={() => { clickSound(); setAddingTo(null); setNewTitle('') }} className="text-xs px-2 py-1 text-ink-muted hover:bg-border-strong rounded cursor-pointer transition-colors flex items-center gap-1">
-                        <X size={14} />
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <button onClick={() => { clickSound(); setAddingTo(col.id); setNewTitle('') }}
-                    className="mt-2 w-full text-left text-sm text-ink-faint hover:text-ink-secondary hover:bg-border-strong px-2 py-1 rounded cursor-pointer transition-colors flex items-center gap-2">
-                    <Plus size={16} />
-                    Add card
-                  </button>
-                )}
+                <button onClick={() => { clickSound(); setCreatingInColumn(col.id) }}
+                  className="mt-2 w-full text-left text-sm text-ink-faint hover:text-ink-secondary hover:bg-border-strong px-2 py-1 rounded cursor-pointer transition-colors flex items-center gap-2">
+                  <Plus size={16} />
+                  Add card
+                </button>
               </div>
             )
             })}
@@ -609,30 +604,46 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
               </button>
             )}
           </div>
+          </div>
         </div>
 
-        {/* Card detail panel */}
-        <AnimatePresence>
-          {selectedCard && (
+      </div>
+
+      {/* Card edit modal */}
+      <AnimatePresence>
+        {selectedCard && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => { clickSound(); if (noteDirty) saveNoteContent(); setSelectedCard(null) }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          >
             <motion.div
-              initial={{ x: 320, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: 320, opacity: 0 }}
+              role="dialog"
+              aria-modal="true"
+              aria-label={selectedCard.title}
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
               transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-              className="w-80 bg-surface border-l border-border flex flex-col shrink-0 overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+              className="bg-surface border border-border-subtle rounded-lg shadow-lg w-full max-w-lg max-h-[85vh] flex flex-col"
             >
-              <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle shrink-0">
-                <span className="font-heading text-sm font-medium text-ink-secondary truncate mr-2">{selectedCard.title}</span>
+              {/* Header */}
+              <div className="flex items-center justify-between p-4 border-b border-border-subtle shrink-0">
+                <h2 className="font-heading text-lg font-medium text-ink truncate mr-2">{selectedCard.title}</h2>
                 <button
                   onClick={() => { clickSound(); if (noteDirty) saveNoteContent(); setSelectedCard(null) }}
-                  className="text-ink-faint hover:text-ink-secondary cursor-pointer p-1 shrink-0"
+                  className="p-1 rounded-lg text-ink-muted hover:bg-surface-sunken hover:text-ink transition-colors cursor-pointer shrink-0"
                   title="Close"
                 >
-                  <ChevronLeft size={18} />
+                  <X size={20} />
                 </button>
               </div>
 
-              <div className="p-4 space-y-5">
+              {/* Content */}
+              <div className="flex-1 p-6 overflow-y-auto space-y-4">
                 <div>
                   <label className="text-xs text-ink-faint uppercase tracking-wide block mb-2">Points</label>
                   <div className="flex gap-1.5">
@@ -675,13 +686,14 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
                     {noteDirty && <span className="text-xs text-ink-faint">Saving…</span>}
                   </div>
                   {cardNote ? (
-                    <textarea
-                      value={noteContent}
-                      onChange={(e) => handleNoteContentChange(e.target.value)}
-                      onBlur={() => saveNoteContent()}
-                      className="w-full h-56 p-3 text-sm font-mono text-ink-secondary bg-surface-sunken border border-border rounded-lg resize-none placeholder-ink-faint focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                      placeholder="Write in markdown…"
-                    />
+                    <div className="h-64 border border-border rounded-lg overflow-y-auto">
+                      <MarkdownEditor
+                        content={noteContent}
+                        onChange={handleNoteContentChange}
+                        onBlur={() => saveNoteContent()}
+                        placeholder="Write your note in markdown…"
+                      />
+                    </div>
                   ) : (
                     <button
                       onClick={handleCreateCardNote}
@@ -693,9 +705,16 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
                 </div>
               </div>
             </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <CardCreateModal
+        isOpen={!!creatingInColumn}
+        onClose={() => setCreatingInColumn(null)}
+        onCreate={handleCreateCard}
+        isLoading={isCreatingCard}
+      />
 
       <ConfirmDialog
         isOpen={!!confirmDelete}

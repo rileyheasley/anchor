@@ -1,4 +1,5 @@
 import { motion } from 'motion/react'
+import { Link2 } from 'lucide-react'
 import type { Note } from '../types'
 import { clickSound } from '../sounds'
 
@@ -11,6 +12,7 @@ interface NoteCardProps {
   onDrop?: (e: React.DragEvent<HTMLButtonElement>, note: Note) => void
   onContextMenu?: (e: React.MouseEvent<HTMLButtonElement>, note: Note) => void
   isDragging?: boolean
+  linked?: boolean
 }
 
 export default function NoteCard({
@@ -22,6 +24,7 @@ export default function NoteCard({
   onDrop,
   onContextMenu,
   isDragging,
+  linked,
 }: NoteCardProps) {
   return (
     <motion.button
@@ -43,7 +46,12 @@ export default function NoteCard({
       onContextMenu={(e) => onContextMenu?.(e, note)}
       className="bg-surface border border-border-strong rounded-lg px-4 py-3 hover:border-accent hover:bg-surface-muted transition-colors cursor-grab active:cursor-grabbing group whitespace-nowrap"
     >
-      <h3 className="font-heading font-medium text-ink text-sm group-hover:text-accent-hover transition-colors">
+      <h3 className="flex items-center gap-1.5 font-heading font-medium text-ink text-sm group-hover:text-accent-hover transition-colors">
+        {linked && (
+          <span title="Linked from Notes" className="shrink-0 flex">
+            <Link2 size={12} className="text-ink-faint" />
+          </span>
+        )}
         {note.title}
       </h3>
     </motion.button>

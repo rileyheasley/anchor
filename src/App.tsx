@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { Project, ResolvedTheme, ThemeMode } from './types'
+import { setSoundsEnabled } from './sounds'
 import TitleBar from './components/TitleBar'
 import Sidebar from './components/Sidebar'
 import OverviewHome from './components/OverviewHome'
@@ -13,6 +14,15 @@ import SearchModal, { type SearchSelection } from './components/SearchModal'
 
 type View = 'home' | 'projects' | 'notes' | 'archive' | 'recycle'
 
+interface NavState {
+  view: View
+  projectId: string | null
+}
+
+const pushHistory = (state: NavState) => {
+  window.history.pushState(state, '')
+}
+
 function App() {
   const [view, setView] = useState<View>('home')
   const [activeProject, setActiveProject] = useState<Project | null>(null)
@@ -20,6 +30,7 @@ function App() {
   const [startCreatingProject, setStartCreatingProject] = useState(false)
   const [themeMode, setThemeMode] = useState<ThemeMode>('light')
   const [systemPrefersDark, setSystemPrefersDark] = useState(false)
+  const [soundsEnabled, setSoundsEnabledState] = useState(true)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [focusCardId, setFocusCardId] = useState<string | null>(null)
@@ -32,6 +43,13 @@ function App() {
     const savedTheme = localStorage.getItem('theme')
     const mode: ThemeMode = savedTheme === 'dark' || savedTheme === 'pink' || savedTheme === 'system' ? savedTheme : 'light'
     setThemeMode(mode)
+  }, [])
+
+  // Load sound preference from localStorage on mount
+  useEffect(() => {
+    const enabled = localStorage.getItem('soundsEnabled') !== 'false'
+    setSoundsEnabledState(enabled)
+    setSoundsEnabled(enabled)
   }, [])
 
   // Track the OS color scheme so 'system' mode stays in sync while the app is open
@@ -58,23 +76,44 @@ function App() {
     localStorage.setItem('theme', mode)
   }
 
+  const handleSoundsEnabledChange = (enabled: boolean) => {
+    setSoundsEnabledState(enabled)
+    setSoundsEnabled(enabled)
+    localStorage.setItem('soundsEnabled', String(enabled))
+  }
+
   const handleNavigate = (v: View) => {
     setActiveProject(null)        // always exit any open project
     setStartCreatingNote(false)
     setStartCreatingProject(false)
     setView(v)
+    pushHistory({ view: v, projectId: null })
   }
 
   const handleNewNote = () => {
     setActiveProject(null)
     setStartCreatingNote(true)
     setView('notes')
+    pushHistory({ view: 'notes', projectId: null })
   }
 
   const handleNewProject = () => {
     setActiveProject(null)
     setStartCreatingProject(true)
     setView('projects')
+    pushHistory({ view: 'projects', projectId: null })
+  }
+
+  // Opens a project as a new history entry, so the mouse/OS back button (and Alt+Left)
+  // returns to whatever list the project was opened from.
+  const navigateToProject = (project: Project) => {
+    setActiveProject(project)
+    pushHistory({ view, projectId: project.id })
+  }
+
+  const closeProject = () => {
+    setActiveProject(null)
+    pushHistory({ view, projectId: null })
   }
 
   const openProjectById = async (id: string): Promise<Project | null> => {
@@ -93,13 +132,13 @@ function App() {
   const handleSearchSelect = async (selection: SearchSelection) => {
     if (selection.type === 'project') {
       const project = await openProjectById(selection.id)
-      if (project) setActiveProject(project)
+      if (project) navigateToProject(project)
       return
     }
     if (selection.type === 'card') {
       const project = await openProjectById(selection.projectId)
       if (project) {
-        setActiveProject(project)
+        navigateToProject(project)
         setFocusCardId(selection.id)
       }
       return
@@ -108,13 +147,33 @@ function App() {
     // into the note modal yet); standalone notes open directly in the Notes view.
     if (selection.projectId) {
       const project = await openProjectById(selection.projectId)
-      if (project) setActiveProject(project)
+      if (project) navigateToProject(project)
     } else {
       setActiveProject(null)
       setView('notes')
       setFocusNoteId(selection.id)
+      pushHistory({ view: 'notes', projectId: null })
     }
   }
+
+  // Session history drives the mouse/OS back-forward buttons: replay whatever view or
+  // project the entry represents. This never re-pushes, so it can't create a loop.
+  useEffect(() => {
+    window.history.replaceState({ view: 'home', projectId: null } satisfies NavState, '')
+
+    const handlePopState = (e: PopStateEvent) => {
+      const state = e.state as NavState | null
+      if (!state) return
+      setView(state.view)
+      if (state.projectId) {
+        openProjectById(state.projectId).then((project) => setActiveProject(project))
+      } else {
+        setActiveProject(null)
+      }
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
 
   // Global keyboard shortcuts: Mod+, settings, Mod+K search, Mod+1-5 navigation, Mod+N new item (context-aware)
   useEffect(() => {
@@ -168,7 +227,7 @@ function App() {
       return (
         <ProjectBoard
           project={activeProject}
-          onClose={() => setActiveProject(null)}
+          onClose={closeProject}
           onProjectUpdate={setActiveProject}
           focusCardId={focusCardId}
           onFocusCardHandled={() => setFocusCardId(null)}
@@ -176,12 +235,12 @@ function App() {
       )
     }
     if (view === 'home') {
-      return <OverviewHome onOpenProject={setActiveProject} />
+      return <OverviewHome onOpenProject={navigateToProject} />
     }
     if (view === 'projects') {
       return (
         <HomePage
-          onOpenProject={setActiveProject}
+          onOpenProject={navigateToProject}
           startCreating={startCreatingProject}
           onCreateHandled={() => setStartCreatingProject(false)}
           onNewProject={handleNewProject}
@@ -200,7 +259,7 @@ function App() {
       )
     }
     if (view === 'recycle') return <RecycleBin />
-    if (view === 'archive') return <ArchiveView onOpenProject={setActiveProject} />
+    if (view === 'archive') return <ArchiveView onOpenProject={navigateToProject} />
     return null
   }
 
@@ -220,7 +279,14 @@ function App() {
           {content()}
         </div>
       </div>
-      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        themeMode={themeMode}
+        onThemeChange={handleThemeChange}
+        soundsEnabled={soundsEnabled}
+        onSoundsEnabledChange={handleSoundsEnabledChange}
+      />
       <SearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} onSelect={handleSearchSelect} />
     </div>
   )

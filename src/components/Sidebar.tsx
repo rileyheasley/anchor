@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Home, FolderOpen, FileText, Archive, Trash2, ChevronLeft, ChevronRight, Moon, Sun, Monitor, Heart, Settings, Search } from 'lucide-react'
+import { Home, FolderOpen, FileText, Archive, Trash2, ChevronLeft, ChevronRight, Sun, Settings, Search } from 'lucide-react'
 import DraggableSidebar from './DraggableSidebar'
 import IconNavItem from './IconNavItem'
 import { clickSound } from '../sounds'
 import { useEscapeKey } from '../hooks/useEscapeKey'
+import { THEME_OPTIONS } from '../utils/theme'
 import type { ThemeMode } from '../types'
 
 type View = 'home' | 'projects' | 'notes' | 'archive' | 'recycle'
@@ -17,13 +18,6 @@ interface SidebarProps {
   onOpenSettings: () => void
   onOpenSearch: () => void
 }
-
-const THEME_OPTIONS: { mode: ThemeMode; label: string; icon: typeof Sun }[] = [
-  { mode: 'light', label: 'Light', icon: Sun },
-  { mode: 'dark', label: 'Dark', icon: Moon },
-  { mode: 'pink', label: 'Pastel Pink', icon: Heart },
-  { mode: 'system', label: 'System', icon: Monitor },
-]
 
 export default function Sidebar({ 
   view, 

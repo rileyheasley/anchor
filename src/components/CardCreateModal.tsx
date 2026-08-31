@@ -1,63 +1,57 @@
 import { useRef, useState } from 'react'
 import { X } from 'lucide-react'
-import type { Priority, ProjectStatus } from '../types'
+import type { Priority } from '../types'
 import { clickSound, createSound } from '../sounds'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useFocusTrap } from '../hooks/useFocusTrap'
-import { STATUS_OPTIONS, STATUS_LABELS, STATUS_BADGES } from '../utils/status'
 import { PRIORITY_OPTIONS, PRIORITY_BADGES } from '../utils/priority'
 
-interface ProjectCreationModalProps {
+interface CardCreateModalProps {
   isOpen: boolean
   onClose: () => void
-  onCreate: (data: { name: string; priority: Priority; status: ProjectStatus; due_date: string | null }) => Promise<void>
+  onCreate: (data: { title: string; points: number | null; priority: Priority; due_date: string | null }) => Promise<void>
   isLoading?: boolean
 }
 
-export default function ProjectCreationModal({
+export default function CardCreateModal({
   isOpen,
   onClose,
   onCreate,
   isLoading = false,
-}: ProjectCreationModalProps) {
-  const [name, setName] = useState('')
+}: CardCreateModalProps) {
+  const [title, setTitle] = useState('')
+  const [points, setPoints] = useState<number | null>(null)
   const [priority, setPriority] = useState<Priority>('none')
-  const [status, setStatus] = useState<ProjectStatus>('planning')
-  const [dueDate, setDueDate] = useState<string>('')
+  const [dueDate, setDueDate] = useState('')
   const [error, setError] = useState<string | null>(null)
 
+  const reset = () => {
+    setTitle('')
+    setPoints(null)
+    setPriority('none')
+    setDueDate('')
+    setError(null)
+  }
+
   const handleCreate = async () => {
-    if (!name.trim()) {
-      setError('Project name is required')
+    if (!title.trim()) {
+      setError('Card title is required')
       return
     }
 
     try {
-      await onCreate({
-        name: name.trim(),
-        priority,
-        status,
-        due_date: dueDate || null,
-      })
+      await onCreate({ title: title.trim(), points, priority, due_date: dueDate || null })
       createSound()
-      setName('')
-      setPriority('none')
-      setStatus('planning')
-      setDueDate('')
-      setError(null)
+      reset()
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create project')
+      setError(err instanceof Error ? err.message : 'Failed to create card')
     }
   }
 
   const handleClose = () => {
     clickSound()
-    setName('')
-    setPriority('none')
-    setStatus('planning')
-    setDueDate('')
-    setError(null)
+    reset()
     onClose()
   }
 
@@ -80,14 +74,14 @@ export default function ProjectCreationModal({
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Create New Project"
+        aria-label="Add Card"
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         className="bg-surface border border-border-subtle rounded-lg shadow-lg w-full max-w-md flex flex-col"
       >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-border-subtle">
-          <h2 className="font-heading text-lg font-medium text-ink">Create New Project</h2>
+          <h2 className="font-heading text-lg font-medium text-ink">Add Card</h2>
           <button
             onClick={handleClose}
             disabled={isLoading}
@@ -100,22 +94,42 @@ export default function ProjectCreationModal({
 
         {/* Content */}
         <div className="flex-1 p-6 overflow-y-auto space-y-4">
-          {/* Project Name */}
+          {/* Title */}
           <div>
-            <label className="text-xs text-ink-faint uppercase tracking-wide block mb-2">Project Name</label>
+            <label className="text-xs text-ink-faint uppercase tracking-wide block mb-2">Card Title</label>
             <input
               autoFocus
               type="text"
-              value={name}
+              value={title}
               onChange={(e) => {
-                setName(e.target.value)
+                setTitle(e.target.value)
                 setError(null)
               }}
               onKeyDown={handleKeyDown}
-              placeholder="Enter project name..."
+              placeholder="Enter card title..."
               disabled={isLoading}
               className="w-full px-3 py-2 bg-surface-sunken text-ink border border-border-strong rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-50 placeholder-ink-faint"
             />
+          </div>
+
+          {/* Points */}
+          <div>
+            <label className="text-xs text-ink-faint uppercase tracking-wide block mb-2">Points</label>
+            <div className="flex gap-1.5">
+              {[1, 2, 3, 4, 5].map((pt) => (
+                <button
+                  key={pt}
+                  type="button"
+                  onClick={() => setPoints((current) => (current === pt ? null : pt))}
+                  disabled={isLoading}
+                  className={`w-9 h-9 text-sm rounded-lg cursor-pointer transition-colors font-medium disabled:opacity-50 ${
+                    points === pt ? 'bg-accent text-ink-inverse' : 'bg-surface-muted text-ink-muted hover:bg-border-strong'
+                  }`}
+                >
+                  {pt}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Priority */}
@@ -125,6 +139,7 @@ export default function ProjectCreationModal({
               {PRIORITY_OPTIONS.map((p) => (
                 <button
                   key={p}
+                  type="button"
                   onClick={() => setPriority(p)}
                   disabled={isLoading}
                   className={`text-xs px-3 py-1.5 rounded-lg cursor-pointer transition-colors disabled:opacity-50 ${
@@ -134,27 +149,6 @@ export default function ProjectCreationModal({
                   }`}
                 >
                   {p.charAt(0).toUpperCase() + p.slice(1)}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Status */}
-          <div>
-            <label className="text-xs text-ink-faint uppercase tracking-wide block mb-2">Status</label>
-            <div className="flex gap-1.5 flex-wrap">
-              {STATUS_OPTIONS.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setStatus(s)}
-                  disabled={isLoading}
-                  className={`text-xs px-3 py-1.5 rounded-lg cursor-pointer transition-colors disabled:opacity-50 ${
-                    status === s
-                      ? STATUS_BADGES[s] + ' font-semibold'
-                      : 'bg-surface-muted text-ink-faint hover:bg-border-strong'
-                  }`}
-                >
-                  {STATUS_LABELS[s]}
                 </button>
               ))}
             </div>
@@ -188,10 +182,10 @@ export default function ProjectCreationModal({
           </button>
           <button
             onClick={handleCreate}
-            disabled={isLoading || !name.trim()}
+            disabled={isLoading || !title.trim()}
             className="px-4 py-2 bg-primary text-ink-inverse text-sm rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer font-medium"
           >
-            {isLoading ? 'Creating...' : 'Create'}
+            {isLoading ? 'Adding...' : 'Add Card'}
           </button>
         </div>
       </div>

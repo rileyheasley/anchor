@@ -4,6 +4,7 @@ import { Plus, Trash2, Archive, FolderOpen, List, LayoutGrid, CheckCircle2, Circ
 import type { Project, Priority, ProjectStatus } from '../types'
 import { clickSound, deleteSound } from '../sounds'
 import ProjectCreationModal from './ProjectCreationModal'
+import SortDropdown from './SortDropdown'
 import ConfirmDialog from './ConfirmDialog'
 import ContextMenu, { type ContextMenuEntry, type ContextMenuPosition } from './ContextMenu'
 import { useEscapeKey } from '../hooks/useEscapeKey'
@@ -217,20 +218,11 @@ export default function HomePage({
         {projects.length > 0 && (
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-ink-faint mr-1">Sort:</span>
-                {(['priority', 'status', 'dueDate', 'name'] as SortMode[]).map((mode) => (
-                  <button
-                    key={mode}
-                    onClick={() => { clickSound(); setSortBy(mode) }}
-                    className={`text-xs px-2 py-1 rounded cursor-pointer transition-colors ${
-                      sortBy === mode ? 'bg-primary text-ink-inverse' : 'text-ink-faint hover:bg-surface-muted'
-                    }`}
-                  >
-                    {SORT_LABELS[mode]}
-                  </button>
-                ))}
-              </div>
+              <SortDropdown
+                options={(['priority', 'status', 'dueDate', 'name'] as SortMode[]).map((mode) => ({ value: mode, label: SORT_LABELS[mode] }))}
+                value={sortBy}
+                onChange={setSortBy}
+              />
               <div className="flex items-center gap-0.5 border border-border rounded-lg p-0.5">
                 <button
                   onClick={() => handleViewModeChange('list')}

@@ -367,6 +367,10 @@ app.whenReady().then(async () => {
       win?.setTitleBarOverlay({ ...(TITLEBAR_OVERLAY[theme] ?? TITLEBAR_OVERLAY.light), height: 40 })
     })
 
+    // ── App info handlers ──
+
+    ipcMain.handle('app:getVersion', () => app.getVersion())
+
     // ── Settings handlers ──
 
     ipcMain.handle('settings:get', (_event, key: string) => getSetting(key))
@@ -403,8 +407,10 @@ app.whenReady().then(async () => {
       }
       if (filter?.project_id) {
         return queryAll(
-          'SELECT * FROM notes WHERE project_id = ? AND card_id IS NULL AND deleted_at IS NULL ORDER BY position ASC, created_at ASC',
-          [filter.project_id]
+          `SELECT * FROM notes
+           WHERE (project_id = ? OR linked_project_id = ?) AND card_id IS NULL AND deleted_at IS NULL
+           ORDER BY position ASC, created_at ASC`,
+          [filter.project_id, filter.project_id]
         )
       }
       if (filter?.standalone) {
@@ -484,6 +490,41 @@ app.whenReady().then(async () => {
       execute(`UPDATE notes SET ${fields.join(', ')} WHERE id = ? AND deleted_at IS NULL`, values)
       saveDatabase()
       return queryOne('SELECT * FROM notes WHERE id = ?', [data.id])
+    })
+
+    // Links an existing standalone note into a project's Notes section without moving it —
+    // the note keeps project_id/card_id NULL so it still shows up on the Notes screen.
+    ipcMain.handle('notes:link', async (_event, data: { id: string, project_id: string }) => {
+      execute(
+        `UPDATE notes SET linked_project_id = ?, updated_at = datetime('now')
+         WHERE id = ? AND project_id IS NULL AND card_id IS NULL AND deleted_at IS NULL`,
+        [data.project_id, data.id]
+      )
+      saveDatabase()
+      return queryOne('SELECT * FROM notes WHERE id = ?', [data.id])
+    })
+
+    ipcMain.handle('notes:unlink', async (_event, id: string) => {
+      execute("UPDATE notes SET linked_project_id = NULL, updated_at = datetime('now') WHERE id = ?", [id])
+      saveDatabase()
+      return queryOne('SELECT * FROM notes WHERE id = ?', [id])
+    })
+
+    ipcMain.handle('notes:previewsForProject', (_event, projectId: string) => {
+      const notes = queryAll(
+        `SELECT n.card_id AS card_id, n.filename AS filename FROM notes n
+         JOIN cards c ON c.id = n.card_id
+         WHERE c.project_id = ? AND c.deleted_at IS NULL AND n.deleted_at IS NULL`,
+        [projectId]
+      )
+      const previews: Record<string, string> = {}
+      for (const note of notes) {
+        const fp = noteFilePath(note.filename as string)
+        if (!fp || !fs.existsSync(fp)) continue
+        const content = fs.readFileSync(fp, 'utf-8').trim()
+        if (content) previews[note.card_id as string] = content
+      }
+      return previews
     })
 
     ipcMain.handle('notes:getContent', (_event, id: string) => {

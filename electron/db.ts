@@ -58,6 +58,7 @@ export function createSchema(db: Database) {
     filename TEXT NOT NULL,
     project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
     card_id TEXT REFERENCES cards(id) ON DELETE SET NULL,
+    linked_project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
     position INTEGER NOT NULL DEFAULT 0,
     deleted_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -77,6 +78,10 @@ export function migrateSchema(db: Database) {
   const hasPosition = noteColumns.some((col) => col.name === 'position')
   if (!hasPosition) {
     db.run('ALTER TABLE notes ADD COLUMN position INTEGER NOT NULL DEFAULT 0')
+  }
+  const hasLinkedProjectId = noteColumns.some((col) => col.name === 'linked_project_id')
+  if (!hasLinkedProjectId) {
+    db.run('ALTER TABLE notes ADD COLUMN linked_project_id TEXT REFERENCES projects(id) ON DELETE SET NULL')
   }
 
   const projectColumns = queryAll(db, 'PRAGMA table_info(projects)')

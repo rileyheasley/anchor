@@ -1,5 +1,10 @@
 let _ctx: AudioContext | null = null
 let _noiseBuffer: AudioBuffer | null = null
+let _soundsEnabled = true
+
+export function setSoundsEnabled(enabled: boolean) {
+  _soundsEnabled = enabled
+}
 
 const audioCtx = () => {
   if (!_ctx) _ctx = new AudioContext()
@@ -19,6 +24,7 @@ function noiseBuffer(ctx: AudioContext) {
 // Deep, muffled "thock": a pitch-dropping low-passed tone body plus a filtered noise
 // transient, modeled after a mechanical keyboard switch bottoming out.
 function playThock(frequency: number, duration: number, volume = 0.2) {
+  if (!_soundsEnabled) return
   const ctx = audioCtx()
   const now = ctx.currentTime
 

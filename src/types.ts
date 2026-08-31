@@ -49,6 +49,7 @@ export interface Note {
   filename: string
   project_id: string | null
   card_id: string | null
+  linked_project_id: string | null
   deleted_at: string | null
   created_at: string
   updated_at: string
@@ -93,6 +94,9 @@ export interface SearchResults {
 declare global {
   interface Window {
     api: {
+      app: {
+        getVersion: () => Promise<string>
+      }
       window: {
         minimize: () => Promise<void>
         maximize: () => Promise<void>
@@ -134,8 +138,11 @@ declare global {
         list: (filter?: { project_id?: string, card_id?: string, standalone?: boolean }) => Promise<Note[]>
         create: (data: { title: string, project_id?: string, card_id?: string }) => Promise<Note>
         update: (data: { id: string, title?: string, project_id?: string | null }) => Promise<Note>
+        link: (data: { id: string, project_id: string }) => Promise<Note>
+        unlink: (id: string) => Promise<Note>
         reorder: (data: { ids: string[] }) => Promise<void>
         getContent: (id: string) => Promise<string | null>
+        previewsForProject: (projectId: string) => Promise<Record<string, string>>
         saveContent: (id: string, content: string) => Promise<void>
         delete: (id: string) => Promise<void>
       }

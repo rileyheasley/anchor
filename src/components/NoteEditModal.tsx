@@ -14,6 +14,10 @@ interface NoteEditModalProps {
   onSave: (content: string, title: string) => Promise<void>
   onDelete: () => Promise<void>
   isLoading?: boolean
+  deleteTitle?: string
+  confirmTitle?: string
+  confirmMessage?: string
+  confirmButtonText?: string
 }
 
 export default function NoteEditModal({
@@ -23,6 +27,10 @@ export default function NoteEditModal({
   onSave,
   onDelete,
   isLoading = false,
+  deleteTitle = 'Delete note',
+  confirmTitle = 'Delete note?',
+  confirmMessage = 'This note will be moved to the recycle bin. You can restore it later.',
+  confirmButtonText = 'Delete',
 }: NoteEditModalProps) {
   const [title, setTitle] = useState('')
   const [isEditingTitle, setIsEditingTitle] = useState(false)
@@ -160,7 +168,7 @@ export default function NoteEditModal({
               onClick={handleDelete}
               disabled={isLoading || isSaving}
               className="p-1 rounded-lg text-ink-muted hover:text-danger hover:bg-surface-sunken transition-colors disabled:opacity-50 cursor-pointer"
-              title="Delete note"
+              title={deleteTitle}
             >
               <Trash2 size={18} />
             </button>
@@ -201,9 +209,9 @@ export default function NoteEditModal({
 
       <ConfirmDialog
         isOpen={confirmDelete}
-        title="Delete note?"
-        message="This note will be moved to the recycle bin. You can restore it later."
-        confirmText="Delete"
+        title={confirmTitle}
+        message={confirmMessage}
+        confirmText={confirmButtonText}
         onConfirm={confirmDeleteAction}
         onCancel={() => setConfirmDelete(false)}
       />

@@ -117,6 +117,26 @@ describe('migrateSchema', () => {
     expect(() => migrateSchema(db)).not.toThrow()
     expect(() => migrateSchema(db)).not.toThrow()
   })
+
+  it('adds linked_project_id to a pre-existing notes table that lacks it', () => {
+    db.run(`CREATE TABLE projects (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      priority TEXT NOT NULL DEFAULT 'none',
+      status TEXT NOT NULL DEFAULT 'planning',
+      due_date TEXT,
+      archived INTEGER NOT NULL DEFAULT 0,
+      deleted_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`)
+    db.run('CREATE TABLE notes (id TEXT PRIMARY KEY, title TEXT NOT NULL, filename TEXT NOT NULL, project_id TEXT, card_id TEXT)')
+
+    migrateSchema(db)
+
+    const columns = queryAll('PRAGMA table_info(notes)').map((c) => c.name)
+    expect(columns).toContain('linked_project_id')
+  })
 })
 
 describe('listActiveProjects', () => {
