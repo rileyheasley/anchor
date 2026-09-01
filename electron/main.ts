@@ -17,6 +17,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 let db: Database | null = null
 let dbPath: string = ''
+let needsGettingStartedSeed = false
 
 // The built directory structure
 //
@@ -119,9 +120,11 @@ async function initializeDatabase() {
     db.run('PRAGMA foreign_keys = ON')
     createSchema(db)
 
-    if (isNewDatabase) {
-      seedSampleData()
-    }
+    // The vault folder isn't chosen yet at this point (fresh install, or dev's
+    // auto-default vault hasn't run) — the "Getting Started" tutorial project
+    // needs real files on disk, so seeding is deferred until a vault exists.
+    // See needsGettingStartedSeed below.
+    needsGettingStartedSeed = isNewDatabase
 
     saveDatabase()
 
@@ -164,94 +167,97 @@ function execute(sql: string, params?: unknown[]) {
   db.run(sql, params)
 }
 
-function seedSampleData() {
-  // Create 4 sample projects
-  const projects = [
-    {
-      id: randomUUID(),
-      name: 'Website Redesign',
-      priority: 'high',
-      status: 'in_progress',
-      due_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    },
-    {
-      id: randomUUID(),
-      name: 'Mobile App',
-      priority: 'medium',
-      status: 'planning',
-      due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    },
-    {
-      id: randomUUID(),
-      name: 'API Integration',
-      priority: 'medium',
-      status: 'on_hold',
-      due_date: null,
-    },
-    {
-      id: randomUUID(),
-      name: 'Documentation',
-      priority: 'low',
-      status: 'done',
-      due_date: null,
-    },
-  ]
+const GETTING_STARTED_WELCOME_NOTE = `# Welcome to Anchor
 
-  projects.forEach((proj) => {
+Anchor is a local-first project tracker — everything you make lives as plain files on your own disk, in the vault folder you chose. No account, no cloud sync.
+
+A few things to know:
+
+- **Projects** hold a kanban board. Drag cards between columns, or right-click a card for quick actions like priority and due date.
+- **Notes** and **Canvas** (flowchart diagrams) can stand alone or attach to a project — this project's board is your first example.
+- **Search** anything with **Ctrl/Cmd+K**.
+
+This project is a quick, disposable tutorial — delete it any time from its right-click menu once you're comfortable.
+`
+
+const GETTING_STARTED_CREATE_NOTE_CARD = `# Create your first note
+
+Open the **Notes** tab in the sidebar and hit the **+** button to create a standalone note.
+
+Notes are edited as rich text (bold, headings, checklists, code blocks) but saved to disk as plain markdown, so they stay readable and portable outside the app too.
+
+A note can also be linked to a project later from that project's header, without moving the file.
+`
+
+const GETTING_STARTED_THEME_CARD = `# Pick a theme
+
+Open **Settings** (bottom of the sidebar) → **Appearance** to browse the built-in themes, including a few colourblind-friendly options.
+
+Your choice is remembered across launches — no need to redo this.
+`
+
+const GETTING_STARTED_CANVAS_CARD = `# Explore the Canvas
+
+Open the **Canvas** tab in the sidebar and create one to try Anchor's flowchart editor: shape nodes, draggable connectors, and a color picker per shape.
+
+Like notes, a canvas can stand alone or live inside a project — this card's own note is a regular text note, but the Canvas tab is where the diagram editor lives.
+`
+
+/**
+ * Seeds a single disposable "Getting Started" project — the tutorial a real
+ * beta downloader sees on first launch instead of a truly blank app. Needs a
+ * vault folder to exist first (to write the backing .md files), so this is
+ * called once a vault is available, not at database-creation time.
+ */
+function seedGettingStarted(vaultPath: string) {
+  const projectId = randomUUID()
+  execute(
+    'INSERT INTO projects (id, name, priority, status) VALUES (?, ?, ?, ?)',
+    [projectId, 'Getting Started', 'none', 'in_progress']
+  )
+
+  const todoCol = { id: randomUUID(), name: 'To Do', position: 0, is_done: 0 }
+  const inProgCol = { id: randomUUID(), name: 'In Progress', position: 1, is_done: 0 }
+  const doneCol = { id: randomUUID(), name: 'Done', position: 2, is_done: 1 }
+  ;[todoCol, inProgCol, doneCol].forEach((col) => {
     execute(
-      'INSERT INTO projects (id, name, priority, status, due_date) VALUES (?, ?, ?, ?, ?)',
-      [proj.id, proj.name, proj.priority, proj.status, proj.due_date]
+      'INSERT INTO kanban_columns (id, project_id, name, position, is_done) VALUES (?, ?, ?, ?, ?)',
+      [col.id, projectId, col.name, col.position, col.is_done]
     )
   })
 
-  // Create columns and cards for each project
-  projects.forEach((proj) => {
-    // Create default columns
-    const todoCol = { id: randomUUID(), project_id: proj.id, name: 'To Do', position: 0, is_done: 0 }
-    const inProgCol = { id: randomUUID(), project_id: proj.id, name: 'In Progress', position: 1, is_done: 0 }
-    const doneCol = { id: randomUUID(), project_id: proj.id, name: 'Done', position: 2, is_done: 1 }
+  const projectRelDir = path.join('projects', 'Getting Started')
+  fs.mkdirSync(path.join(vaultPath, projectRelDir), { recursive: true })
 
-    ;[todoCol, inProgCol, doneCol].forEach((col) => {
-      execute(
-        'INSERT INTO kanban_columns (id, project_id, name, position, is_done) VALUES (?, ?, ?, ?, ?)',
-        [col.id, col.project_id, col.name, col.position, col.is_done]
-      )
-    })
+  const writeNote = (title: string, content: string, cardId: string | null) => {
+    const noteId = randomUUID()
+    const filename = path.join(projectRelDir, `${noteId}.md`)
+    fs.writeFileSync(path.join(vaultPath, filename), content)
+    execute(
+      'INSERT INTO notes (id, title, filename, project_id, card_id) VALUES (?, ?, ?, ?, ?)',
+      [noteId, title, filename, cardId ? null : projectId, cardId]
+    )
+  }
 
-    // Create sample cards
-    const cardConfigs = [
-      { title: 'Setup project structure', col: todoCol, points: 3, priority: 'high' },
-      { title: 'Design mockups', col: todoCol, points: 5, priority: 'high' },
-      { title: 'Implement authentication', col: inProgCol, points: 5, priority: 'medium' },
-      { title: 'Add database schema', col: inProgCol, points: 3, priority: 'medium' },
-      { title: 'Write unit tests', col: doneCol, points: 4, priority: 'low' },
-      { title: 'Deploy to staging', col: doneCol, points: 2, priority: 'low' },
-    ]
+  // Project note — shows up in the project's Resources section
+  writeNote('Welcome to Anchor', GETTING_STARTED_WELCOME_NOTE, null)
 
-    cardConfigs.forEach((config, i) => {
-      const cardId = randomUUID()
-      execute(
-        'INSERT INTO cards (id, project_id, column_id, title, points, priority, position) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [cardId, proj.id, config.col.id, config.title, config.points, config.priority, i]
-      )
-    })
-  })
-
-  // Create sample notes
-  const noteConfigs = [
-    { title: 'Project kickoff notes', filename: path.join('notes', 'kickoff.md') },
-    { title: 'Design system ideas', filename: path.join('notes', 'design-system.md') },
-    { title: 'Technical debt', filename: path.join('notes', 'tech-debt.md') },
+  const cards: { title: string; content: string }[] = [
+    { title: 'Create your first note', content: GETTING_STARTED_CREATE_NOTE_CARD },
+    { title: 'Pick a theme', content: GETTING_STARTED_THEME_CARD },
+    { title: 'Explore the Canvas', content: GETTING_STARTED_CANVAS_CARD },
   ]
 
-  noteConfigs.forEach((note) => {
+  cards.forEach((card, i) => {
+    const cardId = randomUUID()
     execute(
-      'INSERT INTO notes (id, title, filename) VALUES (?, ?, ?)',
-      [randomUUID(), note.title, note.filename]
+      'INSERT INTO cards (id, project_id, column_id, title, points, priority, position) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [cardId, projectId, todoCol.id, card.title, 1, 'none', i]
     )
+    writeNote(card.title, card.content, cardId)
   })
 
-  console.log('Seeded sample data')
+  console.log('Seeded Getting Started tutorial project')
 }
 
 function getSetting(key: string): string | null {
@@ -405,6 +411,12 @@ app.whenReady().then(async () => {
       console.log('Dev mode — vault set to test-data/')
     }
 
+    if (needsGettingStartedSeed && getVaultPath()) {
+      seedGettingStarted(getVaultPath()!)
+      needsGettingStartedSeed = false
+      saveDatabase()
+    }
+
     purgeSoftDeleted()
 
     // ── Window control handlers ──
@@ -493,6 +505,11 @@ app.whenReady().then(async () => {
       fs.mkdirSync(path.join(vaultPath, 'canvases'), { recursive: true })
       fs.mkdirSync(path.join(vaultPath, 'projects'), { recursive: true })
       setSetting('vault_path', vaultPath)
+      if (needsGettingStartedSeed) {
+        seedGettingStarted(vaultPath)
+        needsGettingStartedSeed = false
+        saveDatabase()
+      }
       return vaultPath
     })
 
