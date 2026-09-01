@@ -138,12 +138,18 @@ function App() {
     }
   }
 
-  // Project/card-scoped notes navigate to their parent project (no deep link into the
-  // note modal yet); standalone notes open directly in the Notes view.
-  const openNote = async (noteId: string, projectId: string | null) => {
-    if (projectId) {
+  // Card notes deep-link via the card detail panel (openCard already surfaces its note);
+  // project-scoped notes deep-link into the project's note editor; standalone notes open
+  // directly in the Notes view.
+  const openNote = async (noteId: string, projectId: string | null, cardId: string | null = null) => {
+    if (cardId && projectId) {
+      await openCard(cardId, projectId)
+    } else if (projectId) {
       const project = await openProjectById(projectId)
-      if (project) navigateToProject(project)
+      if (project) {
+        navigateToProject(project)
+        setFocusNoteId(noteId)
+      }
     } else {
       setActiveProject(null)
       setView('notes')
@@ -162,7 +168,7 @@ function App() {
       await openCard(selection.id, selection.projectId)
       return
     }
-    await openNote(selection.id, selection.projectId)
+    await openNote(selection.id, selection.projectId, selection.cardId)
   }
 
   // Session history drives the mouse/OS back-forward buttons: replay whatever view or
@@ -240,6 +246,8 @@ function App() {
           onProjectUpdate={setActiveProject}
           focusCardId={focusCardId}
           onFocusCardHandled={() => setFocusCardId(null)}
+          focusNoteId={focusNoteId}
+          onFocusNoteHandled={() => setFocusNoteId(null)}
         />
       )
     }

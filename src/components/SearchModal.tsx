@@ -9,7 +9,7 @@ import type { SearchResults } from '../types'
 export type SearchSelection =
   | { type: 'project'; id: string }
   | { type: 'card'; id: string; projectId: string }
-  | { type: 'note'; id: string; projectId: string | null }
+  | { type: 'note'; id: string; projectId: string | null; cardId: string | null }
 
 const EMPTY_RESULTS: SearchResults = { projects: [], cards: [], notes: [] }
 
@@ -69,7 +69,7 @@ export default function SearchModal({
     const first: SearchSelection | null =
       results.projects[0] ? { type: 'project', id: results.projects[0].id } :
       results.cards[0] ? { type: 'card', id: results.cards[0].id, projectId: results.cards[0].project_id } :
-      results.notes[0] ? { type: 'note', id: results.notes[0].id, projectId: results.notes[0].resolved_project_id } :
+      results.notes[0] ? { type: 'note', id: results.notes[0].id, projectId: results.notes[0].resolved_project_id, cardId: results.notes[0].card_id } :
       null
     if (first) handleSelect(first)
   }
@@ -165,7 +165,7 @@ export default function SearchModal({
                   key={n.id}
                   whileHover={{ x: 3 }}
                   whileTap={{ scale: 0.98 }}
-                  onClick={() => handleSelect({ type: 'note', id: n.id, projectId: n.resolved_project_id })}
+                  onClick={() => handleSelect({ type: 'note', id: n.id, projectId: n.resolved_project_id, cardId: n.card_id })}
                   className="w-full flex items-center gap-2 text-left px-4 py-2 text-sm text-ink-secondary hover:bg-surface-sunken cursor-pointer transition-colors"
                 >
                   <FileText size={14} className="text-ink-faint shrink-0" />

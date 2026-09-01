@@ -4,7 +4,8 @@ import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import fs from 'node:fs'
 import initSqlJs, { type Database } from 'sql.js'
-import { createSchema, listActiveProjects, listArchivedProjects } from './db'
+import { createSchema, listActiveProjects, listArchivedProjects, NOTE_PROJECT_JOIN, NOTE_PROJECT_COLUMNS } from './db'
+import { deriveTitleFromContent } from '../src/shared/noteTitle'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -252,22 +253,6 @@ function deleteNotesForCards(cardIds: string[]) {
   const notes = queryAll(`SELECT filename FROM notes WHERE card_id IN (${placeholders})`, cardIds)
   for (const note of notes) deleteNoteFile(note.filename as string)
   execute(`DELETE FROM notes WHERE card_id IN (${placeholders})`, cardIds)
-}
-
-// Derives a plain-text title from the first non-empty markdown line
-function deriveTitleFromContent(content: string): string {
-  const firstLine = content.split('\n').find((line) => line.trim().length > 0) ?? ''
-  let text = firstLine.trim()
-  text = text.replace(/^#{1,6}\s+/, '')
-  text = text.replace(/^[-*+]\s+/, '')
-  text = text.replace(/^\d+\.\s+/, '')
-  text = text.replace(/^>\s+/, '')
-  text = text.replace(/(\*\*|__)(.*?)\1/g, '$2')
-  text = text.replace(/(\*|_)(.*?)\1/g, '$2')
-  text = text.replace(/`([^`]+)`/g, '$1')
-  text = text.replace(/~~(.*?)~~/g, '$1')
-  text = text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-  return text.trim() || 'Untitled'
 }
 
 function purgeSoftDeleted() {
@@ -921,14 +906,10 @@ app.whenReady().then(async () => {
 
       const recentNotes = queryAll(
         `SELECT n.id, n.title, n.project_id, n.card_id,
-           COALESCE(n.project_id, cp.id, lp.id) AS resolved_project_id,
-           COALESCE(p.name, cp.name, lp.name) AS project_name,
+           ${NOTE_PROJECT_COLUMNS},
            n.updated_at
          FROM notes n
-         LEFT JOIN projects p ON p.id = n.project_id
-         LEFT JOIN cards c2 ON c2.id = n.card_id
-         LEFT JOIN projects cp ON cp.id = c2.project_id
-         LEFT JOIN projects lp ON lp.id = n.linked_project_id
+         ${NOTE_PROJECT_JOIN}
          WHERE n.deleted_at IS NULL
          ORDER BY n.updated_at DESC
          LIMIT 5`
@@ -959,18 +940,47 @@ app.whenReady().then(async () => {
         [like]
       )
 
-      const notes = queryAll(
-        `SELECT n.id, n.title, n.project_id, n.card_id,
-           COALESCE(n.project_id, cp.id, lp.id) AS resolved_project_id,
-           COALESCE(p.name, cp.name, lp.name) AS project_name
+      const NOTE_RESULT_LIMIT = 8
+      const titleMatches = queryAll(
+        `SELECT n.id, n.title, n.project_id, n.card_id, n.filename,
+           ${NOTE_PROJECT_COLUMNS}
          FROM notes n
-         LEFT JOIN projects p ON p.id = n.project_id
-         LEFT JOIN cards c2 ON c2.id = n.card_id
-         LEFT JOIN projects cp ON cp.id = c2.project_id
-         LEFT JOIN projects lp ON lp.id = n.linked_project_id
+         ${NOTE_PROJECT_JOIN}
          WHERE n.deleted_at IS NULL AND n.title LIKE ? ESCAPE '\\' COLLATE NOCASE
-         ORDER BY n.title COLLATE NOCASE LIMIT 8`,
-        [like]
+         ORDER BY n.title COLLATE NOCASE LIMIT ?`,
+        [like, NOTE_RESULT_LIMIT]
+      )
+
+      // Note bodies live on disk, not in the DB, so title misses fall back to scanning file
+      // content for the remaining result slots.
+      const remaining = NOTE_RESULT_LIMIT - titleMatches.length
+      const contentMatches: typeof titleMatches = []
+      if (remaining > 0) {
+        const titleMatchIds = new Set(titleMatches.map((n) => n.id))
+        const qLower = q.toLowerCase()
+        const candidates = queryAll(
+          `SELECT n.id, n.title, n.project_id, n.card_id, n.filename,
+             ${NOTE_PROJECT_COLUMNS}
+           FROM notes n
+           ${NOTE_PROJECT_JOIN}
+           WHERE n.deleted_at IS NULL
+           ORDER BY n.updated_at DESC`
+        )
+        for (const note of candidates) {
+          if (titleMatchIds.has(note.id)) continue
+          const fp = noteFilePath(note.filename as string)
+          if (!fp || !fs.existsSync(fp)) continue
+          const content = fs.readFileSync(fp, 'utf-8')
+          if (content.toLowerCase().includes(qLower)) {
+            contentMatches.push(note)
+            if (contentMatches.length >= remaining) break
+          }
+        }
+      }
+
+      const notes = [...titleMatches, ...contentMatches].map(
+        ({ id, title, project_id, card_id, resolved_project_id, project_name }) =>
+          ({ id, title, project_id, card_id, resolved_project_id, project_name })
       )
 
       return { projects, cards, notes }

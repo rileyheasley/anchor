@@ -7,22 +7,7 @@ import MarkdownEditor from './MarkdownEditor'
 import ResizableNotesSidebar from './ResizableNotesSidebar'
 import ConfirmDialog from './ConfirmDialog'
 import ContextMenu, { type ContextMenuPosition } from './ContextMenu'
-
-// Derives a plain-text title from the first non-empty markdown line
-function deriveTitleFromContent(content: string): string {
-  const firstLine = content.split('\n').find((line) => line.trim().length > 0) ?? ''
-  let text = firstLine.trim()
-  text = text.replace(/^#{1,6}\s+/, '')
-  text = text.replace(/^[-*+]\s+/, '')
-  text = text.replace(/^\d+\.\s+/, '')
-  text = text.replace(/^>\s+/, '')
-  text = text.replace(/(\*\*|__)(.*?)\1/g, '$2')
-  text = text.replace(/(\*|_)(.*?)\1/g, '$2')
-  text = text.replace(/`([^`]+)`/g, '$1')
-  text = text.replace(/~~(.*?)~~/g, '$1')
-  text = text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-  return text.trim() || 'Untitled'
-}
+import { deriveTitleFromContent } from '../shared/noteTitle'
 
 export default function NotesPage({
   startCreating: startCreatingProp = false,

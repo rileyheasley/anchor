@@ -37,7 +37,6 @@ export interface Card {
   priority: Priority
   due_date: string | null
   position: number
-  note_filename: string | null
   deleted_at: string | null
   created_at: string
   updated_at: string

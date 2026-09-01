@@ -66,7 +66,6 @@ Default set created with each new project: To Do, In Progress, Done. User can re
 | priority | enum | None / Low / Medium / High |
 | due_date | date | Optional |
 | position | integer | Manual order within column |
-| note_filename | text | Path to backing `.md` file relative to vault |
 | deleted_at | timestamp | Soft delete — 30-day auto-purge |
 
 No WIP limits on columns.

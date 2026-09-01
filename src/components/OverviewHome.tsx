@@ -47,7 +47,7 @@ function formatRelative(iso: string) {
 interface OverviewHomeProps {
   onOpenProject: (project: Project) => void
   onOpenCard: (cardId: string, projectId: string) => void
-  onOpenNote: (noteId: string, projectId: string | null) => void
+  onOpenNote: (noteId: string, projectId: string | null, cardId: string | null) => void
   onNewProject: () => void
   onNewNote: () => void
   onOpenSearch: () => void
@@ -514,7 +514,7 @@ export default function OverviewHome({
                   transition={{ delay: i * 0.03 }}
                   whileHover={{ scale: 1.005 }}
                   whileTap={{ scale: 0.995 }}
-                  onClick={() => { clickSound(); onOpenNote(note.id, note.resolved_project_id) }}
+                  onClick={() => { clickSound(); onOpenNote(note.id, note.resolved_project_id, note.card_id) }}
                   className="w-full bg-surface rounded-lg border border-border px-4 py-3 text-left hover:border-border-strong transition-colors cursor-pointer flex items-center justify-between gap-3"
                 >
                   <div className="flex items-center gap-2 min-w-0">

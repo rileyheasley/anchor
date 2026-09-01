@@ -137,6 +137,17 @@ describe('migrateSchema', () => {
     const columns = queryAll('PRAGMA table_info(notes)').map((c) => c.name)
     expect(columns).toContain('linked_project_id')
   })
+
+  it('drops the dead note_filename column from a pre-existing cards table that has it', () => {
+    createSchema(db) // gives up-to-date projects/notes tables so migrateSchema's other steps are no-ops
+    db.run('ALTER TABLE cards ADD COLUMN note_filename TEXT')
+    expect(queryAll('PRAGMA table_info(cards)').map((c) => c.name)).toContain('note_filename')
+
+    migrateSchema(db)
+
+    const columns = queryAll('PRAGMA table_info(cards)').map((c) => c.name)
+    expect(columns).not.toContain('note_filename')
+  })
 })
 
 describe('listActiveProjects', () => {

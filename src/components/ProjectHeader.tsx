@@ -18,6 +18,8 @@ interface ProjectHeaderProps {
   totalPoints: number
   donePoints: number
   isLoading?: boolean
+  focusNoteId?: string | null
+  onFocusNoteHandled?: () => void
 }
 
 export default function ProjectHeader({
@@ -26,6 +28,8 @@ export default function ProjectHeader({
   totalPoints,
   donePoints,
   isLoading,
+  focusNoteId,
+  onFocusNoteHandled,
 }: ProjectHeaderProps) {
   const [isEditingName, setIsEditingName] = useState(false)
   const [editedName, setEditedName] = useState(project.name)
@@ -56,6 +60,18 @@ export default function ProjectHeader({
     loadProjectNotes()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id])
+
+  // Deep-link support: open a specific note's editor once it's loaded (e.g. from search)
+  useEffect(() => {
+    if (!focusNoteId || notes.length === 0) return
+    const note = notes.find((n) => n.id === focusNoteId)
+    if (note) {
+      setEditingNote(note)
+      onFocusNoteHandled?.()
+    }
+    // Only re-run when the deep-link target or list changes — onFocusNoteHandled is a fresh closure every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusNoteId, notes])
 
   const loadProjectNotes = async () => {
     try {

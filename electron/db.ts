@@ -46,7 +46,6 @@ export function createSchema(db: Database) {
     priority TEXT NOT NULL DEFAULT 'none' CHECK (priority IN ('none', 'low', 'medium', 'high')),
     due_date TEXT,
     position INTEGER NOT NULL DEFAULT 0,
-    note_filename TEXT,
     deleted_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -100,6 +99,13 @@ export function migrateSchema(db: Database) {
   if (!hasStatus) {
     db.run("ALTER TABLE projects ADD COLUMN status TEXT NOT NULL DEFAULT 'planning'")
   }
+
+  const cardColumns = queryAll(db, 'PRAGMA table_info(cards)')
+  const hasNoteFilename = cardColumns.some((col) => col.name === 'note_filename')
+  if (hasNoteFilename) {
+    // Dead column: card notes are resolved via notes.card_id, this was never read or written.
+    db.run('ALTER TABLE cards DROP COLUMN note_filename')
+  }
 }
 
 const PROJECT_LIST_COLUMNS = `
@@ -145,3 +151,18 @@ export function listArchivedProjects(db: Database): Record<string, unknown>[] {
     ORDER BY p.name COLLATE NOCASE
   `)
 }
+
+// A note's "owning" project is whichever of these is set: its own project_id, the project of
+// the card it belongs to, or the project it's linked into. Shared by `search:query` and
+// `overview:get` (recentNotes), which both need to resolve a note back to a project to display it.
+export const NOTE_PROJECT_JOIN = `
+  LEFT JOIN projects p ON p.id = n.project_id
+  LEFT JOIN cards c2 ON c2.id = n.card_id
+  LEFT JOIN projects cp ON cp.id = c2.project_id
+  LEFT JOIN projects lp ON lp.id = n.linked_project_id
+`
+
+export const NOTE_PROJECT_COLUMNS = `
+  COALESCE(n.project_id, cp.id, lp.id) AS resolved_project_id,
+  COALESCE(p.name, cp.name, lp.name) AS project_name
+`
