@@ -76,6 +76,11 @@ export default function SettingsModal({
     if (chosen) setVaultPath(chosen)
   }
 
+  const handleOpenLogFolder = () => {
+    clickSound()
+    window.api.app.openLogFolder()
+  }
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -251,6 +256,18 @@ export default function SettingsModal({
                   A local-first project and notes tracker. Everything is stored as markdown files on your own disk — no
                   account, no sync, no cloud.
                 </p>
+                <div className="mt-6">
+                  <h3 className="text-xs font-semibold text-ink-faint uppercase tracking-wide mb-3">Diagnostics</h3>
+                  <motion.button
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={handleOpenLogFolder}
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg bg-surface-muted text-ink-secondary hover:bg-border-strong transition-colors cursor-pointer"
+                  >
+                    Open log folder
+                  </motion.button>
+                  <p className="text-xs text-ink-faint mt-2">If something goes wrong, this is where the error log lives — useful to share when reporting a bug.</p>
+                </div>
               </div>
             )}
           </div>

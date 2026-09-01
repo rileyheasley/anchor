@@ -20,3 +20,9 @@ export const NODE_BORDER_COLORS = {
 
 export type NodeColor = keyof typeof NODE_COLORS
 export const NODE_COLOR_NAMES = Object.keys(NODE_COLORS) as NodeColor[]
+
+export const DEFAULT_SHAPE_SIZE: Record<string, { width: number; height: number }> = {
+  rectangle: { width: 140, height: 64 },
+  diamond: { width: 150, height: 110 },
+  text: { width: 100, height: 32 },
+}

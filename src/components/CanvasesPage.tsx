@@ -4,6 +4,7 @@ import { Plus, FolderPlus, Trash2, Workflow, Folder, FolderOpen, FolderInput, Pe
 import type { Canvas, CanvasFolder } from '../types'
 import { createSound, deleteSound, clickSound, moveSound } from '../sounds'
 import CanvasEditor from './CanvasEditor'
+import ErrorBoundary from './ErrorBoundary'
 import ResizableNotesSidebar from './ResizableNotesSidebar'
 import ConfirmDialog from './ConfirmDialog'
 import ContextMenu, { type ContextMenuPosition, type ContextMenuEntry } from './ContextMenu'
@@ -657,12 +658,13 @@ export default function CanvasesPage({
         {/* Editor */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {activeCanvas ? (
-            <CanvasEditor
-              key={activeCanvas.id}
-              content={content}
-              onChange={handleContentChange}
-              onBlur={() => saveActive()}
-            />
+            <ErrorBoundary key={activeCanvas.id} recovery="reset" message="This canvas failed to load. Your other data is unaffected.">
+              <CanvasEditor
+                content={content}
+                onChange={handleContentChange}
+                onBlur={() => saveActive()}
+              />
+            </ErrorBoundary>
           ) : (
             <div className="flex-1 flex items-center justify-center text-ink-faint text-sm">
               Select a canvas to edit

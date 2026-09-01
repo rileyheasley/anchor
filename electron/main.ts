@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
 import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
@@ -38,8 +38,39 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 
 // Global error handlers
 process.on('uncaughtException', (error) => {
   console.error('Uncaught exception:', error)
+  logError('uncaughtException', error)
   process.exit(1)
 })
+
+/**
+ * Appends a timestamped line to a small log file next to the database, so a
+ * beta tester's "it didn't save" has an actual trail instead of nothing.
+ * dbPath isn't known yet at import time, so this falls back to console-only
+ * until initializeDatabase() has set it.
+ */
+function logError(context: string, error: unknown) {
+  const message = error instanceof Error ? (error.stack ?? error.message) : String(error)
+  const line = `[${new Date().toISOString()}] ${context}: ${message}\n`
+  console.error(line)
+  if (!dbPath) return
+  try {
+    fs.appendFileSync(path.join(path.dirname(dbPath), 'anchor-errors.log'), line)
+  } catch {
+    // Logging must never itself crash the app.
+  }
+}
+
+/** Drop-in replacement for ipcMain.handle that logs any thrown error before it reaches the renderer. */
+function handle(channel: string, listener: (event: Electron.IpcMainInvokeEvent, ...args: any[]) => any) {
+  ipcMain.handle(channel, async (event, ...args) => {
+    try {
+      return await listener(event, ...args)
+    } catch (error) {
+      logError(`ipc:${channel}`, error)
+      throw new Error(error instanceof Error ? error.message : 'Something went wrong. Check the log for details.')
+    }
+  })
+}
 
 let win: BrowserWindow | null
 
@@ -377,35 +408,44 @@ app.whenReady().then(async () => {
 
     // ── Window control handlers ──
 
-    ipcMain.handle('window:minimize', () => win?.minimize())
-    ipcMain.handle('window:maximize', () => {
+    handle('window:minimize', () => win?.minimize())
+    handle('window:maximize', () => {
       if (win?.isMaximized()) win.unmaximize()
       else win?.maximize()
     })
-    ipcMain.handle('window:close', () => win?.close())
-    ipcMain.handle('window:isMaximized', () => win?.isMaximized() ?? false)
-    ipcMain.handle('window:setTitleBarTheme', (_event, theme: keyof typeof TITLEBAR_OVERLAY) => {
+    handle('window:close', () => win?.close())
+    handle('window:isMaximized', () => win?.isMaximized() ?? false)
+    handle('window:setTitleBarTheme', (_event, theme: keyof typeof TITLEBAR_OVERLAY) => {
       if (process.platform !== 'win32') return
       win?.setTitleBarOverlay({ ...(TITLEBAR_OVERLAY[theme] ?? TITLEBAR_OVERLAY.light), height: 40 })
     })
 
     // ── App info handlers ──
 
-    ipcMain.handle('app:getVersion', () => app.getVersion())
+    handle('app:getVersion', () => app.getVersion())
+    handle('app:openLogFolder', async () => {
+      if (!dbPath) throw new Error('Log folder not available yet')
+      const logPath = path.join(path.dirname(dbPath), 'anchor-errors.log')
+      if (fs.existsSync(logPath)) {
+        shell.showItemInFolder(logPath)
+      } else {
+        await shell.openPath(path.dirname(dbPath))
+      }
+    })
 
     // ── Settings handlers ──
 
-    ipcMain.handle('settings:get', (_event, key: string) => getSetting(key))
+    handle('settings:get', (_event, key: string) => getSetting(key))
 
-    ipcMain.handle('settings:set', (_event, key: string, value: string) => {
+    handle('settings:set', (_event, key: string, value: string) => {
       setSetting(key, value)
     })
 
     // ── Vault handlers ──
 
-    ipcMain.handle('vault:getPath', () => getVaultPath())
+    handle('vault:getPath', () => getVaultPath())
 
-    ipcMain.handle('vault:choose', async () => {
+    handle('vault:choose', async () => {
       const result = await dialog.showOpenDialog(win!, {
         title: 'Choose notes vault folder',
         properties: ['openDirectory', 'createDirectory'],
@@ -421,7 +461,7 @@ app.whenReady().then(async () => {
 
     // ── Notes handlers ──
 
-    ipcMain.handle('notes:list', (_event, filter?: { project_id?: string, card_id?: string, standalone?: boolean }) => {
+    handle('notes:list', (_event, filter?: { project_id?: string, card_id?: string, standalone?: boolean }) => {
       if (filter?.card_id) {
         return queryAll(
           'SELECT * FROM notes WHERE card_id = ? AND deleted_at IS NULL ORDER BY updated_at DESC',
@@ -444,7 +484,7 @@ app.whenReady().then(async () => {
       return queryAll('SELECT * FROM notes WHERE deleted_at IS NULL ORDER BY updated_at DESC')
     })
 
-    ipcMain.handle('notes:create', async (_event, data: { title: string, project_id?: string, card_id?: string }) => {
+    handle('notes:create', async (_event, data: { title: string, project_id?: string, card_id?: string }) => {
       const vault = getVaultPath()
       if (!vault) throw new Error('No vault configured')
 
@@ -485,7 +525,7 @@ app.whenReady().then(async () => {
       return queryOne('SELECT * FROM notes WHERE id = ?', [id])
     })
 
-    ipcMain.handle('notes:reorder', async (_event, data: { ids: string[] }) => {
+    handle('notes:reorder', async (_event, data: { ids: string[] }) => {
       data.ids.forEach((id, index) => {
         execute('UPDATE notes SET position = ? WHERE id = ? AND deleted_at IS NULL', [index, id])
       })
@@ -494,7 +534,7 @@ app.whenReady().then(async () => {
 
     // Bulk-moves standalone notes into a folder (or to the root list, when folder_id is null).
     // Appended to the end of the target folder's manual order, same as a freshly created note.
-    ipcMain.handle('notes:move', async (_event, data: { ids: string[], folder_id: string | null }) => {
+    handle('notes:move', async (_event, data: { ids: string[], folder_id: string | null }) => {
       if (data.ids.length === 0) return
       const row = queryOne(
         'SELECT MAX(position) AS maxPos FROM notes WHERE folder_id IS ? AND project_id IS NULL AND card_id IS NULL AND deleted_at IS NULL',
@@ -512,7 +552,7 @@ app.whenReady().then(async () => {
       saveDatabase()
     })
 
-    ipcMain.handle('notes:update', async (_event, data: { id: string, title?: string, project_id?: string | null }) => {
+    handle('notes:update', async (_event, data: { id: string, title?: string, project_id?: string | null }) => {
       const fields: string[] = []
       const values: unknown[] = []
 
@@ -537,7 +577,7 @@ app.whenReady().then(async () => {
 
     // Links an existing standalone note into a project's Notes section without moving it —
     // the note keeps project_id/card_id NULL so it still shows up on the Notes screen.
-    ipcMain.handle('notes:link', async (_event, data: { id: string, project_id: string }) => {
+    handle('notes:link', async (_event, data: { id: string, project_id: string }) => {
       execute(
         `UPDATE notes SET linked_project_id = ?, updated_at = datetime('now')
          WHERE id = ? AND project_id IS NULL AND card_id IS NULL AND deleted_at IS NULL`,
@@ -547,13 +587,13 @@ app.whenReady().then(async () => {
       return queryOne('SELECT * FROM notes WHERE id = ?', [data.id])
     })
 
-    ipcMain.handle('notes:unlink', async (_event, id: string) => {
+    handle('notes:unlink', async (_event, id: string) => {
       execute("UPDATE notes SET linked_project_id = NULL, updated_at = datetime('now') WHERE id = ?", [id])
       saveDatabase()
       return queryOne('SELECT * FROM notes WHERE id = ?', [id])
     })
 
-    ipcMain.handle('notes:previewsForProject', (_event, projectId: string) => {
+    handle('notes:previewsForProject', (_event, projectId: string) => {
       const notes = queryAll(
         `SELECT n.card_id AS card_id, n.filename AS filename FROM notes n
          JOIN cards c ON c.id = n.card_id
@@ -570,7 +610,7 @@ app.whenReady().then(async () => {
       return previews
     })
 
-    ipcMain.handle('notes:getContent', (_event, id: string) => {
+    handle('notes:getContent', (_event, id: string) => {
       const note = queryOne('SELECT filename FROM notes WHERE id = ?', [id])
       if (!note) return null
       const fp = noteFilePath(note.filename as string)
@@ -578,7 +618,7 @@ app.whenReady().then(async () => {
       return fs.readFileSync(fp, 'utf-8')
     })
 
-    ipcMain.handle('notes:saveContent', (_event, id: string, content: string) => {
+    handle('notes:saveContent', (_event, id: string, content: string) => {
       const note = queryOne('SELECT filename, project_id, card_id FROM notes WHERE id = ?', [id])
       if (!note) throw new Error('Note not found')
       const fp = noteFilePath(note.filename as string)
@@ -593,14 +633,14 @@ app.whenReady().then(async () => {
       saveDatabase()
     })
 
-    ipcMain.handle('notes:delete', (_event, id: string) => {
+    handle('notes:delete', (_event, id: string) => {
       execute("UPDATE notes SET deleted_at = datetime('now'), updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL", [id])
       saveDatabase()
     })
 
     // ── Canvas handlers ──
 
-    ipcMain.handle('canvases:list', (_event, filter?: { project_id?: string, standalone?: boolean }) => {
+    handle('canvases:list', (_event, filter?: { project_id?: string, standalone?: boolean }) => {
       if (filter?.project_id) {
         return queryAll(
           `SELECT * FROM canvases
@@ -617,7 +657,7 @@ app.whenReady().then(async () => {
       return queryAll('SELECT * FROM canvases WHERE deleted_at IS NULL ORDER BY updated_at DESC')
     })
 
-    ipcMain.handle('canvases:create', async (_event, data: { title?: string, project_id?: string }) => {
+    handle('canvases:create', async (_event, data: { title?: string, project_id?: string }) => {
       const vault = getVaultPath()
       if (!vault) throw new Error('No vault configured')
 
@@ -654,7 +694,7 @@ app.whenReady().then(async () => {
       return queryOne('SELECT * FROM canvases WHERE id = ?', [id])
     })
 
-    ipcMain.handle('canvases:reorder', async (_event, data: { ids: string[] }) => {
+    handle('canvases:reorder', async (_event, data: { ids: string[] }) => {
       data.ids.forEach((id, index) => {
         execute('UPDATE canvases SET position = ? WHERE id = ? AND deleted_at IS NULL', [index, id])
       })
@@ -662,7 +702,7 @@ app.whenReady().then(async () => {
     })
 
     // Bulk-moves standalone canvases into a folder (or to the root list, when folder_id is null).
-    ipcMain.handle('canvases:move', async (_event, data: { ids: string[], folder_id: string | null }) => {
+    handle('canvases:move', async (_event, data: { ids: string[], folder_id: string | null }) => {
       if (data.ids.length === 0) return
       const row = queryOne(
         'SELECT MAX(position) AS maxPos FROM canvases WHERE folder_id IS ? AND project_id IS NULL AND deleted_at IS NULL',
@@ -680,7 +720,7 @@ app.whenReady().then(async () => {
       saveDatabase()
     })
 
-    ipcMain.handle('canvases:update', async (_event, data: { id: string, title?: string, project_id?: string | null }) => {
+    handle('canvases:update', async (_event, data: { id: string, title?: string, project_id?: string | null }) => {
       const fields: string[] = []
       const values: unknown[] = []
 
@@ -699,7 +739,7 @@ app.whenReady().then(async () => {
 
     // Links an existing standalone canvas into a project's Canvases section without moving it —
     // mirrors notes:link exactly.
-    ipcMain.handle('canvases:link', async (_event, data: { id: string, project_id: string }) => {
+    handle('canvases:link', async (_event, data: { id: string, project_id: string }) => {
       execute(
         `UPDATE canvases SET linked_project_id = ?, updated_at = datetime('now')
          WHERE id = ? AND project_id IS NULL AND deleted_at IS NULL`,
@@ -709,13 +749,13 @@ app.whenReady().then(async () => {
       return queryOne('SELECT * FROM canvases WHERE id = ?', [data.id])
     })
 
-    ipcMain.handle('canvases:unlink', async (_event, id: string) => {
+    handle('canvases:unlink', async (_event, id: string) => {
       execute("UPDATE canvases SET linked_project_id = NULL, updated_at = datetime('now') WHERE id = ?", [id])
       saveDatabase()
       return queryOne('SELECT * FROM canvases WHERE id = ?', [id])
     })
 
-    ipcMain.handle('canvases:getContent', (_event, id: string) => {
+    handle('canvases:getContent', (_event, id: string) => {
       const canvas = queryOne('SELECT filename FROM canvases WHERE id = ?', [id])
       if (!canvas) return null
       const fp = canvasFilePath(canvas.filename as string)
@@ -723,7 +763,7 @@ app.whenReady().then(async () => {
       return fs.readFileSync(fp, 'utf-8')
     })
 
-    ipcMain.handle('canvases:saveContent', (_event, id: string, content: string) => {
+    handle('canvases:saveContent', (_event, id: string, content: string) => {
       const canvas = queryOne('SELECT filename FROM canvases WHERE id = ?', [id])
       if (!canvas) throw new Error('Canvas not found')
       const fp = canvasFilePath(canvas.filename as string)
@@ -733,18 +773,18 @@ app.whenReady().then(async () => {
       saveDatabase()
     })
 
-    ipcMain.handle('canvases:delete', (_event, id: string) => {
+    handle('canvases:delete', (_event, id: string) => {
       execute("UPDATE canvases SET deleted_at = datetime('now'), updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL", [id])
       saveDatabase()
     })
 
     // ── Canvas folder handlers (mirrors the note-folder handlers below, table canvas_folders) ──
 
-    ipcMain.handle('canvasFolders:list', () => {
+    handle('canvasFolders:list', () => {
       return queryAll('SELECT * FROM canvas_folders WHERE deleted_at IS NULL ORDER BY position ASC, created_at ASC')
     })
 
-    ipcMain.handle('canvasFolders:create', async (_event, data: { name: string, parent_folder_id?: string | null }) => {
+    handle('canvasFolders:create', async (_event, data: { name: string, parent_folder_id?: string | null }) => {
       const parentId = data.parent_folder_id ?? null
       const row = queryOne(
         'SELECT MAX(position) AS maxPos FROM canvas_folders WHERE parent_folder_id IS ? AND deleted_at IS NULL',
@@ -760,7 +800,7 @@ app.whenReady().then(async () => {
       return queryOne('SELECT * FROM canvas_folders WHERE id = ?', [id])
     })
 
-    ipcMain.handle('canvasFolders:rename', async (_event, data: { id: string, name: string }) => {
+    handle('canvasFolders:rename', async (_event, data: { id: string, name: string }) => {
       execute(
         "UPDATE canvas_folders SET name = ?, updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL",
         [data.name, data.id]
@@ -769,7 +809,7 @@ app.whenReady().then(async () => {
       return queryOne('SELECT * FROM canvas_folders WHERE id = ?', [data.id])
     })
 
-    ipcMain.handle('canvasFolders:move', async (_event, data: { id: string, parent_folder_id: string | null }) => {
+    handle('canvasFolders:move', async (_event, data: { id: string, parent_folder_id: string | null }) => {
       const targetId = data.parent_folder_id
       if (wouldCreateCanvasFolderCycle(db!, data.id, targetId)) {
         throw new Error('Cannot move a folder into itself or one of its own subfolders')
@@ -787,14 +827,14 @@ app.whenReady().then(async () => {
       return queryOne('SELECT * FROM canvas_folders WHERE id = ?', [data.id])
     })
 
-    ipcMain.handle('canvasFolders:reorder', async (_event, data: { ids: string[] }) => {
+    handle('canvasFolders:reorder', async (_event, data: { ids: string[] }) => {
       data.ids.forEach((id, index) => {
         execute('UPDATE canvas_folders SET position = ? WHERE id = ? AND deleted_at IS NULL', [index, id])
       })
       saveDatabase()
     })
 
-    ipcMain.handle('canvasFolders:delete', async (_event, id: string) => {
+    handle('canvasFolders:delete', async (_event, id: string) => {
       const folderIds = collectCanvasFolderSubtreeIds(db!, id)
       const placeholders = folderIds.map(() => '?').join(',')
       execute(
@@ -810,11 +850,11 @@ app.whenReady().then(async () => {
 
     // ── Folder handlers (standalone notes only — nestable via parent_folder_id) ──
 
-    ipcMain.handle('folders:list', () => {
+    handle('folders:list', () => {
       return queryAll('SELECT * FROM folders WHERE deleted_at IS NULL ORDER BY position ASC, created_at ASC')
     })
 
-    ipcMain.handle('folders:create', async (_event, data: { name: string, parent_folder_id?: string | null }) => {
+    handle('folders:create', async (_event, data: { name: string, parent_folder_id?: string | null }) => {
       const parentId = data.parent_folder_id ?? null
       const row = queryOne(
         'SELECT MAX(position) AS maxPos FROM folders WHERE parent_folder_id IS ? AND deleted_at IS NULL',
@@ -830,7 +870,7 @@ app.whenReady().then(async () => {
       return queryOne('SELECT * FROM folders WHERE id = ?', [id])
     })
 
-    ipcMain.handle('folders:rename', async (_event, data: { id: string, name: string }) => {
+    handle('folders:rename', async (_event, data: { id: string, name: string }) => {
       execute(
         "UPDATE folders SET name = ?, updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL",
         [data.name, data.id]
@@ -841,7 +881,7 @@ app.whenReady().then(async () => {
 
     // Moves a folder under a new parent (or to the root, when parent_folder_id is null).
     // Refuses moves that would create a cycle — dropping a folder into itself or a descendant.
-    ipcMain.handle('folders:move', async (_event, data: { id: string, parent_folder_id: string | null }) => {
+    handle('folders:move', async (_event, data: { id: string, parent_folder_id: string | null }) => {
       const targetId = data.parent_folder_id
       if (wouldCreateFolderCycle(db!, data.id, targetId)) {
         throw new Error('Cannot move a folder into itself or one of its own subfolders')
@@ -859,7 +899,7 @@ app.whenReady().then(async () => {
       return queryOne('SELECT * FROM folders WHERE id = ?', [data.id])
     })
 
-    ipcMain.handle('folders:reorder', async (_event, data: { ids: string[] }) => {
+    handle('folders:reorder', async (_event, data: { ids: string[] }) => {
       data.ids.forEach((id, index) => {
         execute('UPDATE folders SET position = ? WHERE id = ? AND deleted_at IS NULL', [index, id])
       })
@@ -869,7 +909,7 @@ app.whenReady().then(async () => {
     // Deletes a folder and everything inside it — subfolders recursively, and every note they
     // contain — mirroring a single note delete's soft-delete semantics, so the notes land in
     // the recycle bin (individually restorable, landing back as unfiled) rather than vanishing.
-    ipcMain.handle('folders:delete', async (_event, id: string) => {
+    handle('folders:delete', async (_event, id: string) => {
       const folderIds = collectFolderSubtreeIds(db!, id)
       const placeholders = folderIds.map(() => '?').join(',')
       execute(
@@ -885,7 +925,7 @@ app.whenReady().then(async () => {
 
     // ── Recycle bin handlers ──
 
-    ipcMain.handle('recycle:list', () => {
+    handle('recycle:list', () => {
       const projects = queryAll("SELECT 'project' AS type, id, name AS title, deleted_at FROM projects WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC")
       const cards = queryAll("SELECT 'card' AS type, id, title, deleted_at FROM cards WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC")
       const notes = queryAll("SELECT 'note' AS type, id, title, deleted_at FROM notes WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC")
@@ -895,7 +935,7 @@ app.whenReady().then(async () => {
       )
     })
 
-    ipcMain.handle('recycle:restore', (_event, type: string, id: string) => {
+    handle('recycle:restore', (_event, type: string, id: string) => {
       if (type === 'project') execute('UPDATE projects SET deleted_at = NULL WHERE id = ?', [id])
       else if (type === 'card') {
         // The card's original column may have since been deleted; fall back to the
@@ -918,7 +958,7 @@ app.whenReady().then(async () => {
       saveDatabase()
     })
 
-    ipcMain.handle('recycle:purge', (_event, type: string, id: string) => {
+    handle('recycle:purge', (_event, type: string, id: string) => {
       if (type === 'project') {
         const cardIds = queryAll('SELECT id FROM cards WHERE project_id = ?', [id]).map((r) => r.id as string)
         deleteNotesForCards(cardIds)
@@ -946,20 +986,20 @@ app.whenReady().then(async () => {
 
     // ── Archive handlers ──
 
-    ipcMain.handle('archive:list', () => {
+    handle('archive:list', () => {
       return listArchivedProjects(db!)
     })
 
-    ipcMain.handle('archive:restore', (_event, id: string) => {
+    handle('archive:restore', (_event, id: string) => {
       execute("UPDATE projects SET archived = 0, updated_at = datetime('now') WHERE id = ?", [id])
       saveDatabase()
     })
 
-    ipcMain.handle('projects:list', async () => {
+    handle('projects:list', async () => {
       return listActiveProjects(db!)
     })
 
-    ipcMain.handle('projects:create', async (_event, data: { name: string, priority?: string, status?: string, due_date?: string | null }) => {
+    handle('projects:create', async (_event, data: { name: string, priority?: string, status?: string, due_date?: string | null }) => {
       const projectId = crypto.randomUUID()
       const priority = data.priority || 'none'
       const status = data.status || 'planning'
@@ -986,7 +1026,7 @@ app.whenReady().then(async () => {
       return queryOne('SELECT * FROM projects WHERE id = ?', [projectId])
     })
 
-    ipcMain.handle('projects:update', async (_event, data: { id: string, name?: string, priority?: string, status?: string, due_date?: string | null }) => {
+    handle('projects:update', async (_event, data: { id: string, name?: string, priority?: string, status?: string, due_date?: string | null }) => {
       const fields: string[] = []
       const values: unknown[] = []
 
@@ -1005,26 +1045,26 @@ app.whenReady().then(async () => {
       return queryOne('SELECT * FROM projects WHERE id = ?', [data.id])
     })
 
-    ipcMain.handle('projects:archive', async (_event, id: string) => {
+    handle('projects:archive', async (_event, id: string) => {
       execute("UPDATE projects SET archived = CASE WHEN archived = 0 THEN 1 ELSE 0 END, updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL", [id])
       saveDatabase()
     })
 
-    ipcMain.handle('projects:delete', async (_event, id: string) => {
+    handle('projects:delete', async (_event, id: string) => {
       execute("UPDATE projects SET deleted_at = datetime('now'), updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL", [id])
       saveDatabase()
     })
 
     // ── Column handlers ──
 
-    ipcMain.handle('columns:list', async (_event, projectId: string) => {
+    handle('columns:list', async (_event, projectId: string) => {
       return queryAll(
         'SELECT * FROM kanban_columns WHERE project_id = ? ORDER BY position',
         [projectId]
       )
     })
 
-    ipcMain.handle('columns:create', async (_event, data: { project_id: string, name: string, is_done?: number }) => {
+    handle('columns:create', async (_event, data: { project_id: string, name: string, is_done?: number }) => {
       const maxPos = queryOne(
         'SELECT COALESCE(MAX(position), -1) AS max_pos FROM kanban_columns WHERE project_id = ?',
         [data.project_id]
@@ -1038,7 +1078,7 @@ app.whenReady().then(async () => {
       return queryOne('SELECT * FROM kanban_columns WHERE id = ?', [id])
     })
 
-    ipcMain.handle('columns:update', async (_event, data: { id: string, name?: string, is_done?: number }) => {
+    handle('columns:update', async (_event, data: { id: string, name?: string, is_done?: number }) => {
       const fields: string[] = []
       const values: unknown[] = []
 
@@ -1055,7 +1095,7 @@ app.whenReady().then(async () => {
       return queryOne('SELECT * FROM kanban_columns WHERE id = ?', [data.id])
     })
 
-    ipcMain.handle('columns:reorder', async (_event, data: { project_id: string, column_ids: string[] }) => {
+    handle('columns:reorder', async (_event, data: { project_id: string, column_ids: string[] }) => {
       for (let i = 0; i < data.column_ids.length; i++) {
         execute(
           "UPDATE kanban_columns SET position = ?, updated_at = datetime('now') WHERE id = ? AND project_id = ?",
@@ -1065,7 +1105,7 @@ app.whenReady().then(async () => {
       saveDatabase()
     })
 
-    ipcMain.handle('columns:delete', async (_event, id: string) => {
+    handle('columns:delete', async (_event, id: string) => {
       // Deleting the column cascades to hard-delete its cards, so clean up their notes first
       const cardIds = queryAll('SELECT id FROM cards WHERE column_id = ?', [id]).map((r) => r.id as string)
       deleteNotesForCards(cardIds)
@@ -1075,14 +1115,14 @@ app.whenReady().then(async () => {
 
     // ── Card handlers ──
 
-    ipcMain.handle('cards:list', async (_event, projectId: string) => {
+    handle('cards:list', async (_event, projectId: string) => {
       return queryAll(
         'SELECT * FROM cards WHERE project_id = ? AND deleted_at IS NULL ORDER BY position',
         [projectId]
       )
     })
 
-    ipcMain.handle('cards:create', async (_event, data: { project_id: string, column_id: string, title: string, points?: number, priority?: string, due_date?: string }) => {
+    handle('cards:create', async (_event, data: { project_id: string, column_id: string, title: string, points?: number, priority?: string, due_date?: string }) => {
       const maxPos = queryOne(
         'SELECT COALESCE(MAX(position), -1) AS max_pos FROM cards WHERE column_id = ? AND deleted_at IS NULL',
         [data.column_id]
@@ -1096,7 +1136,7 @@ app.whenReady().then(async () => {
       return queryOne('SELECT * FROM cards WHERE id = ?', [id])
     })
 
-    ipcMain.handle('cards:update', async (_event, data: { id: string, title?: string, points?: number | null, priority?: string, due_date?: string | null }) => {
+    handle('cards:update', async (_event, data: { id: string, title?: string, points?: number | null, priority?: string, due_date?: string | null }) => {
       const fields: string[] = []
       const values: unknown[] = []
 
@@ -1115,7 +1155,7 @@ app.whenReady().then(async () => {
       return queryOne('SELECT * FROM cards WHERE id = ?', [data.id])
     })
 
-    ipcMain.handle('cards:move', async (_event, data: { id: string, column_id: string, position: number }) => {
+    handle('cards:move', async (_event, data: { id: string, column_id: string, position: number }) => {
       // Shift cards down in the target column to make room
       execute(
         "UPDATE cards SET position = position + 1, updated_at = datetime('now') WHERE column_id = ? AND position >= ? AND deleted_at IS NULL",
@@ -1130,7 +1170,7 @@ app.whenReady().then(async () => {
       return queryOne('SELECT * FROM cards WHERE id = ?', [data.id])
     })
 
-    ipcMain.handle('cards:reorder', async (_event, data: { column_id: string, card_ids: string[] }) => {
+    handle('cards:reorder', async (_event, data: { column_id: string, card_ids: string[] }) => {
       for (let i = 0; i < data.card_ids.length; i++) {
         execute(
           "UPDATE cards SET position = ?, updated_at = datetime('now') WHERE id = ?",
@@ -1140,18 +1180,18 @@ app.whenReady().then(async () => {
       saveDatabase()
     })
 
-    ipcMain.handle('cards:delete', async (_event, id: string) => {
+    handle('cards:delete', async (_event, id: string) => {
       execute("UPDATE cards SET deleted_at = datetime('now'), updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL", [id])
       saveDatabase()
     })
 
     // ── Todo handlers ──
 
-    ipcMain.handle('todos:list', async () => {
+    handle('todos:list', async () => {
       return queryAll('SELECT * FROM todos ORDER BY done ASC, position ASC')
     })
 
-    ipcMain.handle('todos:create', async (_event, data: { text: string }) => {
+    handle('todos:create', async (_event, data: { text: string }) => {
       const maxPos = queryOne('SELECT COALESCE(MAX(position), -1) AS max_pos FROM todos')
       const id = randomUUID()
       execute(
@@ -1162,7 +1202,7 @@ app.whenReady().then(async () => {
       return queryOne('SELECT * FROM todos WHERE id = ?', [id])
     })
 
-    ipcMain.handle('todos:update', async (_event, data: { id: string, text?: string, priority?: string, due_date?: string | null }) => {
+    handle('todos:update', async (_event, data: { id: string, text?: string, priority?: string, due_date?: string | null }) => {
       const fields: string[] = []
       const values: unknown[] = []
 
@@ -1180,27 +1220,27 @@ app.whenReady().then(async () => {
       return queryOne('SELECT * FROM todos WHERE id = ?', [data.id])
     })
 
-    ipcMain.handle('todos:toggle', async (_event, id: string) => {
+    handle('todos:toggle', async (_event, id: string) => {
       execute("UPDATE todos SET done = NOT done, updated_at = datetime('now') WHERE id = ?", [id])
       saveDatabase()
       return queryOne('SELECT * FROM todos WHERE id = ?', [id])
     })
 
-    ipcMain.handle('todos:reorder', async (_event, data: { ids: string[] }) => {
+    handle('todos:reorder', async (_event, data: { ids: string[] }) => {
       for (let i = 0; i < data.ids.length; i++) {
         execute("UPDATE todos SET position = ?, updated_at = datetime('now') WHERE id = ?", [i, data.ids[i]])
       }
       saveDatabase()
     })
 
-    ipcMain.handle('todos:delete', async (_event, id: string) => {
+    handle('todos:delete', async (_event, id: string) => {
       execute('DELETE FROM todos WHERE id = ?', [id])
       saveDatabase()
     })
 
     // ── Overview handler ──
 
-    ipcMain.handle('overview:get', async () => {
+    handle('overview:get', async () => {
       const dueCards = queryAll(
         `SELECT c.id, c.title, c.project_id, p.name AS project_name, c.due_date, c.priority
          FROM cards c
@@ -1262,7 +1302,7 @@ app.whenReady().then(async () => {
 
     // ── Search handler ──
 
-    ipcMain.handle('search:query', (_event, query: string) => {
+    handle('search:query', (_event, query: string) => {
       const q = query.trim()
       if (!q) return { projects: [], cards: [], notes: [], canvases: [] }
       const like = `%${q.replace(/[\\%_]/g, (c) => '\\' + c)}%`

@@ -5,6 +5,7 @@ import type { Canvas } from '../types'
 import { clickSound, deleteSound } from '../sounds'
 import CanvasEditor from './CanvasEditor'
 import ConfirmDialog from './ConfirmDialog'
+import ErrorBoundary from './ErrorBoundary'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 
@@ -204,18 +205,19 @@ export default function CanvasEditModal({
 
         {/* Content */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          <CanvasEditor
-            key={canvas.id}
-            content={content}
-            onChange={(json) => {
-              setContent(json)
-              if (saveTimer.current) clearTimeout(saveTimer.current)
-              saveTimer.current = setTimeout(() => {
-                handleSave(json)
-              }, 1500)
-            }}
-            onBlur={() => handleSave()}
-          />
+          <ErrorBoundary key={canvas.id} recovery="reset" message="This canvas failed to load. Your other data is unaffected.">
+            <CanvasEditor
+              content={content}
+              onChange={(json) => {
+                setContent(json)
+                if (saveTimer.current) clearTimeout(saveTimer.current)
+                saveTimer.current = setTimeout(() => {
+                  handleSave(json)
+                }, 1500)
+              }}
+              onBlur={() => handleSave()}
+            />
+          </ErrorBoundary>
         </div>
 
         {/* Footer */}

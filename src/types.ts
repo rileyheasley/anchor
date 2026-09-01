@@ -185,6 +185,7 @@ declare global {
     api: {
       app: {
         getVersion: () => Promise<string>
+        openLogFolder: () => Promise<void>
       }
       window: {
         minimize: () => Promise<void>

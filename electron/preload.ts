@@ -3,6 +3,7 @@ import { ipcRenderer, contextBridge } from 'electron'
 contextBridge.exposeInMainWorld('api', {
   app: {
     getVersion: () => ipcRenderer.invoke('app:getVersion'),
+    openLogFolder: () => ipcRenderer.invoke('app:openLogFolder'),
   },
   window: {
     minimize: () => ipcRenderer.invoke('window:minimize'),
