@@ -14,6 +14,10 @@ function queryAll(db: Database, sql: string, params?: unknown[]): Record<string,
   return rows
 }
 
+function queryOne(db: Database, sql: string, params?: unknown[]): Record<string, unknown> | null {
+  return queryAll(db, sql, params)[0] || null
+}
+
 export function createSchema(db: Database) {
   db.run(`CREATE TABLE IF NOT EXISTS projects (
     id TEXT PRIMARY KEY,
@@ -51,6 +55,16 @@ export function createSchema(db: Database) {
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`)
 
+  db.run(`CREATE TABLE IF NOT EXISTS folders (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    parent_folder_id TEXT REFERENCES folders(id) ON DELETE SET NULL,
+    position INTEGER NOT NULL DEFAULT 0,
+    deleted_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`)
+
   db.run(`CREATE TABLE IF NOT EXISTS notes (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -58,6 +72,7 @@ export function createSchema(db: Database) {
     project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
     card_id TEXT REFERENCES cards(id) ON DELETE SET NULL,
     linked_project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+    folder_id TEXT REFERENCES folders(id) ON DELETE SET NULL,
     position INTEGER NOT NULL DEFAULT 0,
     deleted_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -92,6 +107,24 @@ export function migrateSchema(db: Database) {
   const hasLinkedProjectId = noteColumns.some((col) => col.name === 'linked_project_id')
   if (!hasLinkedProjectId) {
     db.run('ALTER TABLE notes ADD COLUMN linked_project_id TEXT REFERENCES projects(id) ON DELETE SET NULL')
+  }
+
+  const tables = queryAll(db, "SELECT name FROM sqlite_master WHERE type='table'").map((t) => t.name)
+  if (!tables.includes('folders')) {
+    db.run(`CREATE TABLE folders (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      parent_folder_id TEXT REFERENCES folders(id) ON DELETE SET NULL,
+      position INTEGER NOT NULL DEFAULT 0,
+      deleted_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`)
+  }
+
+  const hasFolderId = noteColumns.some((col) => col.name === 'folder_id')
+  if (!hasFolderId) {
+    db.run('ALTER TABLE notes ADD COLUMN folder_id TEXT REFERENCES folders(id) ON DELETE SET NULL')
   }
 
   const projectColumns = queryAll(db, 'PRAGMA table_info(projects)')
@@ -166,3 +199,27 @@ export const NOTE_PROJECT_COLUMNS = `
   COALESCE(n.project_id, cp.id, lp.id) AS resolved_project_id,
   COALESCE(p.name, cp.name, lp.name) AS project_name
 `
+
+// Collects a folder's own id together with every descendant folder id (recursive, non-deleted
+// only). Used by `folders:delete` to cascade a delete down the whole subtree.
+export function collectFolderSubtreeIds(db: Database, folderId: string): string[] {
+  const ids = [folderId]
+  for (let i = 0; i < ids.length; i++) {
+    const children = queryAll(db, 'SELECT id FROM folders WHERE parent_folder_id = ? AND deleted_at IS NULL', [ids[i]])
+    for (const child of children) ids.push(child.id as string)
+  }
+  return ids
+}
+
+// True if moving `folderId` under `targetParentId` would create a cycle — i.e. targetParentId
+// is folderId itself or one of folderId's own descendants. Used by `folders:move` to refuse
+// drops that would nest a folder inside itself.
+export function wouldCreateFolderCycle(db: Database, folderId: string, targetParentId: string | null): boolean {
+  let cursor: string | null = targetParentId
+  while (cursor != null) {
+    if (cursor === folderId) return true
+    const parent = queryOne(db, 'SELECT parent_folder_id FROM folders WHERE id = ?', [cursor])
+    cursor = (parent?.parent_folder_id as string | null) ?? null
+  }
+  return false
+}

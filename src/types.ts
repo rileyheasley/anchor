@@ -49,6 +49,18 @@ export interface Note {
   project_id: string | null
   card_id: string | null
   linked_project_id: string | null
+  folder_id: string | null
+  position: number
+  deleted_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface NoteFolder {
+  id: string
+  name: string
+  parent_folder_id: string | null
+  position: number
   deleted_at: string | null
   created_at: string
   updated_at: string
@@ -186,9 +198,18 @@ declare global {
         link: (data: { id: string, project_id: string }) => Promise<Note>
         unlink: (id: string) => Promise<Note>
         reorder: (data: { ids: string[] }) => Promise<void>
+        move: (data: { ids: string[], folder_id: string | null }) => Promise<void>
         getContent: (id: string) => Promise<string | null>
         previewsForProject: (projectId: string) => Promise<Record<string, string>>
         saveContent: (id: string, content: string) => Promise<void>
+        delete: (id: string) => Promise<void>
+      }
+      folders: {
+        list: () => Promise<NoteFolder[]>
+        create: (data: { name: string, parent_folder_id?: string | null }) => Promise<NoteFolder>
+        rename: (data: { id: string, name: string }) => Promise<NoteFolder>
+        move: (data: { id: string, parent_folder_id: string | null }) => Promise<NoteFolder>
+        reorder: (data: { ids: string[] }) => Promise<void>
         delete: (id: string) => Promise<void>
       }
       recycle: {

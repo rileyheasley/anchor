@@ -4,7 +4,10 @@ import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import fs from 'node:fs'
 import initSqlJs, { type Database } from 'sql.js'
-import { createSchema, listActiveProjects, listArchivedProjects, NOTE_PROJECT_JOIN, NOTE_PROJECT_COLUMNS } from './db'
+import {
+  createSchema, listActiveProjects, listArchivedProjects, NOTE_PROJECT_JOIN, NOTE_PROJECT_COLUMNS,
+  collectFolderSubtreeIds, wouldCreateFolderCycle,
+} from './db'
 import { deriveTitleFromContent } from '../src/shared/noteTitle'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -464,6 +467,26 @@ app.whenReady().then(async () => {
       saveDatabase()
     })
 
+    // Bulk-moves standalone notes into a folder (or to the root list, when folder_id is null).
+    // Appended to the end of the target folder's manual order, same as a freshly created note.
+    ipcMain.handle('notes:move', async (_event, data: { ids: string[], folder_id: string | null }) => {
+      if (data.ids.length === 0) return
+      const row = queryOne(
+        'SELECT MAX(position) AS maxPos FROM notes WHERE folder_id IS ? AND project_id IS NULL AND card_id IS NULL AND deleted_at IS NULL',
+        [data.folder_id]
+      )
+      let position = ((row?.maxPos as number | null) ?? -1) + 1
+      for (const id of data.ids) {
+        execute(
+          `UPDATE notes SET folder_id = ?, position = ?, updated_at = datetime('now')
+           WHERE id = ? AND project_id IS NULL AND card_id IS NULL AND deleted_at IS NULL`,
+          [data.folder_id, position, id]
+        )
+        position++
+      }
+      saveDatabase()
+    })
+
     ipcMain.handle('notes:update', async (_event, data: { id: string, title?: string, project_id?: string | null }) => {
       const fields: string[] = []
       const values: unknown[] = []
@@ -547,6 +570,81 @@ app.whenReady().then(async () => {
 
     ipcMain.handle('notes:delete', (_event, id: string) => {
       execute("UPDATE notes SET deleted_at = datetime('now'), updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL", [id])
+      saveDatabase()
+    })
+
+    // ── Folder handlers (standalone notes only — nestable via parent_folder_id) ──
+
+    ipcMain.handle('folders:list', () => {
+      return queryAll('SELECT * FROM folders WHERE deleted_at IS NULL ORDER BY position ASC, created_at ASC')
+    })
+
+    ipcMain.handle('folders:create', async (_event, data: { name: string, parent_folder_id?: string | null }) => {
+      const parentId = data.parent_folder_id ?? null
+      const row = queryOne(
+        'SELECT MAX(position) AS maxPos FROM folders WHERE parent_folder_id IS ? AND deleted_at IS NULL',
+        [parentId]
+      )
+      const position = ((row?.maxPos as number | null) ?? -1) + 1
+      const id = crypto.randomUUID()
+      execute(
+        'INSERT INTO folders (id, name, parent_folder_id, position) VALUES (?, ?, ?, ?)',
+        [id, data.name, parentId, position]
+      )
+      saveDatabase()
+      return queryOne('SELECT * FROM folders WHERE id = ?', [id])
+    })
+
+    ipcMain.handle('folders:rename', async (_event, data: { id: string, name: string }) => {
+      execute(
+        "UPDATE folders SET name = ?, updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL",
+        [data.name, data.id]
+      )
+      saveDatabase()
+      return queryOne('SELECT * FROM folders WHERE id = ?', [data.id])
+    })
+
+    // Moves a folder under a new parent (or to the root, when parent_folder_id is null).
+    // Refuses moves that would create a cycle — dropping a folder into itself or a descendant.
+    ipcMain.handle('folders:move', async (_event, data: { id: string, parent_folder_id: string | null }) => {
+      const targetId = data.parent_folder_id
+      if (wouldCreateFolderCycle(db!, data.id, targetId)) {
+        throw new Error('Cannot move a folder into itself or one of its own subfolders')
+      }
+      const row = queryOne(
+        'SELECT MAX(position) AS maxPos FROM folders WHERE parent_folder_id IS ? AND deleted_at IS NULL',
+        [targetId]
+      )
+      const position = ((row?.maxPos as number | null) ?? -1) + 1
+      execute(
+        "UPDATE folders SET parent_folder_id = ?, position = ?, updated_at = datetime('now') WHERE id = ?",
+        [targetId, position, data.id]
+      )
+      saveDatabase()
+      return queryOne('SELECT * FROM folders WHERE id = ?', [data.id])
+    })
+
+    ipcMain.handle('folders:reorder', async (_event, data: { ids: string[] }) => {
+      data.ids.forEach((id, index) => {
+        execute('UPDATE folders SET position = ? WHERE id = ? AND deleted_at IS NULL', [index, id])
+      })
+      saveDatabase()
+    })
+
+    // Deletes a folder and everything inside it — subfolders recursively, and every note they
+    // contain — mirroring a single note delete's soft-delete semantics, so the notes land in
+    // the recycle bin (individually restorable, landing back as unfiled) rather than vanishing.
+    ipcMain.handle('folders:delete', async (_event, id: string) => {
+      const folderIds = collectFolderSubtreeIds(db!, id)
+      const placeholders = folderIds.map(() => '?').join(',')
+      execute(
+        `UPDATE notes SET deleted_at = datetime('now'), updated_at = datetime('now') WHERE folder_id IN (${placeholders}) AND deleted_at IS NULL`,
+        folderIds
+      )
+      execute(
+        `UPDATE folders SET deleted_at = datetime('now'), updated_at = datetime('now') WHERE id IN (${placeholders})`,
+        folderIds
+      )
       saveDatabase()
     })
 

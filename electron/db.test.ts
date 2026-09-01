@@ -1,7 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import initSqlJs, { type Database } from 'sql.js'
 import { randomUUID } from 'node:crypto'
-import { createSchema, migrateSchema, listActiveProjects, listArchivedProjects } from './db'
+import {
+  createSchema, migrateSchema, listActiveProjects, listArchivedProjects,
+  collectFolderSubtreeIds, wouldCreateFolderCycle,
+} from './db'
 
 let db: Database
 
@@ -138,6 +141,28 @@ describe('migrateSchema', () => {
     expect(columns).toContain('linked_project_id')
   })
 
+  it('creates the folders table and adds folder_id to a pre-existing notes table that lacks both', () => {
+    db.run(`CREATE TABLE projects (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      priority TEXT NOT NULL DEFAULT 'none',
+      status TEXT NOT NULL DEFAULT 'planning',
+      due_date TEXT,
+      archived INTEGER NOT NULL DEFAULT 0,
+      deleted_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`)
+    db.run('CREATE TABLE notes (id TEXT PRIMARY KEY, title TEXT NOT NULL, filename TEXT NOT NULL, project_id TEXT, card_id TEXT, linked_project_id TEXT)')
+
+    migrateSchema(db)
+
+    const tables = queryAll("SELECT name FROM sqlite_master WHERE type='table'").map((t) => t.name)
+    expect(tables).toContain('folders')
+    const noteColumns = queryAll('PRAGMA table_info(notes)').map((c) => c.name)
+    expect(noteColumns).toContain('folder_id')
+  })
+
   it('drops the dead note_filename column from a pre-existing cards table that has it', () => {
     createSchema(db) // gives up-to-date projects/notes tables so migrateSchema's other steps are no-ops
     db.run('ALTER TABLE cards ADD COLUMN note_filename TEXT')
@@ -209,5 +234,106 @@ describe('listArchivedProjects', () => {
 
     const rows = listArchivedProjects(db)
     expect(rows.map((r) => r.name)).toEqual(['Alpha archived', 'Zebra archived'])
+  })
+})
+
+function insertFolder(name: string, parentId: string | null = null) {
+  const id = randomUUID()
+  db.run('INSERT INTO folders (id, name, parent_folder_id) VALUES (?, ?, ?)', [id, name, parentId])
+  return id
+}
+
+function insertNote(folderId: string | null = null) {
+  const id = randomUUID()
+  db.run('INSERT INTO notes (id, title, filename, folder_id) VALUES (?, ?, ?, ?)', [id, 'Note', `notes/${id}.md`, folderId])
+  return id
+}
+
+describe('collectFolderSubtreeIds', () => {
+  beforeEach(() => createSchema(db))
+
+  it('returns just the folder itself when it has no subfolders', () => {
+    const id = insertFolder('Lonely')
+    expect(collectFolderSubtreeIds(db, id)).toEqual([id])
+  })
+
+  it('collects nested descendants recursively', () => {
+    const work = insertFolder('Work')
+    const projects = insertFolder('Projects', work)
+    const archive = insertFolder('Archive', work)
+    const q1 = insertFolder('Q1', projects)
+
+    const ids = collectFolderSubtreeIds(db, work)
+    expect(ids.sort()).toEqual([work, projects, archive, q1].sort())
+  })
+
+  it('does not cross into a sibling subtree', () => {
+    const work = insertFolder('Work')
+    const personal = insertFolder('Personal')
+    insertFolder('Projects', work)
+
+    const ids = collectFolderSubtreeIds(db, personal)
+    expect(ids).toEqual([personal])
+  })
+
+  it('ignores already-deleted descendants', () => {
+    const work = insertFolder('Work')
+    const archived = insertFolder('Archived child', work)
+    db.run("UPDATE folders SET deleted_at = datetime('now') WHERE id = ?", [archived])
+
+    expect(collectFolderSubtreeIds(db, work)).toEqual([work])
+  })
+})
+
+describe('wouldCreateFolderCycle', () => {
+  beforeEach(() => createSchema(db))
+
+  it('allows moving a folder to the root', () => {
+    const folder = insertFolder('Folder')
+    expect(wouldCreateFolderCycle(db, folder, null)).toBe(false)
+  })
+
+  it('allows moving a folder under an unrelated folder', () => {
+    const a = insertFolder('A')
+    const b = insertFolder('B')
+    expect(wouldCreateFolderCycle(db, a, b)).toBe(false)
+  })
+
+  it('rejects moving a folder into itself', () => {
+    const folder = insertFolder('Folder')
+    expect(wouldCreateFolderCycle(db, folder, folder)).toBe(true)
+  })
+
+  it('rejects moving a folder into its own descendant', () => {
+    const work = insertFolder('Work')
+    const projects = insertFolder('Projects', work)
+    const q1 = insertFolder('Q1', projects)
+
+    expect(wouldCreateFolderCycle(db, work, q1)).toBe(true)
+    expect(wouldCreateFolderCycle(db, work, projects)).toBe(true)
+  })
+})
+
+describe('folders + notes integration (cascade delete semantics used by folders:delete)', () => {
+  beforeEach(() => createSchema(db))
+
+  it('soft-deleting every folder in a collected subtree also soft-deletes their notes', () => {
+    const work = insertFolder('Work')
+    const projects = insertFolder('Projects', work)
+    const n1 = insertNote(work)
+    const n2 = insertNote(projects)
+    const n3 = insertNote(null) // unrelated, must survive
+
+    const folderIds = collectFolderSubtreeIds(db, work)
+    const placeholders = folderIds.map(() => '?').join(',')
+    db.run(`UPDATE notes SET deleted_at = datetime('now') WHERE folder_id IN (${placeholders})`, folderIds)
+    db.run(`UPDATE folders SET deleted_at = datetime('now') WHERE id IN (${placeholders})`, folderIds)
+
+    const remainingFolders = queryAll('SELECT id FROM folders WHERE deleted_at IS NULL')
+    const remainingNotes = queryAll('SELECT id FROM notes WHERE deleted_at IS NULL').map((r) => r.id)
+    expect(remainingFolders).toEqual([])
+    expect(remainingNotes).toEqual([n3])
+    expect(queryAll('SELECT deleted_at FROM notes WHERE id = ?', [n1])[0].deleted_at).not.toBeNull()
+    expect(queryAll('SELECT deleted_at FROM notes WHERE id = ?', [n2])[0].deleted_at).not.toBeNull()
   })
 })
