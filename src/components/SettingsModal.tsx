@@ -58,6 +58,7 @@ export default function SettingsModal({
   const [section, setSection] = useState<Section>('general')
   const [vaultPath, setVaultPath] = useState<string | null>(null)
   const [appVersion, setAppVersion] = useState<string | null>(null)
+  const [exportState, setExportState] = useState<'idle' | 'exporting' | 'done' | 'error'>('idle')
 
   const handleClose = () => { clickSound(); onClose() }
 
@@ -79,6 +80,17 @@ export default function SettingsModal({
   const handleOpenLogFolder = () => {
     clickSound()
     window.api.app.openLogFolder()
+  }
+
+  const handleExportVault = async () => {
+    clickSound()
+    setExportState('exporting')
+    try {
+      const savedPath = await window.api.app.exportVault()
+      setExportState(savedPath ? 'done' : 'idle')
+    } catch {
+      setExportState('error')
+    }
   }
 
   return (
@@ -161,6 +173,26 @@ export default function SettingsModal({
                     Change folder…
                   </motion.button>
                   <p className="text-xs text-ink-faint mt-2">Notes and project files are stored as markdown in this folder.</p>
+                </div>
+
+                <div>
+                  <h3 className="text-xs font-semibold text-ink-faint uppercase tracking-wide mb-3">Backup</h3>
+                  <motion.button
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={handleExportVault}
+                    disabled={exportState === 'exporting'}
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg bg-surface-muted text-ink-secondary hover:bg-border-strong transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {exportState === 'exporting' ? 'Exporting…' : 'Export vault as zip…'}
+                  </motion.button>
+                  <p className="text-xs text-ink-faint mt-2">
+                    {exportState === 'done'
+                      ? 'Saved. Everything is stored locally with no cloud sync, so keep this somewhere safe.'
+                      : exportState === 'error'
+                      ? 'Export failed — check the log folder above for details.'
+                      : 'Bundles your notes, canvases, and project data into one zip file you can save anywhere.'}
+                  </p>
                 </div>
 
                 <div>

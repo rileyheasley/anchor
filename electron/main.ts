@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import fs from 'node:fs'
 import initSqlJs, { type Database } from 'sql.js'
+import { ZipArchive } from 'archiver'
 import {
   createSchema, listActiveProjects, listArchivedProjects, NOTE_PROJECT_JOIN, NOTE_PROJECT_COLUMNS,
   CANVAS_PROJECT_JOIN, CANVAS_PROJECT_COLUMNS,
@@ -431,6 +432,42 @@ app.whenReady().then(async () => {
       } else {
         await shell.openPath(path.dirname(dbPath))
       }
+    })
+    handle('app:exportVault', async () => {
+      const vaultPath = getVaultPath()
+      if (!vaultPath) throw new Error('No vault folder set up yet')
+
+      const defaultName = `anchor-backup-${new Date().toISOString().slice(0, 10)}.zip`
+      const result = await dialog.showSaveDialog(win!, {
+        title: 'Export vault as zip',
+        defaultPath: defaultName,
+        filters: [{ name: 'Zip archive', extensions: ['zip'] }],
+      })
+      if (result.canceled || !result.filePath) return null
+
+      saveDatabase()
+
+      await new Promise<void>((resolve, reject) => {
+        const output = fs.createWriteStream(result.filePath!)
+        const archive = new ZipArchive({ zlib: { level: 9 } })
+        output.on('close', resolve)
+        output.on('error', reject)
+        archive.on('error', reject)
+        archive.pipe(output)
+        // In dev mode the vault folder and the database live in the same
+        // directory (test-data/), so the directory scan below would otherwise
+        // pick up anchor.db/anchor-errors.log as vault content too.
+        const excludedFromVault = new Set(['anchor.db', 'anchor-errors.log'])
+        archive.directory(vaultPath, 'vault', (entry) =>
+          excludedFromVault.has(path.basename(entry.name)) ? false : entry
+        )
+        if (dbPath && fs.existsSync(dbPath)) {
+          archive.file(dbPath, { name: 'anchor.db' })
+        }
+        archive.finalize()
+      })
+
+      return result.filePath
     })
 
     // ── Settings handlers ──

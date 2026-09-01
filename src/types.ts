@@ -186,6 +186,7 @@ declare global {
       app: {
         getVersion: () => Promise<string>
         openLogFolder: () => Promise<void>
+        exportVault: () => Promise<string | null>
       }
       window: {
         minimize: () => Promise<void>
