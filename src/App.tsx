@@ -13,6 +13,7 @@ import RecycleBin from './components/RecycleBin'
 import ArchiveView from './components/ArchiveView'
 import SettingsModal from './components/SettingsModal'
 import SearchModal, { type SearchSelection } from './components/SearchModal'
+import VaultSetupScreen from './components/VaultSetupScreen'
 
 type View = 'home' | 'projects' | 'notes' | 'canvases' | 'archive' | 'recycle'
 
@@ -39,8 +40,14 @@ function App() {
   const [focusCardId, setFocusCardId] = useState<string | null>(null)
   const [focusNoteId, setFocusNoteId] = useState<string | null>(null)
   const [focusCanvasId, setFocusCanvasId] = useState<string | null>(null)
+  // undefined = still checking, null = confirmed no vault open, string = vault path
+  const [vaultPath, setVaultPath] = useState<string | null | undefined>(undefined)
 
   const resolvedTheme: ResolvedTheme = themeMode === 'system' ? (systemPrefersDark ? 'dark' : 'light') : themeMode
+
+  useEffect(() => {
+    window.api.vault.getPath().then(setVaultPath)
+  }, [])
 
   // Load theme preference from localStorage on mount
   useEffect(() => {
@@ -338,6 +345,19 @@ function App() {
     if (view === 'recycle') return <RecycleBin />
     if (view === 'archive') return <ArchiveView onOpenProject={navigateToProject} />
     return null
+  }
+
+  // The title bar (logo, drag region, window controls) stays visible even
+  // before a vault is open — it's chrome, not app content.
+  if (vaultPath === undefined || vaultPath === null) {
+    return (
+      <div className="flex flex-col h-screen overflow-hidden">
+        <TitleBar />
+        <div className="flex-1 overflow-hidden">
+          {vaultPath === null && <VaultSetupScreen />}
+        </div>
+      </div>
+    )
   }
 
   return (

@@ -181,10 +181,9 @@ export default function NotesPage({
   const handleChooseVault = async () => {
     clickSound()
     const chosen = await window.api.vault.choose()
-    if (chosen) {
-      setVaultPath(chosen)
-      await reloadAll()
-    }
+    // Choosing a vault swaps the whole dataset, not just notes — reload rather
+    // than patching local state.
+    if (chosen) window.location.reload()
   }
 
   const handleOpenNote = async (note: Note) => {

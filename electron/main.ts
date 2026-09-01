@@ -17,7 +17,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 let db: Database | null = null
 let dbPath: string = ''
-let needsGettingStartedSeed = false
+// The currently open vault's folder — each vault is fully self-contained
+// (its own database lives inside it, at <vault>/.anchor/anchor.db), so this
+// is the one thing that identifies "which dataset is active right now."
+// null means no vault is open yet (fresh install, nothing chosen).
+let currentVaultPath: string | null = null
 
 // The built directory structure
 //
@@ -48,7 +52,7 @@ process.on('uncaughtException', (error) => {
  * Appends a timestamped line to a small log file next to the database, so a
  * beta tester's "it didn't save" has an actual trail instead of nothing.
  * dbPath isn't known yet at import time, so this falls back to console-only
- * until initializeDatabase() has set it.
+ * until openVault() has set it.
  */
 function logError(context: string, error: unknown) {
   const message = error instanceof Error ? (error.stack ?? error.message) : String(error)
@@ -76,63 +80,81 @@ function handle(channel: string, listener: (event: Electron.IpcMainInvokeEvent, 
 
 let win: BrowserWindow | null
 
-async function initializeDatabase() {
+/**
+ * A tiny file outside any vault — device/user preferences that aren't vault
+ * data (which vault to reopen next launch). Deliberately not sql.js: it only
+ * ever holds a couple of fields, so plain JSON is simpler than a DB schema.
+ */
+function globalConfigPath(): string {
+  return path.join(app.getPath('userData'), 'config.json')
+}
+
+function readGlobalConfig(): { lastVaultPath?: string } {
   try {
-    console.log('Starting database initialization...')
-
-    if (app.isPackaged) {
-      const userDataPath = app.getPath('userData')
-      console.log('User data path:', userDataPath)
-
-      if (!fs.existsSync(userDataPath)) {
-        console.log('Creating user data directory...')
-        fs.mkdirSync(userDataPath, { recursive: true })
-      }
-
-      dbPath = path.join(userDataPath, 'anchor.db')
-    } else {
-      const testDataDir = path.join(process.env.APP_ROOT, 'test-data')
-      console.log('Dev mode — using test-data path:', testDataDir)
-
-      if (!fs.existsSync(testDataDir)) {
-        console.log('Creating test-data directory...')
-        fs.mkdirSync(testDataDir, { recursive: true })
-      }
-
-      dbPath = path.join(testDataDir, 'anchor.db')
-    }
-
-    console.log('Database path:', dbPath)
-
-    const SQL = await initSqlJs()
-
-    const isNewDatabase = !fs.existsSync(dbPath)
-
-    if (fs.existsSync(dbPath)) {
-      console.log('Loading existing database file...')
-      const fileBuffer = fs.readFileSync(dbPath)
-      db = new SQL.Database(fileBuffer)
-    } else {
-      console.log('Creating new database...')
-      db = new SQL.Database()
-    }
-
-    db.run('PRAGMA foreign_keys = ON')
-    createSchema(db)
-
-    // The vault folder isn't chosen yet at this point (fresh install, or dev's
-    // auto-default vault hasn't run) — the "Getting Started" tutorial project
-    // needs real files on disk, so seeding is deferred until a vault exists.
-    // See needsGettingStartedSeed below.
-    needsGettingStartedSeed = isNewDatabase
-
-    saveDatabase()
-
-    console.log('Database initialized successfully')
-  } catch (error) {
-    console.error('Database initialization failed:', error)
-    throw error
+    return JSON.parse(fs.readFileSync(globalConfigPath(), 'utf-8'))
+  } catch {
+    return {}
   }
+}
+
+function writeGlobalConfig(patch: { lastVaultPath?: string }) {
+  const current = readGlobalConfig()
+  const dir = path.dirname(globalConfigPath())
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+  fs.writeFileSync(globalConfigPath(), JSON.stringify({ ...current, ...patch }, null, 2))
+}
+
+/**
+ * Opens (or creates) the vault at vaultPath as the active dataset — closing
+ * whatever vault was open before, if any. Each vault is fully self-contained:
+ * its database lives inside it, so switching vaults switches every project,
+ * card, note, and canvas the app shows, the way switching an Obsidian vault
+ * does. A brand-new vault gets the "Getting Started" tutorial project seeded
+ * into it immediately, since real files can now be written.
+ */
+async function openVault(vaultPath: string) {
+  if (db) {
+    saveDatabase()
+    db = null
+  }
+
+  fs.mkdirSync(path.join(vaultPath, 'notes'), { recursive: true })
+  fs.mkdirSync(path.join(vaultPath, 'canvases'), { recursive: true })
+  fs.mkdirSync(path.join(vaultPath, 'projects'), { recursive: true })
+  const anchorDir = path.join(vaultPath, '.anchor')
+  fs.mkdirSync(anchorDir, { recursive: true })
+  dbPath = path.join(anchorDir, 'anchor.db')
+
+  // Pre-multi-vault installs (dev's own test-data/, mainly) kept the database
+  // directly in the vault root instead of a nested .anchor/ folder. Move it
+  // into place rather than treating that vault as brand new and re-seeding
+  // over real data.
+  const legacyDbPath = path.join(vaultPath, 'anchor.db')
+  if (!fs.existsSync(dbPath) && fs.existsSync(legacyDbPath)) {
+    console.log('Migrating legacy database layout for vault:', vaultPath)
+    fs.renameSync(legacyDbPath, dbPath)
+  }
+
+  console.log('Opening vault:', vaultPath)
+
+  const SQL = await initSqlJs()
+  const isNewVault = !fs.existsSync(dbPath)
+  db = isNewVault ? new SQL.Database() : new SQL.Database(fs.readFileSync(dbPath))
+
+  db.run('PRAGMA foreign_keys = ON')
+  createSchema(db)
+
+  currentVaultPath = vaultPath
+  writeGlobalConfig({ lastVaultPath: vaultPath })
+
+  if (isNewVault) {
+    seedGettingStarted(vaultPath)
+  }
+
+  saveDatabase()
+  purgeSoftDeleted()
+
+  console.log(isNewVault ? 'Vault created and seeded' : 'Vault opened')
 }
 
 function saveDatabase() {
@@ -271,7 +293,7 @@ function setSetting(key: string, value: string) {
 }
 
 function getVaultPath(): string | null {
-  return getSetting('vault_path')
+  return currentVaultPath
 }
 
 function noteFilePath(filename: string): string | null {
@@ -399,25 +421,16 @@ app.on('activate', () => {
 
 app.whenReady().then(async () => {
   try {
-    await initializeDatabase()
-
-    // In dev mode, default vault to test-data/ so notes work without setup
-    if (!app.isPackaged && !getVaultPath()) {
-      const devVault = path.join(process.env.APP_ROOT, 'test-data')
-      fs.mkdirSync(path.join(devVault, 'notes'), { recursive: true })
-      fs.mkdirSync(path.join(devVault, 'canvases'), { recursive: true })
-      fs.mkdirSync(path.join(devVault, 'projects'), { recursive: true })
-      setSetting('vault_path', devVault)
-      console.log('Dev mode — vault set to test-data/')
+    // Reopen whichever vault was active last session. Dev mode falls back to
+    // test-data/ so the app works out of the box without manual setup; a
+    // packaged build with nothing chosen yet leaves no vault open — the
+    // renderer shows a "choose a vault" screen and calls vault:choose itself.
+    const config = readGlobalConfig()
+    if (config.lastVaultPath) {
+      await openVault(config.lastVaultPath)
+    } else if (!app.isPackaged) {
+      await openVault(path.join(process.env.APP_ROOT, 'test-data'))
     }
-
-    if (needsGettingStartedSeed && getVaultPath()) {
-      seedGettingStarted(getVaultPath()!)
-      needsGettingStartedSeed = false
-      saveDatabase()
-    }
-
-    purgeSoftDeleted()
 
     // ── Window control handlers ──
 
@@ -466,9 +479,9 @@ app.whenReady().then(async () => {
         output.on('error', reject)
         archive.on('error', reject)
         archive.pipe(output)
-        // In dev mode the vault folder and the database live in the same
-        // directory (test-data/), so the directory scan below would otherwise
-        // pick up anchor.db/anchor-errors.log as vault content too.
+        // The database now lives inside the vault itself (<vault>/.anchor/),
+        // so the directory scan below would otherwise pick up anchor.db and
+        // the error log as vault content too — they're added separately below.
         const excludedFromVault = new Set(['anchor.db', 'anchor-errors.log'])
         archive.directory(vaultPath, 'vault', (entry) =>
           excludedFromVault.has(path.basename(entry.name)) ? false : entry
@@ -494,23 +507,17 @@ app.whenReady().then(async () => {
 
     handle('vault:getPath', () => getVaultPath())
 
+    // Opens the picked folder as the active vault — an existing Anchor vault there
+    // opens its own data as-is; an empty/new folder gets a fresh vault created in it.
+    // Either way this swaps out the entire dataset, same as switching Obsidian vaults.
     handle('vault:choose', async () => {
       const result = await dialog.showOpenDialog(win!, {
-        title: 'Choose notes vault folder',
+        title: currentVaultPath ? 'Switch vault' : 'Choose a vault folder',
         properties: ['openDirectory', 'createDirectory'],
       })
       if (result.canceled || !result.filePaths[0]) return null
-      const vaultPath = result.filePaths[0]
-      fs.mkdirSync(path.join(vaultPath, 'notes'), { recursive: true })
-      fs.mkdirSync(path.join(vaultPath, 'canvases'), { recursive: true })
-      fs.mkdirSync(path.join(vaultPath, 'projects'), { recursive: true })
-      setSetting('vault_path', vaultPath)
-      if (needsGettingStartedSeed) {
-        seedGettingStarted(vaultPath)
-        needsGettingStartedSeed = false
-        saveDatabase()
-      }
-      return vaultPath
+      await openVault(result.filePaths[0])
+      return result.filePaths[0]
     })
 
     // ── Notes handlers ──

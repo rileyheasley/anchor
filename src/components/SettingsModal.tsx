@@ -74,7 +74,10 @@ export default function SettingsModal({
   const handleChooseVault = async () => {
     clickSound()
     const chosen = await window.api.vault.choose()
-    if (chosen) setVaultPath(chosen)
+    // Switching vaults swaps the entire dataset (it's a different database
+    // now), so a full reload is the only way to guarantee no stale state
+    // from the old vault lingers anywhere in the app.
+    if (chosen) window.location.reload()
   }
 
   const handleOpenLogFolder = () => {
@@ -157,11 +160,11 @@ export default function SettingsModal({
             {section === 'general' && (
               <div className="space-y-6">
                 <div>
-                  <h3 className="text-xs font-semibold text-ink-faint uppercase tracking-wide mb-3">Storage</h3>
+                  <h3 className="text-xs font-semibold text-ink-faint uppercase tracking-wide mb-3">Vault</h3>
                   <div className="flex items-center gap-2 mb-2 text-sm text-ink-secondary">
                     <FolderOpen size={16} className="text-ink-faint shrink-0" />
                     <span className="truncate" title={vaultPath ?? undefined}>
-                      {vaultPath ?? 'No folder chosen'}
+                      {vaultPath ?? 'No vault open'}
                     </span>
                   </div>
                   <motion.button
@@ -170,9 +173,12 @@ export default function SettingsModal({
                     onClick={handleChooseVault}
                     className="px-3 py-1.5 text-xs font-medium rounded-lg bg-surface-muted text-ink-secondary hover:bg-border-strong transition-colors cursor-pointer"
                   >
-                    Change folder…
+                    Switch vault…
                   </motion.button>
-                  <p className="text-xs text-ink-faint mt-2">Notes and project files are stored as markdown in this folder.</p>
+                  <p className="text-xs text-ink-faint mt-2">
+                    Each vault is a fully separate set of projects and notes — good for keeping personal and work
+                    data apart. Switching reloads the app.
+                  </p>
                 </div>
 
                 <div>

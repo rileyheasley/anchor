@@ -114,16 +114,28 @@ v1 node/edge feature set: rectangle / diamond / text shape nodes with 4-side han
 
 A standalone checklist on the Home page — not tied to any project or card. No soft delete/recycle bin integration; deleting a to-do is permanent. Priority and due date (quick presets: today/tomorrow/in 3 days/next week/clear) are set via the item's right-click context menu, not inline controls.
 
-### Vault Folder Structure
+### Vaults
 
-User chooses a vault folder on first launch. Layout:
+Anchor supports multiple, fully independent vaults — e.g. a personal vault and a separate work vault, each with its own complete dataset. Each vault is self-contained: **its database lives inside it**, at `<vault>/.anchor/anchor.db`, not in a global app-data location. Switching vaults (Settings → "Switch vault…", or the first-run picker) closes the current database and opens/creates the one inside the newly-chosen folder — every project, card, note, canvas, and todo comes from that vault's own database, so nothing from the previous vault leaks in.
+
+A tiny **global config file** outside any vault (`app.getPath('userData')/config.json`, e.g. `%APPDATA%\anchor\config.json` on Windows) remembers only `lastVaultPath`, so the app reopens the same vault on next launch. Device-level preferences (theme, sound toggle) stay in renderer `localStorage`, not this file or any vault database — they're per-install, not per-vault.
+
+If no vault has ever been opened (fresh install, or the last vault's folder is missing), the app shows a full-screen "Choose a folder" prompt instead of the normal shell — see `VaultSetupScreen.tsx`. Picking an existing vault folder opens its data as-is; picking an empty folder creates a new vault and seeds it with a disposable **"Getting Started"** tutorial project (one project, three kanban columns, three to-do cards each carrying an explanatory backing note, plus one project-level welcome note) — see `seedGettingStarted()` in `electron/main.ts`.
+
+**Legacy layout migration:** pre-multi-vault installs kept the database directly in the vault root (`<vault>/anchor.db`) instead of nested under `.anchor/`. `openVault()` detects and moves it into place automatically rather than treating that vault as new and silently re-seeding over real data. This only covers the *old dev-mode flat-file* layout — it does not cover a hypothetical *old packaged* install, where the database lived in the global `userData` folder outside any vault entirely. No real packaged installs exist yet, so this is currently moot, but worth checking before shipping if an early packaged build was ever handed to anyone.
+
+**Deferred (separate future features):** a "recent vaults" quick-switch list (right now switching means re-picking the folder from a dialog every time), and **vault relocation** — moving an existing vault's on-disk location without treating it as switching to a different vault (explicitly distinct from vault *switching*, which is what's built).
+
+Folder layout inside a vault:
 
 ```
 vault/
-  notes/                    ← general standalone notes
-  canvases/                 ← general standalone canvases
+  .anchor/
+    anchor.db                ← this vault's entire database (projects, cards, notes metadata, canvases, todos)
+  notes/                     ← general standalone notes
+  canvases/                  ← general standalone canvases
   projects/
-    Project Name/           ← card-backing notes and canvases for that project
+    Project Name/            ← card-backing notes and canvases for that project
 ```
 
 ### Note/Canvas–Project Linking
@@ -146,6 +158,7 @@ A standalone note or canvas can be linked to a project. Linking sets `linked_pro
 | Canvas | `@xyflow/react` (React Flow v12), JSON graph on disk | Node-based flowchart editor scoped to diagrams (not a full Miro-style freeform whiteboard); `.canvas.json` stays the on-disk source of truth, same split as Notes |
 | Styling | Tailwind v4 + single `@theme` token file (`src/theme.css`) | One master source for all color tokens — components consume semantic classes, never raw palette colors |
 | Tests | Vitest, against `electron/db.ts` directly (no Electron/GUI dependency) | The GUI can't be launched in a headless/sandboxed shell; the DB layer is plain functions over `sql.js` so it's testable without one |
+| Backup | `archiver` (real dependency, not a transitive one) | Powers Settings → "Export vault as zip" — bundles the vault folder + its `.anchor/anchor.db` into one file |
 | Repo | GitHub — `github.com/rileyheasley/anchor` | Standard version control |
 
 ## Current State
@@ -169,7 +182,11 @@ A standalone note or canvas can be linked to a project. Linking sets `linked_pro
 - Project header's Notes and Canvases sections were merged into one "Resources" section — a single combined card list plus one "+" button that opens a small type-picker dropdown (Note / Canvas) instead of two separate create buttons; the link button/dropdown stays type-aware (two labeled sub-sections) since it draws from two different standalone lists
 - Global search extended to cover canvases (title-only — no content-scan fallback, since a canvas body is a JSON graph, not readable text) with their own results section and deep-link support
 - Design tokens centralized in `src/theme.css` — all semantic colors (surface/border/ink/primary/accent/success/warning/danger/special) defined once via Tailwind v4 `@theme`; dark-mode badge tokens (`accent/danger/special-strong`) were WCAG-audited and fixed to meet AA contrast on their `-subtle` backgrounds; dark theme's `ink-muted`/`ink-faint` were also found and fixed swapped (faint was reading as higher-contrast than muted)
-- Design assets scaffolded under `src/assets/` (`icons/`, `logos/`, `images/`) with a README on when to use these vs. top-level `public/`; app logo (`logo.svg`) is in place and wired into the title bar (theme-aware via CSS mask) and window favicon
+- Design assets scaffolded under `src/assets/` (`icons/`, `logos/`, `images/`) with a README on when to use these vs. top-level `public/`; app logo is in place, rendered via a shared `Logo.tsx` component (inlined SVG with `fill="currentColor"`, theme-aware) in the title bar and on `VaultSetupScreen`, and wired into the window favicon — previously used a CSS `mask-image` trick that silently failed (see Notes / Learnings), replaced after the box-instead-of-logo bug surfaced
+- Multi-vault architecture: the database moved from a single global `userData` location into each vault (`<vault>/.anchor/anchor.db`), so switching vaults switches the entire dataset — see Data Model → Vaults. `VaultSetupScreen.tsx` gates the whole app shell (title bar still renders; only the body is replaced) when no vault is open yet
+- Sample seed data replaced with a single disposable **"Getting Started"** tutorial project on every brand-new vault, instead of four fake demo projects — see Data Model → Vaults and `seedGettingStarted()` in `electron/main.ts`
+- Reliability pass for beta: a root-level React error boundary (`ErrorBoundary.tsx`, reload-to-recover) plus a second one scoped to `CanvasEditor` (reset-to-recover, since Canvas is the newest/least-proven surface); all 70+ IPC handlers in `main.ts` now route through a `handle()` wrapper that logs thrown errors to `<vault>/.anchor/anchor-errors.log` before rethrowing a clean message; a renderer-side `unhandledrejection` listener (`ErrorToasts.tsx`) catches any IPC call that fails without a local `.catch`; Settings → About has an "Open log folder" button
+- Data-loss safety net: Settings → General → "Export vault as zip" bundles the vault's files plus its database into one file the user can save anywhere (`app:exportVault` IPC, `archiver`)
 - Custom themed scrollbar replaces the OS default everywhere: track is always fully transparent (no visible background in either state), thumb is rounded and only fades in (`border-strong`, darkening to `ink-faint` on direct hover) while its container is hovered/scrolled — a hover-reveal, overlay-like feel without relying on the deprecated `overflow: overlay`. Applied via both the WebKit scrollbar pseudo-elements and the standard `scrollbar-color`/`scrollbar-width` properties
 - Motion animations and sound effects wired in (Motion for React + Web Audio API); sounds redesigned for a deep "thocky" mechanical-keyboard character (filtered noise transient + pitch-dropping lowpass tone body). Full app-wide audit pass closed the remaining gaps: every modal (card/project creation, note editor, settings, search) now enters/exits via `AnimatePresence` + spring-scale instead of popping in/out instantly; the two floating menus that had zero transition (`ContextMenu`, the markdown editor's right-click formatting menu) now animate too; drag-reorder actions that were silent (cards within a column, columns, project notes) now play `moveSound()`; the sidebar/notes-sidebar auto-collapse snap plays `clickSound()`; and effectively every "utility" button (dropdown triggers/items, toggle chips, inline icon buttons) got `whileHover`/`whileTap` feedback to match the cards, which already had it
 - Home page redesigned into an actionable overview (see Core Concept) — due/stale nudges, status breakdown, points trend, recent notes, and a standalone to-do list are all computed server-side via one `overview:get` IPC query (`electron/main.ts`) rather than assembled client-side from separate calls
@@ -180,6 +197,10 @@ A standalone note or canvas can be linked to a project. Linking sets `linked_pro
 - A `redesign` branch exists for exploring a non-generic-AI visual treatment (surface finish: radius/border/shadow/badge shape); no direction has been finalized yet — see that branch's history for rejected explorations
 
 ## Goal / Roadmap
+
+Numbering is continuous across the sections below (so cross-references elsewhere in this doc, e.g. "roadmap #31," stay stable) — the sections just group items by which milestone they gate.
+
+### Shipped (pre-beta groundwork)
 
 1. ~~Scaffold Electron + React app~~ ✅
 2. ~~Prove local data persistence works end to end~~ ✅
@@ -202,15 +223,113 @@ A standalone note or canvas can be linked to a project. Linking sets `linked_pro
 19. Visual redesign (`redesign` branch) — non-generic-AI surface treatment; direction still undecided
 20. ~~Cross-entity search (projects/cards/notes by name/title)~~ ✅ — titles/names only, doesn't search markdown file contents
 21. ~~Automated tests for the DB layer~~ ✅ (Vitest + `sql.js`, no Electron dependency) — currently schema/migration/list-query coverage only; the rest of `main.ts`'s IPC handlers (create/update/delete, notes, recycle bin, columns/cards) are still untested
-22. Production build — packaging via `electron-builder`, test on Mac + Windows (still needs a platform icon — logo is currently SVG-only)
+22. Production build — packaging via `electron-builder`, test on Mac + Windows (still needs a platform icon — logo is currently SVG-only) — **not done; see Release Checklist below**
 23. ~~Home page — actionable overview (needs-attention/stale-project nudges, status breakdown, points trend, recent notes, quick actions)~~ ✅
 24. ~~Standalone to-do list on Home, with priority/due date via right-click~~ ✅
 25. ~~Sound/animation audit pass — every modal and floating menu animates, all reorder actions have a sound, hover/tap feedback on utility buttons~~ ✅
 26. ~~Canvas — flowchart/diagram documents (React Flow), full sibling of Notes: sidebar tab, folders, standalone/project-scoped, project-linking, search~~ ✅ — v1 scope only (see Data Model → Canvases for what's deferred)
+27. ~~Beta reliability pass — error boundary, IPC error logging + renderer toast net, log-folder button, vault export/backup~~ ✅
+28. ~~Replace fake sample-data seed with a real "Getting Started" tutorial project~~ ✅
+29. ~~Multi-vault switching (personal/work separation), with legacy-layout migration and a first-run vault picker~~ ✅
+30. ~~Fix logo rendering (CSS mask silently failing) — replaced with an inlined SVG `Logo.tsx` component~~ ✅
+
+### Before Beta
+
+31. **Blocker.** Fix `electron-builder.json5` placeholders (`appId`/`productName`), add a real platform icon (`.ico`/`.icns`), bump `package.json` off `0.0.0` — see Release Checklist
+32. **Blocker.** Test-package for real via `npm run build` and install on both Windows and Mac — never done; all verification so far has been a dev-mode production build, not the actual installer
+33. **Blocker.** Verify true first-run onboarding on a genuinely clean machine/VM (no `test-data/`, no prior `userData/config.json`) — only simulated on the dev machine so far
+34. Security review pass (`webPreferences`/`contextIsolation`/`nodeIntegration`) — currently resting on Electron's secure defaults, never deliberately reviewed
+
+### Before Full Release (v1)
+
+35. Kanban card detail — expand item 11's remaining piece: full expand-to-note view, not just the side panel
+36. Resolve the `redesign` branch's visual direction (item 19) — still undecided
+37. Recent-vaults quick-switch list — switching currently means re-picking the folder from a dialog every time
+38. Vault relocation — move an existing vault's on-disk location without it being treated as switching to a different vault (deliberately separate from item 29's vault *switching*)
+39. Code signing for Windows/Mac — removes the unsigned-binary warning; costs a certificate
+40. Auto-update mechanism (`electron-updater` or similar) — every update currently means redownload/reinstall
+41. Broader automated test coverage — extend item 21 past `electron/db.ts`'s schema/migrations/list-queries to the newer work (vault open/switch, seeding, export), which so far only has manual verification
+
+### Post-Release
+
+Longer-horizon ideas — either explicitly deferred elsewhere in this doc (see Data Model → Canvases) or raised in passing and not yet committed to a milestone. Nothing here blocks v1.
+
+42. Real-time collaboration on canvases (deferred from Canvas v1 scope)
+43. Canvas templates (deferred from Canvas v1 scope)
+44. Freehand drawing / image embeds on canvas (deferred from Canvas v1 scope)
+45. Export canvas to image (deferred from Canvas v1 scope)
+46. Card-level canvases — a canvas attached to a specific kanban card, not just standalone/project-scoped (deferred from Canvas v1 scope)
+47. Content search beyond titles — index actual markdown file contents, not just note/canvas/project/card titles (see Data Model → Search)
+48. Canvas thumbnails/previews (deferred from Canvas v1 scope)
+49. Opt-in crash/error telemetry beyond the local log file — a "nice to have" once manually asking testers for `anchor-errors.log` stops scaling
+50. Templates — pre-made templates (project kickoff, meeting notes, bug report card, etc.) shipped with the app, plus a way for users to save their own project/card/note/canvas as a reusable template
+51. Extension/plugin library infrastructure — an Obsidian-style plugin API so the community (or Riley) can extend Anchor without every feature living in core; needs its own design pass (what surface does a plugin get: new sidebar tabs? custom card fields? IPC access?) before implementation starts
+
+### AI Suggestions
+
+Ideas Claude generated independently while updating this doc — genuinely unvetted, not discussed with Riley, not committed to any milestone. Flagged here for Riley to review and cut/reprioritize at a later date; don't treat anything below as agreed-upon scope.
+
+- **Command palette.** `Mod+K` already searches; extend the same popover into a full command palette (Raycast/VS Code-style) for actions too — "New project," "Toggle theme," "Export vault" — not just navigation. Cheap to build on the existing search infra, high daily-use payoff.
+- **Backlinks between notes.** Since note content is real markdown on disk, parse `[[wikilink]]`-style references and surface a "Linked mentions" panel per note — leans into the "local-first, Obsidian-style" positioning already in the Philosophy section, and Obsidian users specifically will expect it.
+- **Local version history for notes/canvases.** The 30-day recycle bin covers deletion, but not "I made a bad edit and want yesterday's version back." Periodic local snapshots (not full git) of note/canvas content would close that gap without needing any server.
+- **A vault-wide graph view.** A zoomed-out map showing how projects/notes/canvases interlink (via project-linking and backlinks) — another Obsidian-style feature that fits the app's own stated positioning, and a natural home for the tactile-motion investment (physics-based node layout, satisfying drag/zoom).
+- **Global quick-capture hotkey.** An OS-level shortcut (works even when Anchor isn't focused) to pop a tiny "add a todo" or "start a note" box — local-first desktop apps live or die on how fast you can offload a stray thought, and the app already has a standalone to-do list that's a perfect capture target.
+- **Card templates as a lighter-weight sibling of item 50.** Beyond whole-project templates, quick-create common card *types* (bug, meeting-prep, follow-up) with pre-filled points/priority/note skeleton — smaller in scope than full templating, could ship first.
+- **Sound packs.** Given how much investment has already gone into the "thocky" sound design (per Current State), let users choose between a few complete sound packs (or mute categories individually) the same way they choose a color theme — sound becomes a first-class personalization axis, not a fixed choice.
+- **A structured weekly review ritual.** Home's "Could Use a Look" nudge already flags stale projects; a dedicated weekly-review screen (surface everything overdue/stale/done this week, walk through it, end on a completion animation) would turn that passive nudge into an active habit loop — squarely in "feel is the differentiator" territory.
+- **Read-only export of a single project/note as a clean static HTML page.** Zero-collab-infrastructure way to let a user show someone else a board or note without opening the app or building real multiplayer — good scope-to-payoff ratio for a local-first app that explicitly isn't chasing team features.
+- **Import from Notion/Trello/Obsidian.** Lowers the switching cost for exactly the audience Anchor is positioned for (people already using those tools and wanting something with more "feel") — a growth lever more than a feature, worth having ready by the time this is public.
+
+## Release Checklist
+
+Not part of the numbered roadmap above (that's feature work) — this is what's specifically true right now, close to a beta hand-off.
+
+### Before Beta
+
+**Packaging — nothing has been test-packaged yet; all testing so far is `env -u ELECTRON_RUN_AS_NODE electron.exe .` (a dev-mode production build), not a real installer**
+- [ ] `electron-builder.json5`'s `appId`/`productName` are still literally `"YourAppID"`/`"YourAppName"` — `productName` determines the real `userData` folder name, so this isn't cosmetic (roadmap #31)
+- [ ] Add a real app icon (`.ico` + `.icns`) — no `icon` field is set in `electron-builder.json5` yet, logo is SVG-only (roadmap #31)
+- [ ] Bump `package.json` version off `0.0.0` (roadmap #31)
+- [ ] Actually run `npm run build` and install the real output on both Windows and Mac (roadmap #32)
+- [ ] Test the real first-run experience on a genuinely clean machine/VM (no `test-data/`, no prior `userData/config.json`) — never verified end-to-end, only simulated on the dev machine (roadmap #33)
+- [ ] Decide how to communicate the unsigned-binary warning (SmartScreen/Gatekeeper) to testers
+
+**Data safety / reliability**
+- [x] Error boundary, IPC error logging + toasts, log-folder button, vault export — roadmap #27
+- [ ] A dedicated security review pass (`webPreferences` currently relies on Electron's secure defaults — `contextIsolation` on, no `nodeIntegration` — but this has never had a deliberate review) (roadmap #34)
+
+**Onboarding**
+- [x] "Getting Started" seed, multi-vault switching + legacy migration, vault picker gate, logo fix — roadmap #28–30
+- [ ] Verify the legacy-migration gap noted in Data Model → Vaults doesn't apply (check whether any real packaged build was ever handed out with real data)
+- [ ] Canvas edge-connector work (in progress when this doc was last touched) — confirm it's functionally finished and got the same sound/motion audit pass the rest of the app already has
+
+**Housekeeping**
+- [ ] Commit the multi-vault + logo-fix session's changes if not already done
+- [ ] Write a short doc/message for testers: how to install past the unsigned warning, where their data lives, back-up reminder, where to send bugs/the log file
+- [ ] Pick a feedback channel for beta testers
+
+### Before v1 (public/wider release)
+
+**Feature completeness**
+- [ ] Kanban card detail view — still a side panel, not the full expand-to-note view originally envisioned (roadmap #35, extends #11)
+- [ ] Resolve the `redesign` branch direction — non-generic-AI surface treatment, still undecided (roadmap #36, extends #19)
+- [ ] Unlink UI for project-linked notes outside the edit modal (roadmap #14)
+- [ ] Recent-vaults quick-switch list (roadmap #37)
+- [ ] Vault relocation as its own feature, separate from switching (roadmap #38)
+
+**Distribution & reliability**
+- [ ] Code signing for Windows/Mac (removes the unsigned warning; costs a cert) (roadmap #39)
+- [ ] Auto-update mechanism (`electron-updater` or similar) — every update currently means redownload/reinstall (roadmap #40)
+- [ ] Broader automated test coverage — Vitest currently only covers `electron/db.ts`'s schema/migrations/list-queries; none of the newer work (vault open/switch, seeding, export) has automated tests, only manual verification (roadmap #41, extends #21)
+
+### Post-Release
+
+- [ ] Everything in roadmap #42–51 (Canvas collab/templates/drawing/export/thumbnails, full-text search, opt-in telemetry, pre-made + user-made templates, plugin/extension infrastructure) — none of it blocks v1
+- [ ] Review the AI Suggestions list under Goal / Roadmap → Post-Release — unvetted ideas Claude generated for later triage, not yet reviewed
 
 ## Notes / Learnings
 
-- **Dev-mode data path:** When running unpackaged (`!app.isPackaged`), the database writes to `test-data/anchor.db` (gitignored, auto-created) instead of `app.getPath('userData')`. Production builds use the standard `userData` path.
+- **Dev-mode data path (superseded — see Data Model → Vaults):** originally the database wrote to a single path (`test-data/anchor.db` in dev, `userData/anchor.db` when packaged). Since the multi-vault architecture landed, the database lives *inside whichever vault is open*, at `<vault>/.anchor/anchor.db`; dev mode's only remaining special case is defaulting to `test-data/` as that vault when nothing else has been chosen yet.
 - **`sql.js` is in-memory:** Loaded on startup, explicitly written to disk (`db.export()` → `fs.writeFileSync`) after every mutation. No native file locking — sufficient for a single-user desktop app.
 - **`sql.js` must be external in the Vite build:** Mark it in `rollupOptions.external` — otherwise Vite bundles it into ESM and its `__dirname`-based WASM loader breaks.
 - **Avoid native Node modules in Electron.** `better-sqlite3` required compiling against Electron's bundled Node ABI, which caused SIGSEGV crashes across machines. `sql.js` (pure WASM) sidesteps this entirely.
@@ -232,6 +351,10 @@ A standalone note or canvas can be linked to a project. Linking sets `linked_pro
 - **A "jump to X" deep link across independently-loaded views needs a target-id prop plus an effect that fires once the target's list has loaded, not on mount.** E.g. search "opening" a card: `App.tsx` sets `focusCardId`, hands it to `ProjectBoard` as a prop; `ProjectBoard` doesn't know when its own async `loadBoard()` will resolve, so the effect watches `[focusCardId, cards]` and only acts once the id shows up in the loaded list, then reports back via `onFocusCardHandled` so `App.tsx` clears it. Same shape for notes in `NotesPage`, and canvases in `CanvasesPage`/`ProjectHeader`.
 - **Canvas was built by duplicating the Notes pattern file-for-file (`CanvasesPage`/`CanvasesTree`/`CanvasCard` alongside `NotesPage`/`NotesTree`/`NoteCard`), not by genericizing Notes over a shared type.** The existing Notes code is hardcoded to the `Note`/`NoteFolder` shape; forcing a generic abstraction now would touch and risk-regress all of Notes for a v1 feature. Worth revisiting once both are stable — the only piece already shared is `sortByMode` (generic on `{position, created_at, updated_at}`), re-exported from `canvasTree.ts`.
 - **A React Flow custom node shouldn't reach into `useReactFlow().setNodes` from inside itself when its parent already holds nodes as controlled state via `useNodesState`.** That produces two competing writers to the same graph. `CanvasEditor`'s shape nodes instead take an `onLabelChange(id, value)` callback injected into `node.data` by the parent (`nodesWithHandlers` in `CanvasEditor.tsx`) — the callback closes over the parent's own `setNodes`, so there's one writer.
+- **CSS `mask-image` can fail silently, leaving a solid unmasked box instead of the intended shape.** The title bar's logo used this technique (span + `WebkitMaskImage`/`maskImage` referencing the SVG) and had been failing the whole time — invisible at 15×16px, but obvious once the same code rendered a 40×43px logo on `VaultSetupScreen`. Fixed by inlining the SVG directly as a `Logo.tsx` component with `fill="currentColor"` instead of masking a background color through an image — guaranteed to render the actual shape, still theme-aware via the wrapping element's `text-ink-*` class. Prefer this over CSS masking for any future icon-from-SVG work.
+- **When a bug report is ambiguous, screenshot the actual window before guessing at CSS fixes.** Two identical code paths behaving differently (or a "box" report that could mean several things) is faster to resolve by looking than reasoning from source alone. On Windows, capture *only* the target window, not the full screen — use `user32.dll`'s `GetWindowRect` on the process's `MainWindowHandle` (via PowerShell + `Add-Type`) rather than `SystemInformation.VirtualScreen`, which captures every other window and app on screen too and risks exposing unrelated content.
+- **Moving the database from a single global location into each vault is a real migration, not just a new default.** `openVault()` checks for the old flat `<vault>/anchor.db` layout and renames it into the new `<vault>/.anchor/anchor.db` nested path before treating a vault as "new" — otherwise reopening a pre-existing install (even just the dev database) looks identical to a fresh vault and gets silently reseeded, orphaning real data on disk without deleting it. Any future change to *where* persisted state lives needs the same treatment: detect the old location, migrate in place, don't just start writing to the new one.
+- **A full page reload is the simplest correct way to handle "the entire dataset just changed underneath the UI."** Switching vaults (or seeding a new one) means every project/note/card in memory is now wrong — rather than threading a refetch-everything signal through every page component, `vault:choose` success just calls `window.location.reload()`. Cheap, and impossible to leave a stale corner of the UI un-refreshed.
 
 ---
 *Working title: Anchor. Living doc, update as decisions are made.*

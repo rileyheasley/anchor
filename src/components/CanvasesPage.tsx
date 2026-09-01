@@ -181,10 +181,9 @@ export default function CanvasesPage({
   const handleChooseVault = async () => {
     clickSound()
     const chosen = await window.api.vault.choose()
-    if (chosen) {
-      setVaultPath(chosen)
-      await reloadAll()
-    }
+    // Choosing a vault swaps the whole dataset, not just canvases — reload
+    // rather than patching local state.
+    if (chosen) window.location.reload()
   }
 
   const handleOpenCanvas = async (canvas: Canvas) => {
