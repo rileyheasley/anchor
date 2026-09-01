@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { Plus, FolderOpen, Trash2, Link2, ChevronDown } from 'lucide-react'
-import type { Project, Priority, ProjectStatus, Note } from '../types'
+import { Plus, FolderOpen, Trash2, Link2, ChevronDown, FileText, Workflow } from 'lucide-react'
+import type { Project, Priority, ProjectStatus, Note, Canvas } from '../types'
 import { clickSound, createSound, deleteSound, moveSound } from '../sounds'
 import NoteCard from './NoteCard'
 import NoteEditModal from './NoteEditModal'
+import CanvasCard from './CanvasCard'
+import CanvasEditModal from './CanvasEditModal'
 import ConfirmDialog from './ConfirmDialog'
 import ContextMenu, { type ContextMenuPosition } from './ContextMenu'
 import { useEscapeKey } from '../hooks/useEscapeKey'
@@ -20,6 +22,8 @@ interface ProjectHeaderProps {
   isLoading?: boolean
   focusNoteId?: string | null
   onFocusNoteHandled?: () => void
+  focusCanvasId?: string | null
+  onFocusCanvasHandled?: () => void
 }
 
 export default function ProjectHeader({
@@ -30,6 +34,8 @@ export default function ProjectHeader({
   isLoading,
   focusNoteId,
   onFocusNoteHandled,
+  focusCanvasId,
+  onFocusCanvasHandled,
 }: ProjectHeaderProps) {
   const [isEditingName, setIsEditingName] = useState(false)
   const [editedName, setEditedName] = useState(project.name)
@@ -38,9 +44,17 @@ export default function ProjectHeader({
   const [draggedNote, setDraggedNote] = useState<Note | null>(null)
   const [noteMenu, setNoteMenu] = useState<{ note: Note; position: ContextMenuPosition } | null>(null)
   const [confirmDeleteNote, setConfirmDeleteNote] = useState<Note | null>(null)
+  const [canvases, setCanvases] = useState<Canvas[]>([])
+  const [editingCanvas, setEditingCanvas] = useState<Canvas | null>(null)
+  const [draggedCanvas, setDraggedCanvas] = useState<Canvas | null>(null)
+  const [canvasMenu, setCanvasMenu] = useState<{ canvas: Canvas; position: ContextMenuPosition } | null>(null)
+  const [confirmDeleteCanvas, setConfirmDeleteCanvas] = useState<Canvas | null>(null)
   const [standaloneNotes, setStandaloneNotes] = useState<Note[]>([])
+  const [standaloneCanvases, setStandaloneCanvases] = useState<Canvas[]>([])
   const [isLinkMenuOpen, setIsLinkMenuOpen] = useState(false)
   const linkMenuRef = useRef<HTMLDivElement>(null)
+  const [isAddMenuOpen, setIsAddMenuOpen] = useState(false)
+  const addMenuRef = useRef<HTMLDivElement>(null)
   const [isStatusMenuOpen, setIsStatusMenuOpen] = useState(false)
   const statusMenuRef = useRef<HTMLDivElement>(null)
   const [isPriorityMenuOpen, setIsPriorityMenuOpen] = useState(false)
@@ -55,9 +69,10 @@ export default function ProjectHeader({
     setDisplayDueDate(project.due_date)
   }, [project.priority, project.status, project.due_date])
 
-  // Only re-run when the project identity changes — loadProjectNotes is a fresh closure every render.
+  // Only re-run when the project identity changes — loadProjectNotes/loadProjectCanvases are fresh closures every render.
   useEffect(() => {
     loadProjectNotes()
+    loadProjectCanvases()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id])
 
@@ -73,12 +88,33 @@ export default function ProjectHeader({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusNoteId, notes])
 
+  // Deep-link support: open a specific canvas's editor once it's loaded (e.g. from search)
+  useEffect(() => {
+    if (!focusCanvasId || canvases.length === 0) return
+    const canvas = canvases.find((c) => c.id === focusCanvasId)
+    if (canvas) {
+      setEditingCanvas(canvas)
+      onFocusCanvasHandled?.()
+    }
+    // Only re-run when the deep-link target or list changes — onFocusCanvasHandled is a fresh closure every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusCanvasId, canvases])
+
   const loadProjectNotes = async () => {
     try {
       const projectNotes = await window.api.notes.list({ project_id: project.id, standalone: true })
       setNotes(projectNotes)
     } catch (error) {
       console.error('Failed to load project notes:', error)
+    }
+  }
+
+  const loadProjectCanvases = async () => {
+    try {
+      const projectCanvases = await window.api.canvases.list({ project_id: project.id })
+      setCanvases(projectCanvases)
+    } catch (error) {
+      console.error('Failed to load project canvases:', error)
     }
   }
 
@@ -135,19 +171,25 @@ export default function ProjectHeader({
   useEscapeKey(() => setIsLinkMenuOpen(false), isLinkMenuOpen)
   useEscapeKey(() => setIsStatusMenuOpen(false), isStatusMenuOpen)
   useEscapeKey(() => setIsPriorityMenuOpen(false), isPriorityMenuOpen)
+  useEscapeKey(() => setIsAddMenuOpen(false), isAddMenuOpen)
 
   useClickOutside(linkMenuRef, () => setIsLinkMenuOpen(false), isLinkMenuOpen)
   useClickOutside(statusMenuRef, () => setIsStatusMenuOpen(false), isStatusMenuOpen)
   useClickOutside(priorityMenuRef, () => setIsPriorityMenuOpen(false), isPriorityMenuOpen)
+  useClickOutside(addMenuRef, () => setIsAddMenuOpen(false), isAddMenuOpen)
 
   const handleOpenLinkMenu = async () => {
     clickSound()
     if (!isLinkMenuOpen) {
       try {
-        const all = await window.api.notes.list({ standalone: true })
-        setStandaloneNotes(all.filter((n) => n.linked_project_id !== project.id))
+        const [allNotes, allCanvases] = await Promise.all([
+          window.api.notes.list({ standalone: true }),
+          window.api.canvases.list({ standalone: true }),
+        ])
+        setStandaloneNotes(allNotes.filter((n) => n.linked_project_id !== project.id))
+        setStandaloneCanvases(allCanvases.filter((c) => c.linked_project_id !== project.id))
       } catch (error) {
-        console.error('Failed to load standalone notes:', error)
+        console.error('Failed to load standalone notes/canvases:', error)
       }
     }
     setIsLinkMenuOpen((open) => !open)
@@ -175,6 +217,7 @@ export default function ProjectHeader({
   }
 
   const handleCreateNote = async () => {
+    setIsAddMenuOpen(false)
     try {
       const newNote = await window.api.notes.create({
         title: 'New note',
@@ -187,6 +230,44 @@ export default function ProjectHeader({
       }
     } catch (error) {
       console.error('Failed to create note:', error)
+    }
+  }
+
+  const handleLinkCanvas = async (canvas: Canvas) => {
+    clickSound()
+    try {
+      await window.api.canvases.link({ id: canvas.id, project_id: project.id })
+      await loadProjectCanvases()
+    } catch (error) {
+      console.error('Failed to link canvas:', error)
+    }
+    setIsLinkMenuOpen(false)
+  }
+
+  const handleUnlinkCanvas = async (canvas: Canvas) => {
+    clickSound()
+    try {
+      await window.api.canvases.unlink(canvas.id)
+      await loadProjectCanvases()
+    } catch (error) {
+      console.error('Failed to unlink canvas:', error)
+    }
+  }
+
+  const handleCreateCanvas = async () => {
+    setIsAddMenuOpen(false)
+    try {
+      const newCanvas = await window.api.canvases.create({
+        title: 'New canvas',
+        project_id: project.id,
+      })
+      if (newCanvas) {
+        createSound()
+        setEditingCanvas(newCanvas)
+        await loadProjectCanvases()
+      }
+    } catch (error) {
+      console.error('Failed to create canvas:', error)
     }
   }
 
@@ -262,6 +343,72 @@ export default function ProjectHeader({
     moveSound()
     window.api.notes.reorder({ ids: newNotes.map(n => n.id) }).catch((error) => {
       console.error('Failed to persist note order:', error)
+    })
+  }
+
+  const handleSaveCanvas = async (content: string, title: string) => {
+    if (!editingCanvas) return
+    try {
+      const updatedCanvas = await window.api.canvases.update({ id: editingCanvas.id, title })
+      if (updatedCanvas) {
+        setEditingCanvas(updatedCanvas)
+        setCanvases(canvases.map(c => c.id === updatedCanvas.id ? updatedCanvas : c))
+      }
+      await window.api.canvases.saveContent(editingCanvas.id, content)
+      await loadProjectCanvases()
+    } catch (error) {
+      console.error('Failed to save canvas:', error)
+      throw error
+    }
+  }
+
+  const handleDeleteCanvas = async () => {
+    if (!editingCanvas) return
+    try {
+      if (editingCanvas.linked_project_id === project.id) {
+        await window.api.canvases.unlink(editingCanvas.id)
+      } else {
+        await window.api.canvases.delete(editingCanvas.id)
+      }
+      await loadProjectCanvases()
+    } catch (error) {
+      console.error('Failed to delete canvas:', error)
+      throw error
+    }
+  }
+
+  const confirmDeleteCanvasAction = async () => {
+    if (!confirmDeleteCanvas) return
+    deleteSound()
+    try {
+      await window.api.canvases.delete(confirmDeleteCanvas.id)
+      if (editingCanvas?.id === confirmDeleteCanvas.id) setEditingCanvas(null)
+      await loadProjectCanvases()
+    } catch (error) {
+      console.error('Failed to delete canvas:', error)
+    }
+    setConfirmDeleteCanvas(null)
+  }
+
+  const handleCanvasDragStart = (canvas: Canvas) => {
+    setDraggedCanvas(canvas)
+  }
+
+  const handleCanvasDrop = (targetCanvas: Canvas) => {
+    if (!draggedCanvas || draggedCanvas.id === targetCanvas.id) return
+
+    const draggedIndex = canvases.findIndex(c => c.id === draggedCanvas.id)
+    const targetIndex = canvases.findIndex(c => c.id === targetCanvas.id)
+
+    const newCanvases = [...canvases]
+    newCanvases.splice(draggedIndex, 1)
+    newCanvases.splice(targetIndex, 0, draggedCanvas)
+
+    setCanvases(newCanvases)
+    setDraggedCanvas(null)
+    moveSound()
+    window.api.canvases.reorder({ ids: newCanvases.map(c => c.id) }).catch((error) => {
+      console.error('Failed to persist canvas order:', error)
     })
   }
 
@@ -437,12 +584,14 @@ export default function ProjectHeader({
         )}
       </div>
 
-      {/* Notes Section */}
+      {/* Resources Section */}
       <div>
-        <h3 className="text-xs text-ink-faint uppercase tracking-wide font-medium mb-3">Project Notes</h3>
+        <h3 className="text-xs text-ink-faint uppercase tracking-wide font-medium mb-3">Resources</h3>
 
         <div className="flex flex-wrap gap-2 items-center">
-          {notes.length > 0 ? (
+          {notes.length === 0 && canvases.length === 0 ? (
+            <p className="text-xs text-ink-faint">No resources yet.</p>
+          ) : (
             <AnimatePresence>
               {notes.map((note) => (
                 <NoteCard
@@ -460,20 +609,68 @@ export default function ProjectHeader({
                   isDragging={draggedNote?.id === note.id}
                 />
               ))}
+              {canvases.map((canvas) => (
+                <CanvasCard
+                  key={canvas.id}
+                  canvas={canvas}
+                  linked={canvas.linked_project_id === project.id}
+                  onClick={(c) => setEditingCanvas(c)}
+                  onDragStart={(c) => handleCanvasDragStart(c)}
+                  onDragEnd={() => setDraggedCanvas(null)}
+                  onDragOver={handleDragOver}
+                  onDrop={(_e, c) => {
+                    handleCanvasDrop(c)
+                  }}
+                  onContextMenu={(e, c) => setCanvasMenu({ canvas: c, position: { x: e.clientX, y: e.clientY } })}
+                  isDragging={draggedCanvas?.id === canvas.id}
+                />
+              ))}
             </AnimatePresence>
-          ) : (
-            <p className="text-xs text-ink-faint">No notes yet.</p>
           )}
-          <motion.button
-            whileHover={{ scale: 1.08 }}
-            whileTap={{ scale: 0.92 }}
-            onClick={handleCreateNote}
-            disabled={isLoading}
-            className="p-2 rounded-lg bg-primary text-ink-inverse hover:bg-primary-hover transition-colors disabled:opacity-50 cursor-pointer flex items-center justify-center"
-            title="New note"
-          >
-            <Plus size={16} />
-          </motion.button>
+
+          <div className="relative" ref={addMenuRef}>
+            <motion.button
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
+              onClick={() => { clickSound(); setIsAddMenuOpen((open) => !open) }}
+              disabled={isLoading}
+              className="p-2 rounded-lg bg-primary text-ink-inverse hover:bg-primary-hover transition-colors disabled:opacity-50 cursor-pointer flex items-center justify-center"
+              title="Add a resource"
+            >
+              <Plus size={16} />
+            </motion.button>
+
+            <AnimatePresence>
+              {isAddMenuOpen && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 4 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 4 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                  className="absolute top-full left-0 mt-2 bg-surface border border-border-strong rounded-lg shadow-lg py-1 min-w-[160px] z-50"
+                >
+                  <motion.button
+                    whileHover={{ x: 2 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleCreateNote}
+                    className="w-full flex items-center gap-2 text-left px-3 py-1.5 text-sm text-ink-secondary hover:bg-surface-sunken cursor-pointer transition-colors"
+                  >
+                    <FileText size={14} className="text-ink-faint shrink-0" />
+                    Note
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ x: 2 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleCreateCanvas}
+                    className="w-full flex items-center gap-2 text-left px-3 py-1.5 text-sm text-ink-secondary hover:bg-surface-sunken cursor-pointer transition-colors"
+                  >
+                    <Workflow size={14} className="text-ink-faint shrink-0" />
+                    Canvas
+                  </motion.button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
 
           <div className="relative" ref={linkMenuRef}>
             <motion.button
@@ -482,7 +679,7 @@ export default function ProjectHeader({
               onClick={handleOpenLinkMenu}
               disabled={isLoading}
               className="p-2 rounded-lg bg-surface-muted text-ink-muted hover:bg-border-strong hover:text-ink-secondary transition-colors disabled:opacity-50 cursor-pointer flex items-center justify-center"
-              title="Link an existing note"
+              title="Link an existing note or canvas"
             >
               <Link2 size={16} />
             </motion.button>
@@ -494,22 +691,47 @@ export default function ProjectHeader({
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95, y: 4 }}
                   transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                  className="absolute top-full left-0 mt-2 bg-surface border border-border-strong rounded-lg shadow-lg py-1 min-w-[220px] max-h-64 overflow-y-auto z-50"
+                  className="absolute top-full left-0 mt-2 bg-surface border border-border-strong rounded-lg shadow-lg py-1 min-w-[240px] max-h-72 overflow-y-auto z-50"
                 >
-                  {standaloneNotes.length === 0 ? (
-                    <p className="text-xs text-ink-faint px-3 py-2">No standalone notes to link</p>
+                  {standaloneNotes.length === 0 && standaloneCanvases.length === 0 ? (
+                    <p className="text-xs text-ink-faint px-3 py-2">Nothing to link</p>
                   ) : (
-                    standaloneNotes.map((note) => (
-                      <motion.button
-                        key={note.id}
-                        whileHover={{ x: 2 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => handleLinkNote(note)}
-                        className="w-full text-left px-3 py-1.5 text-sm text-ink-secondary hover:bg-surface-sunken cursor-pointer transition-colors truncate"
-                      >
-                        {note.title}
-                      </motion.button>
-                    ))
+                    <>
+                      {standaloneNotes.length > 0 && (
+                        <>
+                          <div className="text-xs text-ink-faint uppercase tracking-wide px-3 py-1.5">Notes</div>
+                          {standaloneNotes.map((note) => (
+                            <motion.button
+                              key={note.id}
+                              whileHover={{ x: 2 }}
+                              whileTap={{ scale: 0.98 }}
+                              onClick={() => handleLinkNote(note)}
+                              className="w-full flex items-center gap-2 text-left px-3 py-1.5 text-sm text-ink-secondary hover:bg-surface-sunken cursor-pointer transition-colors"
+                            >
+                              <FileText size={13} className="text-ink-faint shrink-0" />
+                              <span className="truncate">{note.title}</span>
+                            </motion.button>
+                          ))}
+                        </>
+                      )}
+                      {standaloneCanvases.length > 0 && (
+                        <>
+                          <div className="text-xs text-ink-faint uppercase tracking-wide px-3 py-1.5">Canvases</div>
+                          {standaloneCanvases.map((canvas) => (
+                            <motion.button
+                              key={canvas.id}
+                              whileHover={{ x: 2 }}
+                              whileTap={{ scale: 0.98 }}
+                              onClick={() => handleLinkCanvas(canvas)}
+                              className="w-full flex items-center gap-2 text-left px-3 py-1.5 text-sm text-ink-secondary hover:bg-surface-sunken cursor-pointer transition-colors"
+                            >
+                              <Workflow size={13} className="text-ink-faint shrink-0" />
+                              <span className="truncate">{canvas.title}</span>
+                            </motion.button>
+                          ))}
+                        </>
+                      )}
+                    </>
                   )}
                 </motion.div>
               )}
@@ -554,6 +776,47 @@ export default function ProjectHeader({
                 noteMenu.note.linked_project_id === project.id
                   ? { label: 'Unlink note', icon: Link2, onClick: () => handleUnlinkNote(noteMenu.note) }
                   : { label: 'Delete note', icon: Trash2, danger: true, onClick: () => setConfirmDeleteNote(noteMenu.note) },
+              ]
+            : []
+        }
+      />
+
+      <CanvasEditModal
+        isOpen={editingCanvas !== null}
+        canvas={editingCanvas}
+        onClose={() => setEditingCanvas(null)}
+        onSave={handleSaveCanvas}
+        onDelete={handleDeleteCanvas}
+        {...(editingCanvas?.linked_project_id === project.id
+          ? {
+              deleteTitle: 'Unlink canvas',
+              confirmTitle: 'Unlink canvas?',
+              confirmMessage: 'This canvas will no longer appear on this project, but it will stay on the Canvases screen.',
+              confirmButtonText: 'Unlink',
+            }
+          : {})}
+      />
+
+      <ConfirmDialog
+        isOpen={!!confirmDeleteCanvas}
+        title="Delete canvas?"
+        message="This canvas will be moved to the recycle bin. You can restore it later."
+        confirmText="Delete"
+        onConfirm={confirmDeleteCanvasAction}
+        onCancel={() => setConfirmDeleteCanvas(null)}
+      />
+
+      <ContextMenu
+        position={canvasMenu?.position ?? null}
+        onClose={() => setCanvasMenu(null)}
+        items={
+          canvasMenu
+            ? [
+                { label: 'Open canvas', icon: FolderOpen, onClick: () => setEditingCanvas(canvasMenu.canvas) },
+                'separator',
+                canvasMenu.canvas.linked_project_id === project.id
+                  ? { label: 'Unlink canvas', icon: Link2, onClick: () => handleUnlinkCanvas(canvasMenu.canvas) }
+                  : { label: 'Delete canvas', icon: Trash2, danger: true, onClick: () => setConfirmDeleteCanvas(canvasMenu.canvas) },
               ]
             : []
         }

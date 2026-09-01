@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { Search, FolderOpen, Layers, FileText } from 'lucide-react'
+import { Search, FolderOpen, Layers, FileText, Workflow } from 'lucide-react'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { clickSound } from '../sounds'
@@ -10,8 +10,9 @@ export type SearchSelection =
   | { type: 'project'; id: string }
   | { type: 'card'; id: string; projectId: string }
   | { type: 'note'; id: string; projectId: string | null; cardId: string | null }
+  | { type: 'canvas'; id: string; projectId: string | null }
 
-const EMPTY_RESULTS: SearchResults = { projects: [], cards: [], notes: [] }
+const EMPTY_RESULTS: SearchResults = { projects: [], cards: [], notes: [], canvases: [] }
 
 export default function SearchModal({
   isOpen,
@@ -70,11 +71,12 @@ export default function SearchModal({
       results.projects[0] ? { type: 'project', id: results.projects[0].id } :
       results.cards[0] ? { type: 'card', id: results.cards[0].id, projectId: results.cards[0].project_id } :
       results.notes[0] ? { type: 'note', id: results.notes[0].id, projectId: results.notes[0].resolved_project_id, cardId: results.notes[0].card_id } :
+      results.canvases[0] ? { type: 'canvas', id: results.canvases[0].id, projectId: results.canvases[0].resolved_project_id } :
       null
     if (first) handleSelect(first)
   }
 
-  const hasResults = results.projects.length + results.cards.length + results.notes.length > 0
+  const hasResults = results.projects.length + results.cards.length + results.notes.length + results.canvases.length > 0
 
   return (
     <AnimatePresence>
@@ -107,7 +109,7 @@ export default function SearchModal({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Search projects, cards, and notes…"
+            placeholder="Search projects, cards, notes, and canvases…"
             className="flex-1 bg-transparent text-sm text-ink placeholder-ink-faint focus:outline-none"
           />
         </div>
@@ -172,6 +174,27 @@ export default function SearchModal({
                   <span className="truncate flex-1">{n.title}</span>
                   {n.project_name && (
                     <span className="text-xs text-ink-faint truncate shrink-0 max-w-[35%]">{n.project_name}</span>
+                  )}
+                </motion.button>
+              ))}
+            </div>
+          )}
+
+          {results.canvases.length > 0 && (
+            <div>
+              <div className="text-xs text-ink-faint uppercase tracking-wide px-4 py-1.5">Canvases</div>
+              {results.canvases.map((c) => (
+                <motion.button
+                  key={c.id}
+                  whileHover={{ x: 3 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => handleSelect({ type: 'canvas', id: c.id, projectId: c.resolved_project_id })}
+                  className="w-full flex items-center gap-2 text-left px-4 py-2 text-sm text-ink-secondary hover:bg-surface-sunken cursor-pointer transition-colors"
+                >
+                  <Workflow size={14} className="text-ink-faint shrink-0" />
+                  <span className="truncate flex-1">{c.title}</span>
+                  {c.project_name && (
+                    <span className="text-xs text-ink-faint truncate shrink-0 max-w-[35%]">{c.project_name}</span>
                   )}
                 </motion.button>
               ))}

@@ -19,6 +19,7 @@ A personal (not team) project manager:
 - **Per-project kanban board** — default columns: To Do / In Progress / Done (user can rename, add, remove). Cards show title + metadata; clicking a card opens a detail panel (points, priority, column, backing note). Cards can be dragged to reorder within a column, not just moved between columns.
 - **Cards** — each card is a title + metadata (points, priority, due date) backed by a markdown note file. A card's *status* is implicit — which column it sits in — not a separate field. Every card auto-creates its `.md` file on creation. Cards are manually ordered within columns via drag-and-drop.
 - **Notes** — markdown files on disk in a user-chosen vault folder. A note can be standalone (general) or linked to a project — linking makes it appear in both places without moving it.
+- **Canvas** — flowchart/diagram documents (React Flow: shape nodes, connectors) stored as JSON on disk, architected as a sibling of Notes — its own sidebar tab with folders, standalone or project-scoped, and the same link/unlink-into-a-project mechanic. A project's Notes and Canvases live together under one "Resources" section in the project header; its "+" button opens a small type picker (Note / Canvas) rather than creating one type directly.
 - **Right-click context menus** — quick-edit affordances everywhere a menu exists: e.g. a project or card's priority (and a project's status) can be set from a hover submenu directly in the context menu, without opening the item.
 - **Signature interaction** — smooth animation on even small details (checking things off, moving cards), paired with subtle sound effects. Moving a card to Done is a "completion moment" with a dedicated animation/sound.
 - **Design language** — deliberately not "generic AI dashboard": no colored left-border accent bars on cards/rows (priority and status are communicated only via the tag/badge inside the item, never a side stripe). Two-typeface system: Space Grotesk for headings and every title (page/section/modal titles, project/card/column/note names), Inter for body copy, labels, and metadata.
@@ -83,6 +84,23 @@ No WIP limits on columns.
 
 Content lives in `.md` files on disk, not in the database.
 
+### Canvases
+
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| title | text | Display title — explicit, not derived from content (no "first line" equivalent for a graph) |
+| filename | text | Path relative to vault root, `.canvas.json` extension |
+| project_id | UUID | FK → projects, nullable (null = standalone) |
+| linked_project_id | UUID | FK → projects, nullable — set by linking a standalone canvas into a project (mirrors note linking) |
+| folder_id | UUID | FK → canvas_folders, nullable |
+| position | integer | Manual order |
+| deleted_at | timestamp | Soft delete — 30-day auto-purge |
+
+Content (`{ nodes, edges, viewport }`, React Flow's own shape) lives in `.canvas.json` files on disk, not in the database — same DB-row-is-metadata/file-is-content split as Notes. No `card_id` — canvases don't attach to kanban cards (v1 scope). `canvas_folders` is a separate nestable folder table, structurally identical to `folders` (notes' own), so the two document types keep independent folder trees.
+
+v1 node/edge feature set: rectangle / diamond / text shape nodes with 4-side handles and double-click-to-edit labels, curved or straight connectors with arrowheads, a 6-swatch color picker per node. Deferred: thumbnails/previews, content search-indexing beyond title, real-time collab, templates, freehand drawing/image embeds, export-to-image, card-level canvases.
+
 ### Todos
 
 | Field | Type | Notes |
@@ -103,17 +121,18 @@ User chooses a vault folder on first launch. Layout:
 ```
 vault/
   notes/                    ← general standalone notes
+  canvases/                 ← general standalone canvases
   projects/
-    Project Name/           ← card-backing notes for that project
+    Project Name/           ← card-backing notes and canvases for that project
 ```
 
-### Note–Project Linking
+### Note/Canvas–Project Linking
 
-A standalone note can be linked to a project. Linking sets `project_id` — the note then appears in both the general notes list and under the project. It does not move the file on disk. UI: a "Link an existing note" button in the project header's notes section lists standalone notes to attach; there's no unlink UI yet.
+A standalone note or canvas can be linked to a project. Linking sets `linked_project_id` (notes) — the item then appears in both its own general list and under the project, without moving the file on disk. UI: the project header's "Resources" section has one link button/dropdown covering both — two labeled sub-sections ("Notes" / "Canvases", each with a type icon) listing unlinked standalone items of that type; unlinking is available via right-click on the resource card, or the "Unlink" action in its edit modal when it's a linked item.
 
 ### Search
 
-`search:query(q)` (IPC) does a case-insensitive substring match (SQLite `LIKE`, `%`/`_`/`\` escaped) against project names, card titles, and note titles — titles/names only, not markdown file contents. Returns up to 8 of each, projects and cards each carry enough to navigate directly; a note carries a `resolved_project_id` (its own `project_id`, or its parent card's project if card-scoped) so the picker can tell a standalone note (opens in the Notes view) from a project/card-scoped one (opens the parent project — no deep link into the note modal itself yet).
+`search:query(q)` (IPC) does a case-insensitive substring match (SQLite `LIKE`, `%`/`_`/`\` escaped) against project names, card titles, note titles, and canvas titles — titles/names only, not markdown file contents (and canvases have no content-scan fallback at all, since their body is a JSON graph, not readable text). Returns up to 8 of each, projects and cards each carry enough to navigate directly; a note or canvas carries a `resolved_project_id` (its own `project_id`, or — for notes — its parent card's project if card-scoped) so the picker can tell a standalone item (opens in the Notes/Canvas view) from a project-scoped one (opens the parent project — no deep link into the note/canvas modal itself yet).
 
 ## Tech Stack
 
@@ -124,6 +143,7 @@ A standalone note can be linked to a project. Linking sets `project_id` — the 
 | Animation | Motion for React (`motion`) | Successor to Framer Motion — same spring/easing API, smaller bundle |
 | Data | `sql.js` (SQLite compiled to WASM) | Real SQL without native compilation — works cross-platform, no rebuild step |
 | Notes | Markdown files on disk, edited via TipTap + `tiptap-markdown` | WYSIWYG rich-text editing (Obsidian-style) while `.md` stays the on-disk source of truth |
+| Canvas | `@xyflow/react` (React Flow v12), JSON graph on disk | Node-based flowchart editor scoped to diagrams (not a full Miro-style freeform whiteboard); `.canvas.json` stays the on-disk source of truth, same split as Notes |
 | Styling | Tailwind v4 + single `@theme` token file (`src/theme.css`) | One master source for all color tokens — components consume semantic classes, never raw palette colors |
 | Tests | Vitest, against `electron/db.ts` directly (no Electron/GUI dependency) | The GUI can't be launched in a headless/sandboxed shell; the DB layer is plain functions over `sql.js` so it's testable without one |
 | Repo | GitHub — `github.com/rileyheasley/anchor` | Standard version control |
@@ -144,6 +164,10 @@ A standalone note can be linked to a project. Linking sets `project_id` — the 
 - Global search (`Mod+K`, or the sidebar search icon): one popover searching project names, card titles, and note titles at once; selecting a project or card navigates straight to it (a card opens its detail panel directly — `focusCardId` prop threaded through `App.tsx` → `ProjectBoard`), a standalone note opens directly in the Notes view (`focusNoteId` prop → `NotesPage`) — see the Search section under Data Model for what it does and doesn't cover
 - Notes system built: vault folder setup, standalone + project + card-scoped notes, soft delete, linking an existing standalone note to a project from the project header
 - Notes editor is WYSIWYG rich-text (TipTap), not a plain textarea — headings, bold/italic, bullet/numbered/task lists, quotes, code blocks, via right-click context menu (now viewport-clamped and Escape-closeable); content still round-trips to plain `.md` on disk
+- Canvas system built as a full sibling of Notes: its own sidebar tab (labeled "Canvas" in the nav, `canvases:*`/`canvasFolders:*` IPC + `canvas_folders`/`canvases` tables underneath), nestable folders, standalone or project-scoped creation, soft delete/recycle bin, and project-linking — all mirroring the Notes implementation pattern file-for-file rather than a shared abstraction (see Notes / Learnings)
+- Canvas editor (`CanvasEditor.tsx`, React Flow) — rectangle/diamond/text shape nodes with double-click-to-edit labels and 4-side handles (`connectionMode="loose"` so any handle starts or receives a connection), curved/straight connector toggle with arrowheads, 6-swatch color picker applied to the current selection; autosaves via the same 1500ms-debounce pattern as the markdown editor
+- Project header's Notes and Canvases sections were merged into one "Resources" section — a single combined card list plus one "+" button that opens a small type-picker dropdown (Note / Canvas) instead of two separate create buttons; the link button/dropdown stays type-aware (two labeled sub-sections) since it draws from two different standalone lists
+- Global search extended to cover canvases (title-only — no content-scan fallback, since a canvas body is a JSON graph, not readable text) with their own results section and deep-link support
 - Design tokens centralized in `src/theme.css` — all semantic colors (surface/border/ink/primary/accent/success/warning/danger/special) defined once via Tailwind v4 `@theme`; dark-mode badge tokens (`accent/danger/special-strong`) were WCAG-audited and fixed to meet AA contrast on their `-subtle` backgrounds; dark theme's `ink-muted`/`ink-faint` were also found and fixed swapped (faint was reading as higher-contrast than muted)
 - Design assets scaffolded under `src/assets/` (`icons/`, `logos/`, `images/`) with a README on when to use these vs. top-level `public/`; app logo (`logo.svg`) is in place and wired into the title bar (theme-aware via CSS mask) and window favicon
 - Custom themed scrollbar replaces the OS default everywhere: track is always fully transparent (no visible background in either state), thumb is rounded and only fades in (`border-strong`, darkening to `ink-faint` on direct hover) while its container is hovered/scrolled — a hover-reveal, overlay-like feel without relying on the deprecated `overflow: overlay`. Applied via both the WebKit scrollbar pseudo-elements and the standard `scrollbar-color`/`scrollbar-width` properties
@@ -182,6 +206,7 @@ A standalone note can be linked to a project. Linking sets `project_id` — the 
 23. ~~Home page — actionable overview (needs-attention/stale-project nudges, status breakdown, points trend, recent notes, quick actions)~~ ✅
 24. ~~Standalone to-do list on Home, with priority/due date via right-click~~ ✅
 25. ~~Sound/animation audit pass — every modal and floating menu animates, all reorder actions have a sound, hover/tap feedback on utility buttons~~ ✅
+26. ~~Canvas — flowchart/diagram documents (React Flow), full sibling of Notes: sidebar tab, folders, standalone/project-scoped, project-linking, search~~ ✅ — v1 scope only (see Data Model → Canvases for what's deferred)
 
 ## Notes / Learnings
 
@@ -204,7 +229,9 @@ A standalone note can be linked to a project. Linking sets `project_id` — the 
 - **`AnimatePresence` needs its child's condition to survive the prop that nulls out alongside it.** A modal driven by `isOpen={x !== null}` / `data={x}` (same source, e.g. `NoteEditModal`) has both go false/null on the same render when closing — gate the animated child on `isOpen && data` (not `isOpen` alone) and stop reading `data` directly in the JSX below that point, or the exit animation's extra render cycle crashes/blanks on the now-null value.
 - **`main.ts`'s IPC handlers aren't unit-testable as-is** — they close over a module-level `db` and the file calls `app.whenReady()` at import time, so importing it outside Electron doesn't work. The fix that actually pays off: pull the pure SQL logic (schema, migrations, query building) out into a plain module (`electron/db.ts`) with no `electron` import, have `main.ts`'s handlers call into it. That module is directly testable with Vitest + `sql.js`; `main.ts` itself still isn't, but the highest-regression-risk logic now is.
 - **SQLite `LIKE` needs its wildcards escaped when the pattern comes from user input**, or a literal `%`/`_` typed into a search box behaves as a wildcard instead of a literal character. Escape `\`, `%`, `_` in the input and add `ESCAPE '\'` to the query.
-- **A "jump to X" deep link across independently-loaded views needs a target-id prop plus an effect that fires once the target's list has loaded, not on mount.** E.g. search "opening" a card: `App.tsx` sets `focusCardId`, hands it to `ProjectBoard` as a prop; `ProjectBoard` doesn't know when its own async `loadBoard()` will resolve, so the effect watches `[focusCardId, cards]` and only acts once the id shows up in the loaded list, then reports back via `onFocusCardHandled` so `App.tsx` clears it. Same shape for notes in `NotesPage`.
+- **A "jump to X" deep link across independently-loaded views needs a target-id prop plus an effect that fires once the target's list has loaded, not on mount.** E.g. search "opening" a card: `App.tsx` sets `focusCardId`, hands it to `ProjectBoard` as a prop; `ProjectBoard` doesn't know when its own async `loadBoard()` will resolve, so the effect watches `[focusCardId, cards]` and only acts once the id shows up in the loaded list, then reports back via `onFocusCardHandled` so `App.tsx` clears it. Same shape for notes in `NotesPage`, and canvases in `CanvasesPage`/`ProjectHeader`.
+- **Canvas was built by duplicating the Notes pattern file-for-file (`CanvasesPage`/`CanvasesTree`/`CanvasCard` alongside `NotesPage`/`NotesTree`/`NoteCard`), not by genericizing Notes over a shared type.** The existing Notes code is hardcoded to the `Note`/`NoteFolder` shape; forcing a generic abstraction now would touch and risk-regress all of Notes for a v1 feature. Worth revisiting once both are stable — the only piece already shared is `sortByMode` (generic on `{position, created_at, updated_at}`), re-exported from `canvasTree.ts`.
+- **A React Flow custom node shouldn't reach into `useReactFlow().setNodes` from inside itself when its parent already holds nodes as controlled state via `useNodesState`.** That produces two competing writers to the same graph. `CanvasEditor`'s shape nodes instead take an `onLabelChange(id, value)` callback injected into `node.data` by the parent (`nodesWithHandlers` in `CanvasEditor.tsx`) — the callback closes over the parent's own `setNodes`, so there's one writer.
 
 ---
 *Working title: Anchor. Living doc, update as decisions are made.*

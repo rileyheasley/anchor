@@ -66,6 +66,29 @@ export interface NoteFolder {
   updated_at: string
 }
 
+export interface Canvas {
+  id: string
+  title: string
+  filename: string
+  project_id: string | null
+  linked_project_id: string | null
+  folder_id: string | null
+  position: number
+  deleted_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CanvasFolder {
+  id: string
+  name: string
+  parent_folder_id: string | null
+  position: number
+  deleted_at: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface Todo {
   id: string
   text: string
@@ -78,7 +101,7 @@ export interface Todo {
 }
 
 export interface RecycleItem {
-  type: 'project' | 'card' | 'note'
+  type: 'project' | 'card' | 'note' | 'canvas'
   id: string
   title: string
   deleted_at: string
@@ -107,10 +130,19 @@ export interface SearchNoteResult {
   project_name: string | null
 }
 
+export interface SearchCanvasResult {
+  id: string
+  title: string
+  project_id: string | null
+  resolved_project_id: string | null
+  project_name: string | null
+}
+
 export interface SearchResults {
   projects: SearchProjectResult[]
   cards: SearchCardResult[]
   notes: SearchNoteResult[]
+  canvases: SearchCanvasResult[]
 }
 
 export interface OverviewDueCard {
@@ -209,6 +241,26 @@ declare global {
         create: (data: { name: string, parent_folder_id?: string | null }) => Promise<NoteFolder>
         rename: (data: { id: string, name: string }) => Promise<NoteFolder>
         move: (data: { id: string, parent_folder_id: string | null }) => Promise<NoteFolder>
+        reorder: (data: { ids: string[] }) => Promise<void>
+        delete: (id: string) => Promise<void>
+      }
+      canvases: {
+        list: (filter?: { project_id?: string, standalone?: boolean }) => Promise<Canvas[]>
+        create: (data: { title?: string, project_id?: string }) => Promise<Canvas>
+        update: (data: { id: string, title?: string, project_id?: string | null }) => Promise<Canvas>
+        link: (data: { id: string, project_id: string }) => Promise<Canvas>
+        unlink: (id: string) => Promise<Canvas>
+        reorder: (data: { ids: string[] }) => Promise<void>
+        move: (data: { ids: string[], folder_id: string | null }) => Promise<void>
+        getContent: (id: string) => Promise<string | null>
+        saveContent: (id: string, content: string) => Promise<void>
+        delete: (id: string) => Promise<void>
+      }
+      canvasFolders: {
+        list: () => Promise<CanvasFolder[]>
+        create: (data: { name: string, parent_folder_id?: string | null }) => Promise<CanvasFolder>
+        rename: (data: { id: string, name: string }) => Promise<CanvasFolder>
+        move: (data: { id: string, parent_folder_id: string | null }) => Promise<CanvasFolder>
         reorder: (data: { ids: string[] }) => Promise<void>
         delete: (id: string) => Promise<void>
       }

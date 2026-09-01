@@ -6,7 +6,9 @@ import fs from 'node:fs'
 import initSqlJs, { type Database } from 'sql.js'
 import {
   createSchema, listActiveProjects, listArchivedProjects, NOTE_PROJECT_JOIN, NOTE_PROJECT_COLUMNS,
+  CANVAS_PROJECT_JOIN, CANVAS_PROJECT_COLUMNS,
   collectFolderSubtreeIds, wouldCreateFolderCycle,
+  collectCanvasFolderSubtreeIds, wouldCreateCanvasFolderCycle,
 } from './db'
 import { deriveTitleFromContent } from '../src/shared/noteTitle'
 
@@ -247,6 +249,19 @@ function deleteNoteFile(filename: string) {
   }
 }
 
+// Canvas content files live in the same vault, just under a different filename extension —
+// canvasFilePath/deleteCanvasFile mirror noteFilePath/deleteNoteFile exactly.
+function canvasFilePath(filename: string): string | null {
+  return noteFilePath(filename)
+}
+
+function deleteCanvasFile(filename: string) {
+  const fp = canvasFilePath(filename)
+  if (fp && fs.existsSync(fp)) {
+    try { fs.unlinkSync(fp) } catch { /* ignore */ }
+  }
+}
+
 // Removes notes (DB rows + files) attached to the given cards. Must run before any hard
 // delete that cascades away those cards, otherwise their notes silently become orphaned
 // "standalone" notes (notes.card_id is ON DELETE SET NULL, not CASCADE).
@@ -272,6 +287,14 @@ function purgeSoftDeleted() {
     }
   }
   execute('DELETE FROM notes WHERE deleted_at IS NOT NULL AND deleted_at < ?', [cutoff])
+
+  const staleCanvases = queryAll(
+    'SELECT filename FROM canvases WHERE deleted_at IS NOT NULL AND deleted_at < ?',
+    [cutoff]
+  )
+  for (const canvas of staleCanvases) deleteCanvasFile(canvas.filename as string)
+  execute('DELETE FROM canvases WHERE deleted_at IS NOT NULL AND deleted_at < ?', [cutoff])
+
   execute('DELETE FROM cards WHERE deleted_at IS NOT NULL AND deleted_at < ?', [cutoff])
   execute('DELETE FROM projects WHERE deleted_at IS NOT NULL AND deleted_at < ?', [cutoff])
   saveDatabase()
@@ -344,6 +367,7 @@ app.whenReady().then(async () => {
     if (!app.isPackaged && !getVaultPath()) {
       const devVault = path.join(process.env.APP_ROOT, 'test-data')
       fs.mkdirSync(path.join(devVault, 'notes'), { recursive: true })
+      fs.mkdirSync(path.join(devVault, 'canvases'), { recursive: true })
       fs.mkdirSync(path.join(devVault, 'projects'), { recursive: true })
       setSetting('vault_path', devVault)
       console.log('Dev mode — vault set to test-data/')
@@ -389,6 +413,7 @@ app.whenReady().then(async () => {
       if (result.canceled || !result.filePaths[0]) return null
       const vaultPath = result.filePaths[0]
       fs.mkdirSync(path.join(vaultPath, 'notes'), { recursive: true })
+      fs.mkdirSync(path.join(vaultPath, 'canvases'), { recursive: true })
       fs.mkdirSync(path.join(vaultPath, 'projects'), { recursive: true })
       setSetting('vault_path', vaultPath)
       return vaultPath
@@ -573,6 +598,216 @@ app.whenReady().then(async () => {
       saveDatabase()
     })
 
+    // ── Canvas handlers ──
+
+    ipcMain.handle('canvases:list', (_event, filter?: { project_id?: string, standalone?: boolean }) => {
+      if (filter?.project_id) {
+        return queryAll(
+          `SELECT * FROM canvases
+           WHERE (project_id = ? OR linked_project_id = ?) AND deleted_at IS NULL
+           ORDER BY position ASC, created_at ASC`,
+          [filter.project_id, filter.project_id]
+        )
+      }
+      if (filter?.standalone) {
+        return queryAll(
+          'SELECT * FROM canvases WHERE project_id IS NULL AND deleted_at IS NULL ORDER BY updated_at DESC'
+        )
+      }
+      return queryAll('SELECT * FROM canvases WHERE deleted_at IS NULL ORDER BY updated_at DESC')
+    })
+
+    ipcMain.handle('canvases:create', async (_event, data: { title?: string, project_id?: string }) => {
+      const vault = getVaultPath()
+      if (!vault) throw new Error('No vault configured')
+
+      let relDir = 'canvases'
+      if (data.project_id) {
+        const project = queryOne('SELECT name FROM projects WHERE id = ?', [data.project_id])
+        const projectName = (project?.name as string | null) ?? 'Unknown'
+        relDir = path.join('projects', projectName.replace(/[<>:"/\\|?*]/g, '-'))
+      }
+
+      fs.mkdirSync(path.join(vault, relDir), { recursive: true })
+
+      const id = crypto.randomUUID()
+      const filename = path.join(relDir, `${id}.canvas.json`)
+      const absPath = path.join(vault, filename)
+      fs.writeFileSync(absPath, JSON.stringify({ nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } }))
+
+      // New project canvases are appended to the end of the manual stack order
+      let position = 0
+      if (data.project_id) {
+        const row = queryOne(
+          'SELECT MAX(position) AS maxPos FROM canvases WHERE (project_id = ? OR linked_project_id = ?) AND deleted_at IS NULL',
+          [data.project_id, data.project_id]
+        )
+        position = ((row?.maxPos as number | null) ?? -1) + 1
+      }
+
+      const title = data.title ?? 'Untitled canvas'
+      execute(
+        'INSERT INTO canvases (id, title, filename, project_id, position) VALUES (?, ?, ?, ?, ?)',
+        [id, title, filename, data.project_id ?? null, position]
+      )
+      saveDatabase()
+      return queryOne('SELECT * FROM canvases WHERE id = ?', [id])
+    })
+
+    ipcMain.handle('canvases:reorder', async (_event, data: { ids: string[] }) => {
+      data.ids.forEach((id, index) => {
+        execute('UPDATE canvases SET position = ? WHERE id = ? AND deleted_at IS NULL', [index, id])
+      })
+      saveDatabase()
+    })
+
+    // Bulk-moves standalone canvases into a folder (or to the root list, when folder_id is null).
+    ipcMain.handle('canvases:move', async (_event, data: { ids: string[], folder_id: string | null }) => {
+      if (data.ids.length === 0) return
+      const row = queryOne(
+        'SELECT MAX(position) AS maxPos FROM canvases WHERE folder_id IS ? AND project_id IS NULL AND deleted_at IS NULL',
+        [data.folder_id]
+      )
+      let position = ((row?.maxPos as number | null) ?? -1) + 1
+      for (const id of data.ids) {
+        execute(
+          `UPDATE canvases SET folder_id = ?, position = ?, updated_at = datetime('now')
+           WHERE id = ? AND project_id IS NULL AND deleted_at IS NULL`,
+          [data.folder_id, position, id]
+        )
+        position++
+      }
+      saveDatabase()
+    })
+
+    ipcMain.handle('canvases:update', async (_event, data: { id: string, title?: string, project_id?: string | null }) => {
+      const fields: string[] = []
+      const values: unknown[] = []
+
+      if (data.title !== undefined) { fields.push('title = ?'); values.push(data.title) }
+      if (data.project_id !== undefined) { fields.push('project_id = ?'); values.push(data.project_id) }
+
+      if (fields.length === 0) return queryOne('SELECT * FROM canvases WHERE id = ?', [data.id])
+
+      fields.push("updated_at = datetime('now')")
+      values.push(data.id)
+
+      execute(`UPDATE canvases SET ${fields.join(', ')} WHERE id = ? AND deleted_at IS NULL`, values)
+      saveDatabase()
+      return queryOne('SELECT * FROM canvases WHERE id = ?', [data.id])
+    })
+
+    // Links an existing standalone canvas into a project's Canvases section without moving it —
+    // mirrors notes:link exactly.
+    ipcMain.handle('canvases:link', async (_event, data: { id: string, project_id: string }) => {
+      execute(
+        `UPDATE canvases SET linked_project_id = ?, updated_at = datetime('now')
+         WHERE id = ? AND project_id IS NULL AND deleted_at IS NULL`,
+        [data.project_id, data.id]
+      )
+      saveDatabase()
+      return queryOne('SELECT * FROM canvases WHERE id = ?', [data.id])
+    })
+
+    ipcMain.handle('canvases:unlink', async (_event, id: string) => {
+      execute("UPDATE canvases SET linked_project_id = NULL, updated_at = datetime('now') WHERE id = ?", [id])
+      saveDatabase()
+      return queryOne('SELECT * FROM canvases WHERE id = ?', [id])
+    })
+
+    ipcMain.handle('canvases:getContent', (_event, id: string) => {
+      const canvas = queryOne('SELECT filename FROM canvases WHERE id = ?', [id])
+      if (!canvas) return null
+      const fp = canvasFilePath(canvas.filename as string)
+      if (!fp || !fs.existsSync(fp)) return null
+      return fs.readFileSync(fp, 'utf-8')
+    })
+
+    ipcMain.handle('canvases:saveContent', (_event, id: string, content: string) => {
+      const canvas = queryOne('SELECT filename FROM canvases WHERE id = ?', [id])
+      if (!canvas) throw new Error('Canvas not found')
+      const fp = canvasFilePath(canvas.filename as string)
+      if (!fp) throw new Error('No vault configured')
+      fs.writeFileSync(fp, content, 'utf-8')
+      execute("UPDATE canvases SET updated_at = datetime('now') WHERE id = ?", [id])
+      saveDatabase()
+    })
+
+    ipcMain.handle('canvases:delete', (_event, id: string) => {
+      execute("UPDATE canvases SET deleted_at = datetime('now'), updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL", [id])
+      saveDatabase()
+    })
+
+    // ── Canvas folder handlers (mirrors the note-folder handlers below, table canvas_folders) ──
+
+    ipcMain.handle('canvasFolders:list', () => {
+      return queryAll('SELECT * FROM canvas_folders WHERE deleted_at IS NULL ORDER BY position ASC, created_at ASC')
+    })
+
+    ipcMain.handle('canvasFolders:create', async (_event, data: { name: string, parent_folder_id?: string | null }) => {
+      const parentId = data.parent_folder_id ?? null
+      const row = queryOne(
+        'SELECT MAX(position) AS maxPos FROM canvas_folders WHERE parent_folder_id IS ? AND deleted_at IS NULL',
+        [parentId]
+      )
+      const position = ((row?.maxPos as number | null) ?? -1) + 1
+      const id = crypto.randomUUID()
+      execute(
+        'INSERT INTO canvas_folders (id, name, parent_folder_id, position) VALUES (?, ?, ?, ?)',
+        [id, data.name, parentId, position]
+      )
+      saveDatabase()
+      return queryOne('SELECT * FROM canvas_folders WHERE id = ?', [id])
+    })
+
+    ipcMain.handle('canvasFolders:rename', async (_event, data: { id: string, name: string }) => {
+      execute(
+        "UPDATE canvas_folders SET name = ?, updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL",
+        [data.name, data.id]
+      )
+      saveDatabase()
+      return queryOne('SELECT * FROM canvas_folders WHERE id = ?', [data.id])
+    })
+
+    ipcMain.handle('canvasFolders:move', async (_event, data: { id: string, parent_folder_id: string | null }) => {
+      const targetId = data.parent_folder_id
+      if (wouldCreateCanvasFolderCycle(db!, data.id, targetId)) {
+        throw new Error('Cannot move a folder into itself or one of its own subfolders')
+      }
+      const row = queryOne(
+        'SELECT MAX(position) AS maxPos FROM canvas_folders WHERE parent_folder_id IS ? AND deleted_at IS NULL',
+        [targetId]
+      )
+      const position = ((row?.maxPos as number | null) ?? -1) + 1
+      execute(
+        "UPDATE canvas_folders SET parent_folder_id = ?, position = ?, updated_at = datetime('now') WHERE id = ?",
+        [targetId, position, data.id]
+      )
+      saveDatabase()
+      return queryOne('SELECT * FROM canvas_folders WHERE id = ?', [data.id])
+    })
+
+    ipcMain.handle('canvasFolders:reorder', async (_event, data: { ids: string[] }) => {
+      data.ids.forEach((id, index) => {
+        execute('UPDATE canvas_folders SET position = ? WHERE id = ? AND deleted_at IS NULL', [index, id])
+      })
+      saveDatabase()
+    })
+
+    ipcMain.handle('canvasFolders:delete', async (_event, id: string) => {
+      const folderIds = collectCanvasFolderSubtreeIds(db!, id)
+      const placeholders = folderIds.map(() => '?').join(',')
+      execute(
+        `UPDATE canvases SET deleted_at = datetime('now'), updated_at = datetime('now') WHERE folder_id IN (${placeholders}) AND deleted_at IS NULL`,
+        folderIds
+      )
+      execute(
+        `UPDATE canvas_folders SET deleted_at = datetime('now'), updated_at = datetime('now') WHERE id IN (${placeholders})`,
+        folderIds
+      )
+      saveDatabase()
+    })
+
     // ── Folder handlers (standalone notes only — nestable via parent_folder_id) ──
 
     ipcMain.handle('folders:list', () => {
@@ -654,7 +889,8 @@ app.whenReady().then(async () => {
       const projects = queryAll("SELECT 'project' AS type, id, name AS title, deleted_at FROM projects WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC")
       const cards = queryAll("SELECT 'card' AS type, id, title, deleted_at FROM cards WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC")
       const notes = queryAll("SELECT 'note' AS type, id, title, deleted_at FROM notes WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC")
-      return [...projects, ...cards, ...notes].sort((a, b) =>
+      const canvases = queryAll("SELECT 'canvas' AS type, id, title, deleted_at FROM canvases WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC")
+      return [...projects, ...cards, ...notes, ...canvases].sort((a, b) =>
         (b.deleted_at as string).localeCompare(a.deleted_at as string)
       )
     })
@@ -678,6 +914,7 @@ app.whenReady().then(async () => {
         execute('UPDATE cards SET deleted_at = NULL WHERE id = ?', [id])
       }
       else if (type === 'note') execute('UPDATE notes SET deleted_at = NULL WHERE id = ?', [id])
+      else if (type === 'canvas') execute('UPDATE canvases SET deleted_at = NULL WHERE id = ?', [id])
       saveDatabase()
     })
 
@@ -688,6 +925,9 @@ app.whenReady().then(async () => {
         const projectNotes = queryAll('SELECT filename FROM notes WHERE project_id = ?', [id])
         for (const note of projectNotes) deleteNoteFile(note.filename as string)
         execute('DELETE FROM notes WHERE project_id = ?', [id])
+        const projectCanvases = queryAll('SELECT filename FROM canvases WHERE project_id = ?', [id])
+        for (const canvas of projectCanvases) deleteCanvasFile(canvas.filename as string)
+        execute('DELETE FROM canvases WHERE project_id = ?', [id])
         execute('DELETE FROM projects WHERE id = ?', [id])
       } else if (type === 'card') {
         deleteNotesForCards([id])
@@ -696,6 +936,10 @@ app.whenReady().then(async () => {
         const note = queryOne('SELECT filename FROM notes WHERE id = ?', [id])
         if (note) deleteNoteFile(note.filename as string)
         execute('DELETE FROM notes WHERE id = ?', [id])
+      } else if (type === 'canvas') {
+        const canvas = queryOne('SELECT filename FROM canvases WHERE id = ?', [id])
+        if (canvas) deleteCanvasFile(canvas.filename as string)
+        execute('DELETE FROM canvases WHERE id = ?', [id])
       }
       saveDatabase()
     })
@@ -1020,7 +1264,7 @@ app.whenReady().then(async () => {
 
     ipcMain.handle('search:query', (_event, query: string) => {
       const q = query.trim()
-      if (!q) return { projects: [], cards: [], notes: [] }
+      if (!q) return { projects: [], cards: [], notes: [], canvases: [] }
       const like = `%${q.replace(/[\\%_]/g, (c) => '\\' + c)}%`
 
       const projects = queryAll(
@@ -1081,7 +1325,19 @@ app.whenReady().then(async () => {
           ({ id, title, project_id, card_id, resolved_project_id, project_name })
       )
 
-      return { projects, cards, notes }
+      // Canvas bodies are a JSON graph, not readable text, so search is title-only (no
+      // content-scan fallback the way notes get).
+      const canvases = queryAll(
+        `SELECT c.id, c.title, c.project_id,
+           ${CANVAS_PROJECT_COLUMNS}
+         FROM canvases c
+         ${CANVAS_PROJECT_JOIN}
+         WHERE c.deleted_at IS NULL AND c.title LIKE ? ESCAPE '\\' COLLATE NOCASE
+         ORDER BY c.title COLLATE NOCASE LIMIT 8`,
+        [like]
+      )
+
+      return { projects, cards, notes, canvases }
     })
 
     createWindow()

@@ -10,12 +10,14 @@ const TYPE_LABELS: Record<string, string> = {
   project: 'Project',
   card: 'Card',
   note: 'Note',
+  canvas: 'Canvas',
 }
 
 const TYPE_COLORS: Record<string, string> = {
   project: 'bg-special-subtle text-special-strong',
   card: 'bg-accent-subtle text-accent-strong',
   note: 'bg-success-subtle text-success-strong',
+  canvas: 'bg-warning-subtle text-warning-strong',
 }
 
 export default function RecycleBin() {

@@ -24,7 +24,7 @@ const CARD_SORT_LABELS: Record<CardSortMode, string> = {
   created: 'Date created',
 }
 
-export default function ProjectBoard({ project, onClose, onProjectUpdate, focusCardId, onFocusCardHandled, focusNoteId, onFocusNoteHandled }: { project: Project, onClose: () => void, onProjectUpdate?: (updatedProject: Project) => void, focusCardId?: string | null, onFocusCardHandled?: () => void, focusNoteId?: string | null, onFocusNoteHandled?: () => void }) {
+export default function ProjectBoard({ project, onClose, onProjectUpdate, focusCardId, onFocusCardHandled, focusNoteId, onFocusNoteHandled, focusCanvasId, onFocusCanvasHandled }: { project: Project, onClose: () => void, onProjectUpdate?: (updatedProject: Project) => void, focusCardId?: string | null, onFocusCardHandled?: () => void, focusNoteId?: string | null, onFocusNoteHandled?: () => void, focusCanvasId?: string | null, onFocusCanvasHandled?: () => void }) {
   const [columns, setColumns] = useState<KanbanColumn[]>([])
   const [cards, setCards] = useState<Card[]>([])
   const [creatingInColumn, setCreatingInColumn] = useState<string | null>(null)
@@ -395,6 +395,8 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
         onUpdateProject={handleUpdateProject}
         focusNoteId={focusNoteId}
         onFocusNoteHandled={onFocusNoteHandled}
+        focusCanvasId={focusCanvasId}
+        onFocusCanvasHandled={onFocusCanvasHandled}
         totalPoints={cards.reduce((sum, c) => sum + (c.points ?? 0), 0)}
         donePoints={cards
           .filter((c) => columns.find((col) => col.id === c.column_id)?.is_done)

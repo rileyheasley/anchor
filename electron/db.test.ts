@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 import {
   createSchema, migrateSchema, listActiveProjects, listArchivedProjects,
   collectFolderSubtreeIds, wouldCreateFolderCycle,
+  collectCanvasFolderSubtreeIds, wouldCreateCanvasFolderCycle,
 } from './db'
 
 let db: Database
@@ -335,5 +336,114 @@ describe('folders + notes integration (cascade delete semantics used by folders:
     expect(remainingNotes).toEqual([n3])
     expect(queryAll('SELECT deleted_at FROM notes WHERE id = ?', [n1])[0].deleted_at).not.toBeNull()
     expect(queryAll('SELECT deleted_at FROM notes WHERE id = ?', [n2])[0].deleted_at).not.toBeNull()
+  })
+})
+
+function insertCanvasFolder(name: string, parentId: string | null = null) {
+  const id = randomUUID()
+  db.run('INSERT INTO canvas_folders (id, name, parent_folder_id) VALUES (?, ?, ?)', [id, name, parentId])
+  return id
+}
+
+function insertCanvas(folderId: string | null = null) {
+  const id = randomUUID()
+  db.run('INSERT INTO canvases (id, title, filename, folder_id) VALUES (?, ?, ?, ?)', [id, 'Canvas', `canvases/${id}.canvas.json`, folderId])
+  return id
+}
+
+describe('createSchema (canvases)', () => {
+  it('creates canvas_folders and canvases tables', () => {
+    createSchema(db)
+    const tables = queryAll("SELECT name FROM sqlite_master WHERE type='table'").map((t) => t.name)
+    expect(tables).toEqual(expect.arrayContaining(['canvas_folders', 'canvases']))
+  })
+})
+
+describe('collectCanvasFolderSubtreeIds', () => {
+  beforeEach(() => createSchema(db))
+
+  it('returns just the folder itself when it has no subfolders', () => {
+    const id = insertCanvasFolder('Lonely')
+    expect(collectCanvasFolderSubtreeIds(db, id)).toEqual([id])
+  })
+
+  it('collects nested descendants recursively', () => {
+    const work = insertCanvasFolder('Work')
+    const projects = insertCanvasFolder('Projects', work)
+    const archive = insertCanvasFolder('Archive', work)
+    const q1 = insertCanvasFolder('Q1', projects)
+
+    const ids = collectCanvasFolderSubtreeIds(db, work)
+    expect(ids.sort()).toEqual([work, projects, archive, q1].sort())
+  })
+
+  it('does not cross into a sibling subtree', () => {
+    const work = insertCanvasFolder('Work')
+    const personal = insertCanvasFolder('Personal')
+    insertCanvasFolder('Projects', work)
+
+    const ids = collectCanvasFolderSubtreeIds(db, personal)
+    expect(ids).toEqual([personal])
+  })
+
+  it('ignores already-deleted descendants', () => {
+    const work = insertCanvasFolder('Work')
+    const archived = insertCanvasFolder('Archived child', work)
+    db.run("UPDATE canvas_folders SET deleted_at = datetime('now') WHERE id = ?", [archived])
+
+    expect(collectCanvasFolderSubtreeIds(db, work)).toEqual([work])
+  })
+})
+
+describe('wouldCreateCanvasFolderCycle', () => {
+  beforeEach(() => createSchema(db))
+
+  it('allows moving a folder to the root', () => {
+    const folder = insertCanvasFolder('Folder')
+    expect(wouldCreateCanvasFolderCycle(db, folder, null)).toBe(false)
+  })
+
+  it('allows moving a folder under an unrelated folder', () => {
+    const a = insertCanvasFolder('A')
+    const b = insertCanvasFolder('B')
+    expect(wouldCreateCanvasFolderCycle(db, a, b)).toBe(false)
+  })
+
+  it('rejects moving a folder into itself', () => {
+    const folder = insertCanvasFolder('Folder')
+    expect(wouldCreateCanvasFolderCycle(db, folder, folder)).toBe(true)
+  })
+
+  it('rejects moving a folder into its own descendant', () => {
+    const work = insertCanvasFolder('Work')
+    const projects = insertCanvasFolder('Projects', work)
+    const q1 = insertCanvasFolder('Q1', projects)
+
+    expect(wouldCreateCanvasFolderCycle(db, work, q1)).toBe(true)
+    expect(wouldCreateCanvasFolderCycle(db, work, projects)).toBe(true)
+  })
+})
+
+describe('canvas_folders + canvases integration (cascade delete semantics used by canvasFolders:delete)', () => {
+  beforeEach(() => createSchema(db))
+
+  it('soft-deleting every folder in a collected subtree also soft-deletes their canvases', () => {
+    const work = insertCanvasFolder('Work')
+    const projects = insertCanvasFolder('Projects', work)
+    const n1 = insertCanvas(work)
+    const n2 = insertCanvas(projects)
+    const n3 = insertCanvas(null) // unrelated, must survive
+
+    const folderIds = collectCanvasFolderSubtreeIds(db, work)
+    const placeholders = folderIds.map(() => '?').join(',')
+    db.run(`UPDATE canvases SET deleted_at = datetime('now') WHERE folder_id IN (${placeholders})`, folderIds)
+    db.run(`UPDATE canvas_folders SET deleted_at = datetime('now') WHERE id IN (${placeholders})`, folderIds)
+
+    const remainingFolders = queryAll('SELECT id FROM canvas_folders WHERE deleted_at IS NULL')
+    const remainingCanvases = queryAll('SELECT id FROM canvases WHERE deleted_at IS NULL').map((r) => r.id)
+    expect(remainingFolders).toEqual([])
+    expect(remainingCanvases).toEqual([n3])
+    expect(queryAll('SELECT deleted_at FROM canvases WHERE id = ?', [n1])[0].deleted_at).not.toBeNull()
+    expect(queryAll('SELECT deleted_at FROM canvases WHERE id = ?', [n2])[0].deleted_at).not.toBeNull()
   })
 })

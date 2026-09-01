@@ -79,6 +79,29 @@ export function createSchema(db: Database) {
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`)
 
+  db.run(`CREATE TABLE IF NOT EXISTS canvas_folders (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    parent_folder_id TEXT REFERENCES canvas_folders(id) ON DELETE SET NULL,
+    position INTEGER NOT NULL DEFAULT 0,
+    deleted_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`)
+
+  db.run(`CREATE TABLE IF NOT EXISTS canvases (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    filename TEXT NOT NULL,
+    project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+    linked_project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+    folder_id TEXT REFERENCES canvas_folders(id) ON DELETE SET NULL,
+    position INTEGER NOT NULL DEFAULT 0,
+    deleted_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`)
+
   db.run(`CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT
@@ -200,6 +223,19 @@ export const NOTE_PROJECT_COLUMNS = `
   COALESCE(p.name, cp.name, lp.name) AS project_name
 `
 
+// A canvas's "owning" project is whichever of these is set: its own project_id or the project
+// it's linked into. Canvas equivalent of NOTE_PROJECT_JOIN/NOTE_PROJECT_COLUMNS, minus the
+// card_id branch since canvases don't attach to kanban cards.
+export const CANVAS_PROJECT_JOIN = `
+  LEFT JOIN projects p ON p.id = c.project_id
+  LEFT JOIN projects lp ON lp.id = c.linked_project_id
+`
+
+export const CANVAS_PROJECT_COLUMNS = `
+  COALESCE(c.project_id, lp.id) AS resolved_project_id,
+  COALESCE(p.name, lp.name) AS project_name
+`
+
 // Collects a folder's own id together with every descendant folder id (recursive, non-deleted
 // only). Used by `folders:delete` to cascade a delete down the whole subtree.
 export function collectFolderSubtreeIds(db: Database, folderId: string): string[] {
@@ -219,6 +255,26 @@ export function wouldCreateFolderCycle(db: Database, folderId: string, targetPar
   while (cursor != null) {
     if (cursor === folderId) return true
     const parent = queryOne(db, 'SELECT parent_folder_id FROM folders WHERE id = ?', [cursor])
+    cursor = (parent?.parent_folder_id as string | null) ?? null
+  }
+  return false
+}
+
+// Canvas-folder equivalents of collectFolderSubtreeIds / wouldCreateFolderCycle above.
+export function collectCanvasFolderSubtreeIds(db: Database, folderId: string): string[] {
+  const ids = [folderId]
+  for (let i = 0; i < ids.length; i++) {
+    const children = queryAll(db, 'SELECT id FROM canvas_folders WHERE parent_folder_id = ? AND deleted_at IS NULL', [ids[i]])
+    for (const child of children) ids.push(child.id as string)
+  }
+  return ids
+}
+
+export function wouldCreateCanvasFolderCycle(db: Database, folderId: string, targetParentId: string | null): boolean {
+  let cursor: string | null = targetParentId
+  while (cursor != null) {
+    if (cursor === folderId) return true
+    const parent = queryOne(db, 'SELECT parent_folder_id FROM canvas_folders WHERE id = ?', [cursor])
     cursor = (parent?.parent_folder_id as string | null) ?? null
   }
   return false

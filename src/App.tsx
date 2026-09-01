@@ -8,12 +8,13 @@ import OverviewHome from './components/OverviewHome'
 import HomePage from './components/HomePage'
 import ProjectBoard from './components/ProjectBoard'
 import NotesPage from './components/NotesPage'
+import CanvasesPage from './components/CanvasesPage'
 import RecycleBin from './components/RecycleBin'
 import ArchiveView from './components/ArchiveView'
 import SettingsModal from './components/SettingsModal'
 import SearchModal, { type SearchSelection } from './components/SearchModal'
 
-type View = 'home' | 'projects' | 'notes' | 'archive' | 'recycle'
+type View = 'home' | 'projects' | 'notes' | 'canvases' | 'archive' | 'recycle'
 
 interface NavState {
   view: View
@@ -28,6 +29,7 @@ function App() {
   const [view, setView] = useState<View>('home')
   const [activeProject, setActiveProject] = useState<Project | null>(null)
   const [startCreatingNote, setStartCreatingNote] = useState(false)
+  const [startCreatingCanvas, setStartCreatingCanvas] = useState(false)
   const [startCreatingProject, setStartCreatingProject] = useState(false)
   const [themeMode, setThemeMode] = useState<ThemeMode>('light')
   const [systemPrefersDark, setSystemPrefersDark] = useState(false)
@@ -36,6 +38,7 @@ function App() {
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [focusCardId, setFocusCardId] = useState<string | null>(null)
   const [focusNoteId, setFocusNoteId] = useState<string | null>(null)
+  const [focusCanvasId, setFocusCanvasId] = useState<string | null>(null)
 
   const resolvedTheme: ResolvedTheme = themeMode === 'system' ? (systemPrefersDark ? 'dark' : 'light') : themeMode
 
@@ -86,6 +89,7 @@ function App() {
   const handleNavigate = (v: View) => {
     setActiveProject(null)        // always exit any open project
     setStartCreatingNote(false)
+    setStartCreatingCanvas(false)
     setStartCreatingProject(false)
     setView(v)
     pushHistory({ view: v, projectId: null })
@@ -96,6 +100,13 @@ function App() {
     setStartCreatingNote(true)
     setView('notes')
     pushHistory({ view: 'notes', projectId: null })
+  }
+
+  const handleNewCanvas = () => {
+    setActiveProject(null)
+    setStartCreatingCanvas(true)
+    setView('canvases')
+    pushHistory({ view: 'canvases', projectId: null })
   }
 
   const handleNewProject = () => {
@@ -158,6 +169,24 @@ function App() {
     }
   }
 
+  // Canvases deep-link into the project's canvas editor when project-scoped, or straight into
+  // the Canvases view when standalone — mirrors openNote, minus the card_id branch (canvases
+  // don't attach to cards).
+  const openCanvas = async (canvasId: string, projectId: string | null) => {
+    if (projectId) {
+      const project = await openProjectById(projectId)
+      if (project) {
+        navigateToProject(project)
+        setFocusCanvasId(canvasId)
+      }
+    } else {
+      setActiveProject(null)
+      setView('canvases')
+      setFocusCanvasId(canvasId)
+      pushHistory({ view: 'canvases', projectId: null })
+    }
+  }
+
   const handleSearchSelect = async (selection: SearchSelection) => {
     if (selection.type === 'project') {
       const project = await openProjectById(selection.id)
@@ -166,6 +195,10 @@ function App() {
     }
     if (selection.type === 'card') {
       await openCard(selection.id, selection.projectId)
+      return
+    }
+    if (selection.type === 'canvas') {
+      await openCanvas(selection.id, selection.projectId)
       return
     }
     await openNote(selection.id, selection.projectId, selection.cardId)
@@ -190,7 +223,7 @@ function App() {
     return () => window.removeEventListener('popstate', handlePopState)
   }, [])
 
-  // Global keyboard shortcuts: Mod+, settings, Mod+K search, Mod+1-5 navigation, Mod+N new item (context-aware)
+  // Global keyboard shortcuts: Mod+, settings, Mod+K search, Mod+1-6 navigation, Mod+N new item (context-aware)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey
@@ -225,10 +258,15 @@ function App() {
           e.preventDefault()
           handleNavigate('recycle')
           break
+        case '6':
+          e.preventDefault()
+          handleNavigate('canvases')
+          break
         case 'n':
         case 'N':
           e.preventDefault()
           if (view === 'notes') handleNewNote()
+          else if (view === 'canvases') handleNewCanvas()
           else handleNewProject()
           break
       }
@@ -248,6 +286,8 @@ function App() {
           onFocusCardHandled={() => setFocusCardId(null)}
           focusNoteId={focusNoteId}
           onFocusNoteHandled={() => setFocusNoteId(null)}
+          focusCanvasId={focusCanvasId}
+          onFocusCanvasHandled={() => setFocusCanvasId(null)}
         />
       )
     }
@@ -281,6 +321,17 @@ function App() {
           onNewNote={handleNewNote}
           focusNoteId={focusNoteId}
           onFocusNoteHandled={() => setFocusNoteId(null)}
+        />
+      )
+    }
+    if (view === 'canvases') {
+      return (
+        <CanvasesPage
+          startCreating={startCreatingCanvas}
+          onCreateHandled={() => setStartCreatingCanvas(false)}
+          onNewCanvas={handleNewCanvas}
+          focusCanvasId={focusCanvasId}
+          onFocusCanvasHandled={() => setFocusCanvasId(null)}
         />
       )
     }
