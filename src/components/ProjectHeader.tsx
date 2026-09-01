@@ -8,7 +8,8 @@ import NoteEditModal from './NoteEditModal'
 import ConfirmDialog from './ConfirmDialog'
 import ContextMenu, { type ContextMenuPosition } from './ContextMenu'
 import { useEscapeKey } from '../hooks/useEscapeKey'
-import { PRIORITY_BADGES, dueDateInfo } from '../utils/priority'
+import { useClickOutside } from '../hooks/useClickOutside'
+import { PRIORITY_BADGES, PRIORITY_LABELS, dueDateInfo } from '../utils/priority'
 import { STATUS_OPTIONS, STATUS_BADGES, STATUS_LABELS } from '../utils/status'
 
 interface ProjectHeaderProps {
@@ -50,8 +51,10 @@ export default function ProjectHeader({
     setDisplayDueDate(project.due_date)
   }, [project.priority, project.status, project.due_date])
 
+  // Only re-run when the project identity changes — loadProjectNotes is a fresh closure every render.
   useEffect(() => {
     loadProjectNotes()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id])
 
   const loadProjectNotes = async () => {
@@ -117,38 +120,9 @@ export default function ProjectHeader({
   useEscapeKey(() => setIsStatusMenuOpen(false), isStatusMenuOpen)
   useEscapeKey(() => setIsPriorityMenuOpen(false), isPriorityMenuOpen)
 
-  useEffect(() => {
-    if (!isLinkMenuOpen) return
-    const handleClickOutside = (e: MouseEvent) => {
-      if (linkMenuRef.current && !linkMenuRef.current.contains(e.target as Node)) {
-        setIsLinkMenuOpen(false)
-      }
-    }
-    window.addEventListener('mousedown', handleClickOutside)
-    return () => window.removeEventListener('mousedown', handleClickOutside)
-  }, [isLinkMenuOpen])
-
-  useEffect(() => {
-    if (!isStatusMenuOpen) return
-    const handleClickOutside = (e: MouseEvent) => {
-      if (statusMenuRef.current && !statusMenuRef.current.contains(e.target as Node)) {
-        setIsStatusMenuOpen(false)
-      }
-    }
-    window.addEventListener('mousedown', handleClickOutside)
-    return () => window.removeEventListener('mousedown', handleClickOutside)
-  }, [isStatusMenuOpen])
-
-  useEffect(() => {
-    if (!isPriorityMenuOpen) return
-    const handleClickOutside = (e: MouseEvent) => {
-      if (priorityMenuRef.current && !priorityMenuRef.current.contains(e.target as Node)) {
-        setIsPriorityMenuOpen(false)
-      }
-    }
-    window.addEventListener('mousedown', handleClickOutside)
-    return () => window.removeEventListener('mousedown', handleClickOutside)
-  }, [isPriorityMenuOpen])
+  useClickOutside(linkMenuRef, () => setIsLinkMenuOpen(false), isLinkMenuOpen)
+  useClickOutside(statusMenuRef, () => setIsStatusMenuOpen(false), isStatusMenuOpen)
+  useClickOutside(priorityMenuRef, () => setIsPriorityMenuOpen(false), isPriorityMenuOpen)
 
   const handleOpenLinkMenu = async () => {
     clickSound()
@@ -386,7 +360,7 @@ export default function ProjectHeader({
               disabled={isLoading}
               className={`flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors disabled:opacity-50 font-semibold ${PRIORITY_BADGES[displayPriority]}`}
             >
-              {displayPriority.charAt(0).toUpperCase() + displayPriority.slice(1)}
+              {PRIORITY_LABELS[displayPriority]}
               <ChevronDown size={12} />
             </motion.button>
 
@@ -409,7 +383,7 @@ export default function ProjectHeader({
                         displayPriority === p ? 'font-semibold text-ink' : 'text-ink-secondary'
                       }`}
                     >
-                      {p.charAt(0).toUpperCase() + p.slice(1)}
+                      {PRIORITY_LABELS[p]}
                     </motion.button>
                   ))}
                 </motion.div>

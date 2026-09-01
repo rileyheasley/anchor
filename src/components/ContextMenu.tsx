@@ -26,20 +26,6 @@ export interface ContextMenuPosition {
   y: number
 }
 
-// Tracks the right-click position for a context menu; spread `trigger` onto the target element.
-export function useContextMenu() {
-  const [position, setPosition] = useState<ContextMenuPosition | null>(null)
-  const close = () => setPosition(null)
-  const trigger = {
-    onContextMenu: (e: React.MouseEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      setPosition({ x: e.clientX, y: e.clientY })
-    },
-  }
-  return { position, trigger, close }
-}
-
 export default function ContextMenu({
   position,
   items,

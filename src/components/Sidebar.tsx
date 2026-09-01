@@ -1,10 +1,11 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Home, FolderOpen, FileText, Archive, Trash2, ChevronLeft, ChevronRight, Sun, Settings, Search, Eye } from 'lucide-react'
 import DraggableSidebar from './DraggableSidebar'
 import IconNavItem from './IconNavItem'
 import { clickSound } from '../sounds'
 import { useEscapeKey } from '../hooks/useEscapeKey'
+import { useClickOutside } from '../hooks/useClickOutside'
 import { THEME_OPTIONS, COLOURBLIND_THEME_OPTIONS, ALL_THEME_OPTIONS } from '../utils/theme'
 import type { ThemeMode } from '../types'
 
@@ -37,17 +38,10 @@ export default function Sidebar({
     else setIsThemeMenuOpen(false)
   }, isThemeMenuOpen)
 
-  useEffect(() => {
-    if (!isThemeMenuOpen) return
-    const handleClickOutside = (e: MouseEvent) => {
-      if (themeMenuRef.current && !themeMenuRef.current.contains(e.target as Node)) {
-        setIsThemeMenuOpen(false)
-        setIsColourblindMenuOpen(false)
-      }
-    }
-    window.addEventListener('mousedown', handleClickOutside)
-    return () => window.removeEventListener('mousedown', handleClickOutside)
-  }, [isThemeMenuOpen])
+  useClickOutside(themeMenuRef, () => {
+    setIsThemeMenuOpen(false)
+    setIsColourblindMenuOpen(false)
+  }, isThemeMenuOpen)
 
   const ActiveThemeIcon = ALL_THEME_OPTIONS.find((t) => t.mode === themeMode)?.icon ?? Sun
   const isColourblindActive = COLOURBLIND_THEME_OPTIONS.some((t) => t.mode === themeMode)

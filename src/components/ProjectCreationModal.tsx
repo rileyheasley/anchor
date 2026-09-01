@@ -6,7 +6,7 @@ import { clickSound, createSound } from '../sounds'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { STATUS_OPTIONS, STATUS_LABELS, STATUS_BADGES } from '../utils/status'
-import { PRIORITY_OPTIONS, PRIORITY_BADGES } from '../utils/priority'
+import { PRIORITY_OPTIONS, PRIORITY_BADGES, PRIORITY_LABELS } from '../utils/priority'
 
 interface ProjectCreationModalProps {
   isOpen: boolean
@@ -148,7 +148,7 @@ export default function ProjectCreationModal({
                       : 'bg-surface-muted text-ink-faint hover:bg-border-strong'
                   }`}
                 >
-                  {p.charAt(0).toUpperCase() + p.slice(1)}
+                  {PRIORITY_LABELS[p]}
                 </motion.button>
               ))}
             </div>

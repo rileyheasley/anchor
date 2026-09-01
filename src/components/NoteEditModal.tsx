@@ -50,6 +50,8 @@ export default function NoteEditModal({
       activeNoteIdRef.current = note.id
       loadNoteContent(note.id)
     }
+    // Only re-run when the note identity or open state changes — `note` itself is a fresh object each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [note?.id, isOpen])
 
   useEffect(() => {

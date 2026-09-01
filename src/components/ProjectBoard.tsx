@@ -9,13 +9,12 @@ import CardCreateModal from './CardCreateModal'
 import ConfirmDialog from './ConfirmDialog'
 import ContextMenu, { type ContextMenuEntry, type ContextMenuPosition } from './ContextMenu'
 import { useEscapeKey } from '../hooks/useEscapeKey'
-import { PRIORITY_BADGES } from '../utils/priority'
+import { PRIORITY_BADGES, PRIORITY_ORDER, PRIORITY_LABELS, dueDateInfo } from '../utils/priority'
 import { stripMarkdownPreview } from '../utils/markdown'
 import MarkdownEditor from './MarkdownEditor'
 
 type CardSortMode = 'manual' | 'priority' | 'dueDate' | 'points' | 'name' | 'created'
 
-const CARD_PRIORITY_ORDER: Record<Priority, number> = { high: 0, medium: 1, low: 2, none: 3 }
 const CARD_SORT_LABELS: Record<CardSortMode, string> = {
   manual: 'Manual',
   priority: 'Priority',
@@ -64,7 +63,11 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
 
   const selectedCardIdRef = useRef<string | null>(null)
 
+  // Only re-run when the project identity changes — loadBoard is a fresh closure every render.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadBoard() }, [project.id])
+  // Only re-run when the selected card's identity changes, not on every field update.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (selectedCard) loadCardNote(selectedCard) }, [selectedCard?.id])
   useEffect(() => { selectedCardIdRef.current = selectedCard?.id ?? null }, [selectedCard])
 
@@ -76,6 +79,8 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
       setSelectedCard(card)
       onFocusCardHandled?.()
     }
+    // Only re-run when the deep-link target or list changes — onFocusCardHandled is a fresh closure every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusCardId, cards])
 
   useEffect(() => {
@@ -148,7 +153,7 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
     const list = cards.filter((c) => c.column_id === columnId)
     switch (cardSort) {
       case 'priority':
-        return list.sort((a, b) => CARD_PRIORITY_ORDER[a.priority] - CARD_PRIORITY_ORDER[b.priority] || a.position - b.position)
+        return list.sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority] || a.position - b.position)
       case 'dueDate':
         return list.sort((a, b) => {
           if (!a.due_date && !b.due_date) return a.position - b.position
@@ -296,7 +301,7 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
       label: 'Set priority',
       icon: Flag,
       items: (['high', 'medium', 'low', 'none'] as const).map((pri) => ({
-        label: pri.charAt(0).toUpperCase() + pri.slice(1),
+        label: PRIORITY_LABELS[pri],
         icon: card.priority === pri ? CheckCircle2 : Circle,
         onClick: () => handleUpdatePriority(card.id, pri),
       })),
@@ -472,15 +477,7 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
                 <div className="space-y-2">
                   <AnimatePresence mode="popLayout">
                     {cardsInColumn(col.id).map((card) => {
-                      const due = card.due_date ? (() => {
-                        const d = new Date(card.due_date); const t = new Date()
-                        t.setHours(0,0,0,0); d.setHours(0,0,0,0)
-                        const diff = Math.round((d.getTime()-t.getTime())/86400000)
-                        if (diff < 0) return { label: `${Math.abs(diff)}d overdue`, color: 'text-danger' }
-                        if (diff === 0) return { label: 'Today', color: 'text-danger' }
-                        if (diff <= 3) return { label: `${diff}d`, color: 'text-warning' }
-                        return { label: `${diff}d`, color: 'text-ink-faint' }
-                      })() : null
+                      const due = dueDateInfo(card.due_date)
                       const isSelected = selectedCard?.id === card.id
 
                       return (

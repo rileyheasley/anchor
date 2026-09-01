@@ -5,7 +5,7 @@ import type { Priority } from '../types'
 import { clickSound, createSound } from '../sounds'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useFocusTrap } from '../hooks/useFocusTrap'
-import { PRIORITY_OPTIONS, PRIORITY_BADGES } from '../utils/priority'
+import { PRIORITY_OPTIONS, PRIORITY_BADGES, PRIORITY_LABELS } from '../utils/priority'
 
 interface CardCreateModalProps {
   isOpen: boolean
@@ -165,7 +165,7 @@ export default function CardCreateModal({
                       : 'bg-surface-muted text-ink-faint hover:bg-border-strong'
                   }`}
                 >
-                  {p.charAt(0).toUpperCase() + p.slice(1)}
+                  {PRIORITY_LABELS[p]}
                 </motion.button>
               ))}
             </div>

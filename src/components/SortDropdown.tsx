@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { ArrowUpDown, ChevronDown } from 'lucide-react'
 import { clickSound } from '../sounds'
 import { useEscapeKey } from '../hooks/useEscapeKey'
+import { useClickOutside } from '../hooks/useClickOutside'
 
 interface SortDropdownProps<T extends string> {
   options: { value: T; label: string }[]
@@ -15,17 +16,7 @@ export default function SortDropdown<T extends string>({ options, value, onChang
   const menuRef = useRef<HTMLDivElement>(null)
 
   useEscapeKey(() => setIsOpen(false), isOpen)
-
-  useEffect(() => {
-    if (!isOpen) return
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setIsOpen(false)
-      }
-    }
-    window.addEventListener('mousedown', handleClickOutside)
-    return () => window.removeEventListener('mousedown', handleClickOutside)
-  }, [isOpen])
+  useClickOutside(menuRef, () => setIsOpen(false), isOpen)
 
   const currentLabel = options.find((o) => o.value === value)?.label ?? ''
 

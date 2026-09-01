@@ -563,6 +563,7 @@ html[data-theme="deuteranopia"] {
   --color-warning: #e8c547;
   --color-warning-subtle: #3d3308;
   --color-warning-strong: #f0d571;
+  --color-warning-hover: #f0d571;
 
   --color-danger: #e0762f;
   --color-danger-subtle: #3d1f0a;
@@ -612,6 +613,7 @@ html[data-theme="protanopia"] {
   --color-warning: #e0c23c;
   --color-warning-subtle: #3a3007;
   --color-warning-strong: #edd569;
+  --color-warning-hover: #edd569;
 
   --color-danger: #d98a3d;
   --color-danger-subtle: #3a2409;
@@ -661,6 +663,7 @@ html[data-theme="tritanopia"] {
   --color-warning: #e0895c;
   --color-warning-subtle: #3a2110;
   --color-warning-strong: #eeae8b;
+  --color-warning-hover: #eeae8b;
 
   --color-danger: #e0555f;
   --color-danger-subtle: #3d1216;

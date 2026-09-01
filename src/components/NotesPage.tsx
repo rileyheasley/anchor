@@ -64,6 +64,8 @@ export default function NotesPage({
       setCreating(true)
       onCreateHandled?.()
     }
+    // Only re-run when the deep-link flag flips — onCreateHandled is a fresh closure every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startCreatingProp])
 
   // Deep-link support: open a specific note once the list is loaded (e.g. from search)
@@ -74,6 +76,8 @@ export default function NotesPage({
       handleOpenNote(note)
       onFocusNoteHandled?.()
     }
+    // Only re-run when the deep-link target or list changes — handleOpenNote/onFocusNoteHandled are fresh each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusNoteId, notes])
 
   const loadVaultAndNotes = async () => {

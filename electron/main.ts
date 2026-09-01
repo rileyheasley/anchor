@@ -458,8 +458,8 @@ app.whenReady().then(async () => {
       let position = 0
       if (data.project_id && !data.card_id) {
         const row = queryOne(
-          'SELECT MAX(position) AS maxPos FROM notes WHERE project_id = ? AND card_id IS NULL AND deleted_at IS NULL',
-          [data.project_id]
+          'SELECT MAX(position) AS maxPos FROM notes WHERE (project_id = ? OR linked_project_id = ?) AND card_id IS NULL AND deleted_at IS NULL',
+          [data.project_id, data.project_id]
         )
         position = ((row?.maxPos as number | null) ?? -1) + 1
       }
@@ -921,13 +921,14 @@ app.whenReady().then(async () => {
 
       const recentNotes = queryAll(
         `SELECT n.id, n.title, n.project_id, n.card_id,
-           COALESCE(n.project_id, cp.id) AS resolved_project_id,
-           COALESCE(p.name, cp.name) AS project_name,
+           COALESCE(n.project_id, cp.id, lp.id) AS resolved_project_id,
+           COALESCE(p.name, cp.name, lp.name) AS project_name,
            n.updated_at
          FROM notes n
          LEFT JOIN projects p ON p.id = n.project_id
          LEFT JOIN cards c2 ON c2.id = n.card_id
          LEFT JOIN projects cp ON cp.id = c2.project_id
+         LEFT JOIN projects lp ON lp.id = n.linked_project_id
          WHERE n.deleted_at IS NULL
          ORDER BY n.updated_at DESC
          LIMIT 5`
@@ -960,12 +961,13 @@ app.whenReady().then(async () => {
 
       const notes = queryAll(
         `SELECT n.id, n.title, n.project_id, n.card_id,
-           COALESCE(n.project_id, cp.id) AS resolved_project_id,
-           COALESCE(p.name, cp.name) AS project_name
+           COALESCE(n.project_id, cp.id, lp.id) AS resolved_project_id,
+           COALESCE(p.name, cp.name, lp.name) AS project_name
          FROM notes n
          LEFT JOIN projects p ON p.id = n.project_id
          LEFT JOIN cards c2 ON c2.id = n.card_id
          LEFT JOIN projects cp ON cp.id = c2.project_id
+         LEFT JOIN projects lp ON lp.id = n.linked_project_id
          WHERE n.deleted_at IS NULL AND n.title LIKE ? ESCAPE '\\' COLLATE NOCASE
          ORDER BY n.title COLLATE NOCASE LIMIT 8`,
         [like]

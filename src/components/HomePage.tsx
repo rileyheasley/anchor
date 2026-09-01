@@ -8,10 +8,9 @@ import SortDropdown from './SortDropdown'
 import ConfirmDialog from './ConfirmDialog'
 import ContextMenu, { type ContextMenuEntry, type ContextMenuPosition } from './ContextMenu'
 import { useEscapeKey } from '../hooks/useEscapeKey'
-import { PRIORITY_BADGES, PRIORITY_OPTIONS, dueDateInfo } from '../utils/priority'
+import { useClickOutside } from '../hooks/useClickOutside'
+import { PRIORITY_BADGES, PRIORITY_OPTIONS, PRIORITY_ORDER, PRIORITY_LABELS, dueDateInfo } from '../utils/priority'
 import { STATUS_OPTIONS, STATUS_ORDER, STATUS_BADGES, STATUS_LABELS } from '../utils/status'
-
-const PRIORITY_ORDER: Record<Priority, number> = { high: 0, medium: 1, low: 2, none: 3 }
 
 type SortMode = 'priority' | 'status' | 'dueDate' | 'name'
 type ViewMode = 'list' | 'grid'
@@ -48,20 +47,12 @@ export default function HomePage({
       setIsCreatingModalOpen(true)
       onCreateHandled?.()
     }
+    // Only re-run when the deep-link flag flips — onCreateHandled is a fresh closure every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startCreatingProp])
 
   useEscapeKey(() => setIsFilterOpen(false), isFilterOpen)
-
-  useEffect(() => {
-    if (!isFilterOpen) return
-    const handleClickOutside = (e: MouseEvent) => {
-      if (filterMenuRef.current && !filterMenuRef.current.contains(e.target as Node)) {
-        setIsFilterOpen(false)
-      }
-    }
-    window.addEventListener('mousedown', handleClickOutside)
-    return () => window.removeEventListener('mousedown', handleClickOutside)
-  }, [isFilterOpen])
+  useClickOutside(filterMenuRef, () => setIsFilterOpen(false), isFilterOpen)
 
   const loadProjects = async () => {
     try {
@@ -197,7 +188,7 @@ export default function HomePage({
       label: 'Set priority',
       icon: Flag,
       items: PRIORITY_OPTIONS.map((pri) => ({
-        label: pri.charAt(0).toUpperCase() + pri.slice(1),
+        label: PRIORITY_LABELS[pri],
         icon: p.priority === pri ? CheckCircle2 : Circle,
         onClick: () => handleUpdatePriority(p.id, pri),
       })),
@@ -329,7 +320,7 @@ export default function HomePage({
                                   : 'bg-surface-muted text-ink-muted hover:bg-border-strong'
                               }`}
                             >
-                              {pri.charAt(0).toUpperCase() + pri.slice(1)}
+                              {PRIORITY_LABELS[pri]}
                             </motion.button>
                           ))}
                         </div>

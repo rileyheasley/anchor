@@ -7,7 +7,7 @@ import {
 import type { Project, RecycleItem, OverviewData, Todo, Priority } from '../types'
 import { clickSound, createSound, deleteSound, completeSound } from '../sounds'
 import { STATUS_OPTIONS, STATUS_LABELS, STATUS_BADGES } from '../utils/status'
-import { PRIORITY_OPTIONS, dueDateInfo } from '../utils/priority'
+import { PRIORITY_OPTIONS, PRIORITY_LABELS, dueDateInfo } from '../utils/priority'
 import ContextMenu, { type ContextMenuEntry, type ContextMenuPosition } from './ContextMenu'
 
 const PRIORITY_DOT_COLORS: Record<Priority, string> = {
@@ -145,7 +145,7 @@ export default function OverviewHome({
       label: 'Set priority',
       icon: Flag,
       items: PRIORITY_OPTIONS.map((pri) => ({
-        label: pri.charAt(0).toUpperCase() + pri.slice(1),
+        label: PRIORITY_LABELS[pri],
         icon: todo.priority === pri ? CheckCircle2 : Circle,
         onClick: () => handleUpdateTodoPriority(todo.id, pri),
       })),
