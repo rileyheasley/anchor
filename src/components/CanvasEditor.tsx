@@ -66,7 +66,33 @@ function CanvasEditorInner({
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([])
   const viewportRef = useRef<Viewport>(initial.viewport ?? { x: 0, y: 0, zoom: 1 })
   const didMount = useRef(false)
-  const { screenToFlowPosition } = useReactFlow()
+  const { screenToFlowPosition, setViewport } = useReactFlow()
+
+  // Tracks the content string this editor itself most recently produced, so the sync effect
+  // below can tell "the parent just echoed our own edit back" apart from "the parent loaded
+  // this canvas's real content asynchronously after we'd already mounted on stale/empty
+  // content" (the latter happens because the caller sets the canvas active — remounting this
+  // component via its `key` — before its `getContent` IPC call resolves).
+  const contentRef = useRef(content)
+  // Set while the sync effect below is applying an externally-loaded content prop, so the
+  // nodes/edges effect further down can skip treating that correction as a user edit (which
+  // would otherwise mark the canvas dirty and re-save on every open).
+  const isSyncingRef = useRef(false)
+
+  useEffect(() => {
+    if (content === contentRef.current) return
+    contentRef.current = content
+    const parsed = parseContent(content)
+    isSyncingRef.current = true
+    setNodes(parsed.nodes)
+    setEdges(parsed.edges)
+    if (parsed.viewport) {
+      viewportRef.current = parsed.viewport
+      setViewport(parsed.viewport)
+    }
+    // Only re-sync when the *prop* changes — setNodes/setEdges/setViewport are stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [content])
 
   const handleLabelChange = useCallback((id: string, value: string) => {
     setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, data: { ...n.data, label: value } } : n)))
@@ -78,11 +104,14 @@ function CanvasEditorInner({
   )
 
   const emitChange = useCallback(() => {
-    onChange(JSON.stringify({ nodes, edges, viewport: viewportRef.current }))
+    const json = JSON.stringify({ nodes, edges, viewport: viewportRef.current })
+    contentRef.current = json
+    onChange(json)
   }, [nodes, edges, onChange])
 
   useEffect(() => {
     if (!didMount.current) { didMount.current = true; return }
+    if (isSyncingRef.current) { isSyncingRef.current = false; return }
     emitChange()
     // Only fire on graph content changes, not on every `onChange`/`emitChange` identity change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
