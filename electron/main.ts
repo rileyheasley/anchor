@@ -4,6 +4,8 @@ import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import fs from 'node:fs'
 import initSqlJs, { type Database } from 'sql.js'
+import { createSchema, listActiveProjects, listArchivedProjects, NOTE_PROJECT_JOIN, NOTE_PROJECT_COLUMNS } from './db'
+import { deriveTitleFromContent } from '../src/shared/noteTitle'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -78,7 +80,7 @@ async function initializeDatabase() {
     }
 
     db.run('PRAGMA foreign_keys = ON')
-    createSchema()
+    createSchema(db)
 
     if (isNewDatabase) {
       seedSampleData()
@@ -125,74 +127,6 @@ function execute(sql: string, params?: unknown[]) {
   db.run(sql, params)
 }
 
-function createSchema() {
-  if (!db) return
-
-  db.run(`CREATE TABLE IF NOT EXISTS projects (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    priority TEXT NOT NULL DEFAULT 'none' CHECK (priority IN ('none', 'low', 'medium', 'high')),
-    due_date TEXT,
-    archived INTEGER NOT NULL DEFAULT 0,
-    deleted_at TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-  )`)
-
-  db.run(`CREATE TABLE IF NOT EXISTS kanban_columns (
-    id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    position INTEGER NOT NULL DEFAULT 0,
-    is_done INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-  )`)
-
-  db.run(`CREATE TABLE IF NOT EXISTS cards (
-    id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    column_id TEXT NOT NULL REFERENCES kanban_columns(id) ON DELETE CASCADE,
-    title TEXT NOT NULL,
-    points INTEGER CHECK (points BETWEEN 1 AND 5),
-    priority TEXT NOT NULL DEFAULT 'none' CHECK (priority IN ('none', 'low', 'medium', 'high')),
-    due_date TEXT,
-    position INTEGER NOT NULL DEFAULT 0,
-    note_filename TEXT,
-    deleted_at TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-  )`)
-
-  db.run(`CREATE TABLE IF NOT EXISTS notes (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    filename TEXT NOT NULL,
-    project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
-    card_id TEXT REFERENCES cards(id) ON DELETE SET NULL,
-    position INTEGER NOT NULL DEFAULT 0,
-    deleted_at TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-  )`)
-
-  db.run(`CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY,
-    value TEXT
-  )`)
-
-  migrateSchema()
-}
-
-function migrateSchema() {
-  if (!db) return
-  const columns = queryAll("PRAGMA table_info(notes)")
-  const hasPosition = columns.some((col) => col.name === 'position')
-  if (!hasPosition) {
-    db.run('ALTER TABLE notes ADD COLUMN position INTEGER NOT NULL DEFAULT 0')
-  }
-}
-
 function seedSampleData() {
   // Create 4 sample projects
   const projects = [
@@ -200,32 +134,36 @@ function seedSampleData() {
       id: randomUUID(),
       name: 'Website Redesign',
       priority: 'high',
+      status: 'in_progress',
       due_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     },
     {
       id: randomUUID(),
       name: 'Mobile App',
       priority: 'medium',
+      status: 'planning',
       due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     },
     {
       id: randomUUID(),
       name: 'API Integration',
       priority: 'medium',
+      status: 'on_hold',
       due_date: null,
     },
     {
       id: randomUUID(),
       name: 'Documentation',
       priority: 'low',
+      status: 'done',
       due_date: null,
     },
   ]
 
   projects.forEach((proj) => {
     execute(
-      'INSERT INTO projects (id, name, priority, due_date) VALUES (?, ?, ?, ?)',
-      [proj.id, proj.name, proj.priority, proj.due_date]
+      'INSERT INTO projects (id, name, priority, status, due_date) VALUES (?, ?, ?, ?, ?)',
+      [proj.id, proj.name, proj.priority, proj.status, proj.due_date]
     )
   })
 
@@ -317,22 +255,6 @@ function deleteNotesForCards(cardIds: string[]) {
   execute(`DELETE FROM notes WHERE card_id IN (${placeholders})`, cardIds)
 }
 
-// Derives a plain-text title from the first non-empty markdown line
-function deriveTitleFromContent(content: string): string {
-  const firstLine = content.split('\n').find((line) => line.trim().length > 0) ?? ''
-  let text = firstLine.trim()
-  text = text.replace(/^#{1,6}\s+/, '')
-  text = text.replace(/^[-*+]\s+/, '')
-  text = text.replace(/^\d+\.\s+/, '')
-  text = text.replace(/^>\s+/, '')
-  text = text.replace(/(\*\*|__)(.*?)\1/g, '$2')
-  text = text.replace(/(\*|_)(.*?)\1/g, '$2')
-  text = text.replace(/`([^`]+)`/g, '$1')
-  text = text.replace(/~~(.*?)~~/g, '$1')
-  text = text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-  return text.trim() || 'Untitled'
-}
-
 function purgeSoftDeleted() {
   const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
   // Delete notes from disk before purging DB rows
@@ -358,6 +280,16 @@ const TITLEBAR_OVERLAY = {
   light: { color: '#fdfcf9', symbolColor: '#3d3a30' },
   dark: { color: '#1a1a1e', symbolColor: '#c8c4b8' },
   pink: { color: '#fff5f8', symbolColor: '#4a2338' },
+  nord: { color: '#2e3440', symbolColor: '#d8dee9' },
+  dracula: { color: '#282a36', symbolColor: '#e2e2dc' },
+  solarized: { color: '#002b36', symbolColor: '#93a1a1' },
+  sepia: { color: '#f4ecd8', symbolColor: '#5c4a30' },
+  forest: { color: '#f2f5ef', symbolColor: '#3d4f33' },
+  ocean: { color: '#0a1e2a', symbolColor: '#b8dbe6' },
+  contrast: { color: '#ffffff', symbolColor: '#000000' },
+  deuteranopia: { color: '#1a1a1e', symbolColor: '#c8c4b8' },
+  protanopia: { color: '#1a1a1e', symbolColor: '#c8c4b8' },
+  tritanopia: { color: '#1a1a1e', symbolColor: '#c8c4b8' },
 }
 
 function createWindow() {
@@ -430,6 +362,10 @@ app.whenReady().then(async () => {
       win?.setTitleBarOverlay({ ...(TITLEBAR_OVERLAY[theme] ?? TITLEBAR_OVERLAY.light), height: 40 })
     })
 
+    // ── App info handlers ──
+
+    ipcMain.handle('app:getVersion', () => app.getVersion())
+
     // ── Settings handlers ──
 
     ipcMain.handle('settings:get', (_event, key: string) => getSetting(key))
@@ -466,8 +402,10 @@ app.whenReady().then(async () => {
       }
       if (filter?.project_id) {
         return queryAll(
-          'SELECT * FROM notes WHERE project_id = ? AND card_id IS NULL AND deleted_at IS NULL ORDER BY position ASC, created_at ASC',
-          [filter.project_id]
+          `SELECT * FROM notes
+           WHERE (project_id = ? OR linked_project_id = ?) AND card_id IS NULL AND deleted_at IS NULL
+           ORDER BY position ASC, created_at ASC`,
+          [filter.project_id, filter.project_id]
         )
       }
       if (filter?.standalone) {
@@ -505,8 +443,8 @@ app.whenReady().then(async () => {
       let position = 0
       if (data.project_id && !data.card_id) {
         const row = queryOne(
-          'SELECT MAX(position) AS maxPos FROM notes WHERE project_id = ? AND card_id IS NULL AND deleted_at IS NULL',
-          [data.project_id]
+          'SELECT MAX(position) AS maxPos FROM notes WHERE (project_id = ? OR linked_project_id = ?) AND card_id IS NULL AND deleted_at IS NULL',
+          [data.project_id, data.project_id]
         )
         position = ((row?.maxPos as number | null) ?? -1) + 1
       }
@@ -526,13 +464,17 @@ app.whenReady().then(async () => {
       saveDatabase()
     })
 
-    ipcMain.handle('notes:update', async (_event, data: { id: string, title?: string }) => {
+    ipcMain.handle('notes:update', async (_event, data: { id: string, title?: string, project_id?: string | null }) => {
       const fields: string[] = []
       const values: unknown[] = []
 
       if (data.title !== undefined) {
         fields.push('title = ?')
         values.push(data.title)
+      }
+      if (data.project_id !== undefined) {
+        fields.push('project_id = ?')
+        values.push(data.project_id)
       }
 
       if (fields.length === 0) return queryOne('SELECT * FROM notes WHERE id = ?', [data.id])
@@ -543,6 +485,41 @@ app.whenReady().then(async () => {
       execute(`UPDATE notes SET ${fields.join(', ')} WHERE id = ? AND deleted_at IS NULL`, values)
       saveDatabase()
       return queryOne('SELECT * FROM notes WHERE id = ?', [data.id])
+    })
+
+    // Links an existing standalone note into a project's Notes section without moving it —
+    // the note keeps project_id/card_id NULL so it still shows up on the Notes screen.
+    ipcMain.handle('notes:link', async (_event, data: { id: string, project_id: string }) => {
+      execute(
+        `UPDATE notes SET linked_project_id = ?, updated_at = datetime('now')
+         WHERE id = ? AND project_id IS NULL AND card_id IS NULL AND deleted_at IS NULL`,
+        [data.project_id, data.id]
+      )
+      saveDatabase()
+      return queryOne('SELECT * FROM notes WHERE id = ?', [data.id])
+    })
+
+    ipcMain.handle('notes:unlink', async (_event, id: string) => {
+      execute("UPDATE notes SET linked_project_id = NULL, updated_at = datetime('now') WHERE id = ?", [id])
+      saveDatabase()
+      return queryOne('SELECT * FROM notes WHERE id = ?', [id])
+    })
+
+    ipcMain.handle('notes:previewsForProject', (_event, projectId: string) => {
+      const notes = queryAll(
+        `SELECT n.card_id AS card_id, n.filename AS filename FROM notes n
+         JOIN cards c ON c.id = n.card_id
+         WHERE c.project_id = ? AND c.deleted_at IS NULL AND n.deleted_at IS NULL`,
+        [projectId]
+      )
+      const previews: Record<string, string> = {}
+      for (const note of notes) {
+        const fp = noteFilePath(note.filename as string)
+        if (!fp || !fs.existsSync(fp)) continue
+        const content = fs.readFileSync(fp, 'utf-8').trim()
+        if (content) previews[note.card_id as string] = content
+      }
+      return previews
     })
 
     ipcMain.handle('notes:getContent', (_event, id: string) => {
@@ -628,17 +605,7 @@ app.whenReady().then(async () => {
     // ── Archive handlers ──
 
     ipcMain.handle('archive:list', () => {
-      return queryAll(
-        `SELECT p.id, p.name, p.priority, p.due_date, p.archived, p.created_at, p.updated_at,
-          COALESCE(SUM(CASE WHEN kc.is_done = 1 THEN c.points ELSE 0 END), 0) AS done_points,
-          COALESCE(SUM(c.points), 0) AS total_points
-        FROM projects p
-        LEFT JOIN cards c ON c.project_id = p.id AND c.deleted_at IS NULL
-        LEFT JOIN kanban_columns kc ON kc.id = c.column_id
-        WHERE p.deleted_at IS NULL AND p.archived = 1
-        GROUP BY p.id
-        ORDER BY p.name COLLATE NOCASE`
-      )
+      return listArchivedProjects(db!)
     })
 
     ipcMain.handle('archive:restore', (_event, id: string) => {
@@ -647,37 +614,18 @@ app.whenReady().then(async () => {
     })
 
     ipcMain.handle('projects:list', async () => {
-      const projects = queryAll(`
-        SELECT 
-          p.id, p.name, p.priority, p.due_date, p.archived,
-          p.created_at, p.updated_at,
-          COALESCE(SUM(CASE WHEN kc.is_done = 1 THEN c.points ELSE 0 END), 0) AS done_points,
-          COALESCE(SUM(c.points), 0) AS total_points
-        FROM projects p
-        LEFT JOIN cards c ON c.project_id = p.id AND c.deleted_at IS NULL
-        LEFT JOIN kanban_columns kc ON kc.id = c.column_id
-        WHERE p.deleted_at IS NULL AND p.archived = 0
-        GROUP BY p.id
-        ORDER BY 
-          CASE p.priority
-            WHEN 'high' THEN 0
-            WHEN 'medium' THEN 1
-            WHEN 'low' THEN 2
-            WHEN 'none' THEN 3
-          END,
-          p.name COLLATE NOCASE
-      `)
-      return projects
+      return listActiveProjects(db!)
     })
 
-    ipcMain.handle('projects:create', async (_event, data: { name: string, priority?: string, due_date?: string | null }) => {
+    ipcMain.handle('projects:create', async (_event, data: { name: string, priority?: string, status?: string, due_date?: string | null }) => {
       const projectId = crypto.randomUUID()
       const priority = data.priority || 'none'
+      const status = data.status || 'planning'
       const dueDate = data.due_date || null
 
       execute(
-        'INSERT INTO projects (id, name, priority, due_date) VALUES (?, ?, ?, ?)',
-        [projectId, data.name, priority, dueDate]
+        'INSERT INTO projects (id, name, priority, status, due_date) VALUES (?, ?, ?, ?, ?)',
+        [projectId, data.name, priority, status, dueDate]
       )
 
       const defaultColumns = [
@@ -696,12 +644,13 @@ app.whenReady().then(async () => {
       return queryOne('SELECT * FROM projects WHERE id = ?', [projectId])
     })
 
-    ipcMain.handle('projects:update', async (_event, data: { id: string, name?: string, priority?: string, due_date?: string | null }) => {
+    ipcMain.handle('projects:update', async (_event, data: { id: string, name?: string, priority?: string, status?: string, due_date?: string | null }) => {
       const fields: string[] = []
       const values: unknown[] = []
 
       if (data.name !== undefined) { fields.push('name = ?'); values.push(data.name) }
       if (data.priority !== undefined) { fields.push('priority = ?'); values.push(data.priority) }
+      if (data.status !== undefined) { fields.push('status = ?'); values.push(data.status) }
       if (data.due_date !== undefined) { fields.push('due_date = ?'); values.push(data.due_date) }
 
       if (fields.length === 0) return null
@@ -853,7 +802,190 @@ app.whenReady().then(async () => {
       execute("UPDATE cards SET deleted_at = datetime('now'), updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL", [id])
       saveDatabase()
     })
-    
+
+    // ── Todo handlers ──
+
+    ipcMain.handle('todos:list', async () => {
+      return queryAll('SELECT * FROM todos ORDER BY done ASC, position ASC')
+    })
+
+    ipcMain.handle('todos:create', async (_event, data: { text: string }) => {
+      const maxPos = queryOne('SELECT COALESCE(MAX(position), -1) AS max_pos FROM todos')
+      const id = randomUUID()
+      execute(
+        'INSERT INTO todos (id, text, position) VALUES (?, ?, ?)',
+        [id, data.text, (maxPos?.max_pos as number) + 1]
+      )
+      saveDatabase()
+      return queryOne('SELECT * FROM todos WHERE id = ?', [id])
+    })
+
+    ipcMain.handle('todos:update', async (_event, data: { id: string, text?: string, priority?: string, due_date?: string | null }) => {
+      const fields: string[] = []
+      const values: unknown[] = []
+
+      if (data.text !== undefined) { fields.push('text = ?'); values.push(data.text) }
+      if (data.priority !== undefined) { fields.push('priority = ?'); values.push(data.priority) }
+      if (data.due_date !== undefined) { fields.push('due_date = ?'); values.push(data.due_date) }
+
+      if (fields.length === 0) return null
+
+      fields.push("updated_at = datetime('now')")
+      values.push(data.id)
+
+      execute(`UPDATE todos SET ${fields.join(', ')} WHERE id = ?`, values)
+      saveDatabase()
+      return queryOne('SELECT * FROM todos WHERE id = ?', [data.id])
+    })
+
+    ipcMain.handle('todos:toggle', async (_event, id: string) => {
+      execute("UPDATE todos SET done = NOT done, updated_at = datetime('now') WHERE id = ?", [id])
+      saveDatabase()
+      return queryOne('SELECT * FROM todos WHERE id = ?', [id])
+    })
+
+    ipcMain.handle('todos:reorder', async (_event, data: { ids: string[] }) => {
+      for (let i = 0; i < data.ids.length; i++) {
+        execute("UPDATE todos SET position = ?, updated_at = datetime('now') WHERE id = ?", [i, data.ids[i]])
+      }
+      saveDatabase()
+    })
+
+    ipcMain.handle('todos:delete', async (_event, id: string) => {
+      execute('DELETE FROM todos WHERE id = ?', [id])
+      saveDatabase()
+    })
+
+    // ── Overview handler ──
+
+    ipcMain.handle('overview:get', async () => {
+      const dueCards = queryAll(
+        `SELECT c.id, c.title, c.project_id, p.name AS project_name, c.due_date, c.priority
+         FROM cards c
+         JOIN projects p ON p.id = c.project_id
+         JOIN kanban_columns kc ON kc.id = c.column_id
+         WHERE c.deleted_at IS NULL AND p.deleted_at IS NULL AND p.archived = 0
+           AND kc.is_done = 0 AND c.due_date IS NOT NULL
+           AND date(c.due_date) <= date('now', '+7 days')
+         ORDER BY c.due_date ASC
+         LIMIT 8`
+      )
+
+      // A project counts as stale once it's on hold, or once nothing on it has moved in 14 days.
+      const staleProjects = queryAll(
+        `SELECT * FROM (
+           SELECT p.id, p.name, p.priority, p.status,
+             MAX(p.updated_at, COALESCE(MAX(c.updated_at), '')) AS last_activity
+           FROM projects p
+           LEFT JOIN cards c ON c.project_id = p.id AND c.deleted_at IS NULL
+           WHERE p.deleted_at IS NULL AND p.archived = 0 AND p.status != 'done'
+           GROUP BY p.id
+         ) t
+         WHERE t.status = 'on_hold' OR t.last_activity <= datetime('now', '-14 days')
+         ORDER BY t.last_activity ASC
+         LIMIT 5`
+      )
+
+      const statusRows = queryAll(
+        `SELECT status, COUNT(*) AS count FROM projects
+         WHERE deleted_at IS NULL AND archived = 0
+         GROUP BY status`
+      )
+
+      // No completed_at column exists, so a card's own updated_at (set on every move) stands in
+      // for when it was finished — close enough for a week-over-week trend.
+      const pointsTrend = queryOne(
+        `SELECT
+           COALESCE(SUM(CASE WHEN c.updated_at >= datetime('now', '-7 days') THEN c.points ELSE 0 END), 0) AS this_week,
+           COALESCE(SUM(CASE WHEN c.updated_at >= datetime('now', '-14 days') AND c.updated_at < datetime('now', '-7 days') THEN c.points ELSE 0 END), 0) AS last_week
+         FROM cards c
+         JOIN kanban_columns kc ON kc.id = c.column_id
+         JOIN projects p ON p.id = c.project_id
+         WHERE c.deleted_at IS NULL AND p.deleted_at IS NULL AND p.archived = 0 AND kc.is_done = 1`
+      )
+
+      const recentNotes = queryAll(
+        `SELECT n.id, n.title, n.project_id, n.card_id,
+           ${NOTE_PROJECT_COLUMNS},
+           n.updated_at
+         FROM notes n
+         ${NOTE_PROJECT_JOIN}
+         WHERE n.deleted_at IS NULL
+         ORDER BY n.updated_at DESC
+         LIMIT 5`
+      )
+
+      return { dueCards, staleProjects, statusRows, pointsTrend, recentNotes }
+    })
+
+    // ── Search handler ──
+
+    ipcMain.handle('search:query', (_event, query: string) => {
+      const q = query.trim()
+      if (!q) return { projects: [], cards: [], notes: [] }
+      const like = `%${q.replace(/[\\%_]/g, (c) => '\\' + c)}%`
+
+      const projects = queryAll(
+        `SELECT id, name, priority, status FROM projects
+         WHERE deleted_at IS NULL AND name LIKE ? ESCAPE '\\' COLLATE NOCASE
+         ORDER BY name COLLATE NOCASE LIMIT 8`,
+        [like]
+      )
+
+      const cards = queryAll(
+        `SELECT c.id, c.title, c.project_id, p.name AS project_name
+         FROM cards c JOIN projects p ON p.id = c.project_id
+         WHERE c.deleted_at IS NULL AND p.deleted_at IS NULL AND c.title LIKE ? ESCAPE '\\' COLLATE NOCASE
+         ORDER BY c.title COLLATE NOCASE LIMIT 8`,
+        [like]
+      )
+
+      const NOTE_RESULT_LIMIT = 8
+      const titleMatches = queryAll(
+        `SELECT n.id, n.title, n.project_id, n.card_id, n.filename,
+           ${NOTE_PROJECT_COLUMNS}
+         FROM notes n
+         ${NOTE_PROJECT_JOIN}
+         WHERE n.deleted_at IS NULL AND n.title LIKE ? ESCAPE '\\' COLLATE NOCASE
+         ORDER BY n.title COLLATE NOCASE LIMIT ?`,
+        [like, NOTE_RESULT_LIMIT]
+      )
+
+      // Note bodies live on disk, not in the DB, so title misses fall back to scanning file
+      // content for the remaining result slots.
+      const remaining = NOTE_RESULT_LIMIT - titleMatches.length
+      const contentMatches: typeof titleMatches = []
+      if (remaining > 0) {
+        const titleMatchIds = new Set(titleMatches.map((n) => n.id))
+        const qLower = q.toLowerCase()
+        const candidates = queryAll(
+          `SELECT n.id, n.title, n.project_id, n.card_id, n.filename,
+             ${NOTE_PROJECT_COLUMNS}
+           FROM notes n
+           ${NOTE_PROJECT_JOIN}
+           WHERE n.deleted_at IS NULL
+           ORDER BY n.updated_at DESC`
+        )
+        for (const note of candidates) {
+          if (titleMatchIds.has(note.id)) continue
+          const fp = noteFilePath(note.filename as string)
+          if (!fp || !fs.existsSync(fp)) continue
+          const content = fs.readFileSync(fp, 'utf-8')
+          if (content.toLowerCase().includes(qLower)) {
+            contentMatches.push(note)
+            if (contentMatches.length >= remaining) break
+          }
+        }
+      }
+
+      const notes = [...titleMatches, ...contentMatches].map(
+        ({ id, title, project_id, card_id, resolved_project_id, project_name }) =>
+          ({ id, title, project_id, card_id, resolved_project_id, project_name })
+      )
+
+      return { projects, cards, notes }
+    })
+
     createWindow()
   } catch (error) {
     console.error('App initialization failed:', error)

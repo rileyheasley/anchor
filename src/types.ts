@@ -1,15 +1,19 @@
 export type Priority = 'none' | 'low' | 'medium' | 'high'
-export type ResolvedTheme = 'light' | 'dark' | 'pink'
+export type ProjectStatus = 'planning' | 'in_progress' | 'on_hold' | 'done'
+export type ResolvedTheme = 'light' | 'dark' | 'pink' | 'nord' | 'dracula' | 'solarized' | 'sepia' | 'forest' | 'ocean' | 'contrast' | 'deuteranopia' | 'protanopia' | 'tritanopia'
 export type ThemeMode = ResolvedTheme | 'system'
 
 export interface Project {
   id: string
   name: string
   priority: Priority
+  status: ProjectStatus
   due_date: string | null
   archived: number
   done_points: number
   total_points: number
+  total_cards: number
+  done_cards: number
   created_at: string
   updated_at: string
 }
@@ -33,7 +37,6 @@ export interface Card {
   priority: Priority
   due_date: string | null
   position: number
-  note_filename: string | null
   deleted_at: string | null
   created_at: string
   updated_at: string
@@ -45,7 +48,19 @@ export interface Note {
   filename: string
   project_id: string | null
   card_id: string | null
+  linked_project_id: string | null
   deleted_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface Todo {
+  id: string
+  text: string
+  priority: Priority
+  due_date: string | null
+  done: number
+  position: number
   created_at: string
   updated_at: string
 }
@@ -57,9 +72,76 @@ export interface RecycleItem {
   deleted_at: string
 }
 
+export interface SearchProjectResult {
+  id: string
+  name: string
+  priority: Priority
+  status: ProjectStatus
+}
+
+export interface SearchCardResult {
+  id: string
+  title: string
+  project_id: string
+  project_name: string
+}
+
+export interface SearchNoteResult {
+  id: string
+  title: string
+  project_id: string | null
+  card_id: string | null
+  resolved_project_id: string | null
+  project_name: string | null
+}
+
+export interface SearchResults {
+  projects: SearchProjectResult[]
+  cards: SearchCardResult[]
+  notes: SearchNoteResult[]
+}
+
+export interface OverviewDueCard {
+  id: string
+  title: string
+  project_id: string
+  project_name: string
+  due_date: string
+  priority: Priority
+}
+
+export interface OverviewStaleProject {
+  id: string
+  name: string
+  priority: Priority
+  status: ProjectStatus
+  last_activity: string
+}
+
+export interface OverviewRecentNote {
+  id: string
+  title: string
+  project_id: string | null
+  card_id: string | null
+  resolved_project_id: string | null
+  project_name: string | null
+  updated_at: string
+}
+
+export interface OverviewData {
+  dueCards: OverviewDueCard[]
+  staleProjects: OverviewStaleProject[]
+  statusRows: { status: ProjectStatus, count: number }[]
+  pointsTrend: { this_week: number, last_week: number }
+  recentNotes: OverviewRecentNote[]
+}
+
 declare global {
   interface Window {
     api: {
+      app: {
+        getVersion: () => Promise<string>
+      }
       window: {
         minimize: () => Promise<void>
         maximize: () => Promise<void>
@@ -69,8 +151,8 @@ declare global {
       }
       projects: {
         list: () => Promise<Project[]>
-        create: (data: { name: string, priority?: Priority, due_date?: string | null }) => Promise<Project>
-        update: (data: { id: string, name?: string, priority?: Priority, due_date?: string | null }) => Promise<Project>
+        create: (data: { name: string, priority?: Priority, status?: ProjectStatus, due_date?: string | null }) => Promise<Project>
+        update: (data: { id: string, name?: string, priority?: Priority, status?: ProjectStatus, due_date?: string | null }) => Promise<Project>
         archive: (id: string) => Promise<void>
         delete: (id: string) => Promise<void>
       }
@@ -100,9 +182,12 @@ declare global {
       notes: {
         list: (filter?: { project_id?: string, card_id?: string, standalone?: boolean }) => Promise<Note[]>
         create: (data: { title: string, project_id?: string, card_id?: string }) => Promise<Note>
-        update: (data: { id: string, title?: string }) => Promise<Note>
+        update: (data: { id: string, title?: string, project_id?: string | null }) => Promise<Note>
+        link: (data: { id: string, project_id: string }) => Promise<Note>
+        unlink: (id: string) => Promise<Note>
         reorder: (data: { ids: string[] }) => Promise<void>
         getContent: (id: string) => Promise<string | null>
+        previewsForProject: (projectId: string) => Promise<Record<string, string>>
         saveContent: (id: string, content: string) => Promise<void>
         delete: (id: string) => Promise<void>
       }
@@ -114,6 +199,20 @@ declare global {
       archive: {
         list: () => Promise<Project[]>
         restore: (id: string) => Promise<void>
+      }
+      search: {
+        query: (query: string) => Promise<SearchResults>
+      }
+      overview: {
+        get: () => Promise<OverviewData>
+      }
+      todos: {
+        list: () => Promise<Todo[]>
+        create: (data: { text: string }) => Promise<Todo>
+        update: (data: { id: string, text?: string, priority?: Priority, due_date?: string | null }) => Promise<Todo>
+        toggle: (id: string) => Promise<Todo>
+        reorder: (data: { ids: string[] }) => Promise<void>
+        delete: (id: string) => Promise<void>
       }
     }
   }

@@ -1,23 +1,19 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { Plus, Trash2, Archive, FolderOpen } from 'lucide-react'
-import type { Project, Priority } from '../types'
+import { Plus, Trash2, Archive, FolderOpen, List, LayoutGrid, CheckCircle2, Circle, Flag, CircleDot, Filter, X } from 'lucide-react'
+import type { Project, Priority, ProjectStatus } from '../types'
 import { clickSound, deleteSound } from '../sounds'
 import ProjectCreationModal from './ProjectCreationModal'
+import SortDropdown from './SortDropdown'
 import ConfirmDialog from './ConfirmDialog'
-import ContextMenu, { type ContextMenuPosition } from './ContextMenu'
-import { PRIORITY_BADGES, dueDateInfo } from '../utils/priority'
+import ContextMenu, { type ContextMenuEntry, type ContextMenuPosition } from './ContextMenu'
+import { useEscapeKey } from '../hooks/useEscapeKey'
+import { useClickOutside } from '../hooks/useClickOutside'
+import { PRIORITY_BADGES, PRIORITY_OPTIONS, PRIORITY_ORDER, PRIORITY_LABELS, dueDateInfo } from '../utils/priority'
+import { STATUS_OPTIONS, STATUS_ORDER, STATUS_BADGES, STATUS_LABELS } from '../utils/status'
 
-const PRIORITY_COLORS: Record<string, string> = {
-  none: 'border-l-ink-faint',
-  low: 'border-l-accent',
-  medium: 'border-l-warning-hover',
-  high: 'border-l-danger',
-}
-
-const PRIORITY_ORDER: Record<Priority, number> = { high: 0, medium: 1, low: 2, none: 3 }
-
-type SortMode = 'priority' | 'dueDate' | 'name'
+type SortMode = 'priority' | 'status' | 'dueDate' | 'name'
+type ViewMode = 'list' | 'grid'
 
 export default function HomePage({
   onOpenProject,
@@ -34,8 +30,15 @@ export default function HomePage({
   const [isCreatingModalOpen, setIsCreatingModalOpen] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [sortBy, setSortBy] = useState<SortMode>('priority')
+  const [viewMode, setViewMode] = useState<ViewMode>(
+    () => (localStorage.getItem('projectViewMode') === 'grid' ? 'grid' : 'list')
+  )
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [menu, setMenu] = useState<{ project: Project; position: ContextMenuPosition } | null>(null)
+  const [statusFilter, setStatusFilter] = useState<Set<ProjectStatus>>(new Set())
+  const [priorityFilter, setPriorityFilter] = useState<Set<Priority>>(new Set())
+  const [isFilterOpen, setIsFilterOpen] = useState(false)
+  const filterMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { loadProjects() }, [])
 
@@ -44,7 +47,12 @@ export default function HomePage({
       setIsCreatingModalOpen(true)
       onCreateHandled?.()
     }
+    // Only re-run when the deep-link flag flips — onCreateHandled is a fresh closure every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startCreatingProp])
+
+  useEscapeKey(() => setIsFilterOpen(false), isFilterOpen)
+  useClickOutside(filterMenuRef, () => setIsFilterOpen(false), isFilterOpen)
 
   const loadProjects = async () => {
     try {
@@ -54,10 +62,19 @@ export default function HomePage({
     }
   }
 
-  const sorted = [...projects].sort((a, b) => {
+  const filtered = projects.filter((p) =>
+    (statusFilter.size === 0 || statusFilter.has(p.status)) &&
+    (priorityFilter.size === 0 || priorityFilter.has(p.priority))
+  )
+
+  const sorted = [...filtered].sort((a, b) => {
     if (sortBy === 'priority') {
       const pd = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]
       return pd !== 0 ? pd : a.name.localeCompare(b.name)
+    }
+    if (sortBy === 'status') {
+      const sd = STATUS_ORDER[a.status] - STATUS_ORDER[b.status]
+      return sd !== 0 ? sd : a.name.localeCompare(b.name)
     }
     if (sortBy === 'dueDate') {
       if (!a.due_date && !b.due_date) return a.name.localeCompare(b.name)
@@ -68,7 +85,41 @@ export default function HomePage({
     return a.name.localeCompare(b.name)
   })
 
-  const handleCreate = async (data: { name: string; priority: Priority; due_date: string | null }) => {
+  const activeFilterCount = statusFilter.size + priorityFilter.size
+
+  const toggleStatusFilter = (s: ProjectStatus) => {
+    clickSound()
+    setStatusFilter((prev) => {
+      const next = new Set(prev)
+      if (next.has(s)) next.delete(s)
+      else next.add(s)
+      return next
+    })
+  }
+
+  const togglePriorityFilter = (pri: Priority) => {
+    clickSound()
+    setPriorityFilter((prev) => {
+      const next = new Set(prev)
+      if (next.has(pri)) next.delete(pri)
+      else next.add(pri)
+      return next
+    })
+  }
+
+  const clearFilters = () => {
+    clickSound()
+    setStatusFilter(new Set())
+    setPriorityFilter(new Set())
+  }
+
+  const handleViewModeChange = (mode: ViewMode) => {
+    clickSound()
+    setViewMode(mode)
+    localStorage.setItem('projectViewMode', mode)
+  }
+
+  const handleCreate = async (data: { name: string; priority: Priority; status: ProjectStatus; due_date: string | null }) => {
     setIsCreating(true)
     try {
       await window.api.projects.create(data)
@@ -103,49 +154,205 @@ export default function HomePage({
     }
   }
 
+  const handleUpdatePriority = async (id: string, priority: Priority) => {
+    try {
+      await window.api.projects.update({ id, priority })
+      await loadProjects()
+    } catch (error) {
+      console.error('Failed to update priority:', error)
+    }
+  }
+
+  const handleUpdateStatus = async (id: string, status: ProjectStatus) => {
+    try {
+      await window.api.projects.update({ id, status })
+      await loadProjects()
+    } catch (error) {
+      console.error('Failed to update status:', error)
+    }
+  }
+
+  const buildProjectMenuItems = (p: Project): ContextMenuEntry[] => [
+    { label: 'Open project', icon: FolderOpen, onClick: () => onOpenProject(p) },
+    'separator',
+    {
+      label: 'Set status',
+      icon: CircleDot,
+      items: STATUS_OPTIONS.map((s) => ({
+        label: STATUS_LABELS[s],
+        icon: p.status === s ? CheckCircle2 : Circle,
+        onClick: () => handleUpdateStatus(p.id, s),
+      })),
+    },
+    {
+      label: 'Set priority',
+      icon: Flag,
+      items: PRIORITY_OPTIONS.map((pri) => ({
+        label: PRIORITY_LABELS[pri],
+        icon: p.priority === pri ? CheckCircle2 : Circle,
+        onClick: () => handleUpdatePriority(p.id, pri),
+      })),
+    },
+    'separator' as const,
+    { label: 'Archive project', icon: Archive, onClick: () => handleArchive(p.id) },
+    { label: 'Delete project', icon: Trash2, danger: true, onClick: () => setConfirmDelete(p.id) },
+  ]
+
   const progressPercent = (p: Project) =>
     p.total_points > 0 ? Math.round((p.done_points / p.total_points) * 100) : 0
 
-  const SORT_LABELS: Record<SortMode, string> = { priority: 'Priority', dueDate: 'Due date', name: 'Name' }
+  const SORT_LABELS: Record<SortMode, string> = { priority: 'Priority', status: 'Status', dueDate: 'Due date', name: 'Name' }
 
   return (
-    <div className="min-h-screen bg-surface-sunken">
+    <div className="h-full overflow-y-auto bg-surface-sunken">
       <main className="max-w-4xl mx-auto px-6 py-8">
         {projects.length > 0 && (
           <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-1">
-              <span className="text-xs text-ink-faint mr-1">Sort:</span>
-              {(['priority', 'dueDate', 'name'] as SortMode[]).map((mode) => (
-                <button
-                  key={mode}
-                  onClick={() => { clickSound(); setSortBy(mode) }}
-                  className={`text-xs px-2 py-1 rounded cursor-pointer transition-colors ${
-                    sortBy === mode ? 'bg-primary text-ink-inverse' : 'text-ink-faint hover:bg-surface-muted'
+            <div className="flex items-center gap-4">
+              <SortDropdown
+                options={(['priority', 'status', 'dueDate', 'name'] as SortMode[]).map((mode) => ({ value: mode, label: SORT_LABELS[mode] }))}
+                value={sortBy}
+                onChange={setSortBy}
+              />
+              <div className="flex items-center gap-0.5 border border-border rounded-lg p-0.5">
+                <motion.button
+                  whileHover={{ scale: 1.08 }}
+                  whileTap={{ scale: 0.92 }}
+                  onClick={() => handleViewModeChange('list')}
+                  title="List view"
+                  className={`p-1.5 rounded cursor-pointer transition-colors ${
+                    viewMode === 'list' ? 'bg-primary text-ink-inverse' : 'text-ink-faint hover:bg-surface-muted'
                   }`}
                 >
-                  {SORT_LABELS[mode]}
-                </button>
-              ))}
+                  <List size={14} />
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.08 }}
+                  whileTap={{ scale: 0.92 }}
+                  onClick={() => handleViewModeChange('grid')}
+                  title="Grid view"
+                  className={`p-1.5 rounded cursor-pointer transition-colors ${
+                    viewMode === 'grid' ? 'bg-primary text-ink-inverse' : 'text-ink-faint hover:bg-surface-muted'
+                  }`}
+                >
+                  <LayoutGrid size={14} />
+                </motion.button>
+              </div>
+
+              <div className="relative" ref={filterMenuRef}>
+                <motion.button
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => { clickSound(); setIsFilterOpen((open) => !open) }}
+                  title="Filter"
+                  className={`flex items-center gap-1.5 text-xs px-2 py-1.5 rounded-lg border cursor-pointer transition-colors ${
+                    activeFilterCount > 0
+                      ? 'border-accent bg-accent-subtle text-accent-strong font-medium'
+                      : 'border-border text-ink-faint hover:bg-surface-muted'
+                  }`}
+                >
+                  <Filter size={14} />
+                  Filter
+                  {activeFilterCount > 0 && (
+                    <span className="w-4 h-4 flex items-center justify-center rounded-full bg-accent text-ink-inverse text-[10px] font-semibold">
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </motion.button>
+
+                <AnimatePresence>
+                  {isFilterOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95, y: 4 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95, y: 4 }}
+                      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                      className="absolute top-full left-0 mt-2 bg-surface border border-border-strong rounded-lg shadow-lg p-3 min-w-[220px] z-50"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-medium text-ink-secondary">Filter projects</span>
+                        {activeFilterCount > 0 && (
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={clearFilters}
+                            className="flex items-center gap-1 text-xs text-ink-faint hover:text-danger cursor-pointer transition-colors"
+                          >
+                            <X size={12} />
+                            Clear
+                          </motion.button>
+                        )}
+                      </div>
+
+                      <div className="mb-3">
+                        <span className="text-xs text-ink-faint uppercase tracking-wide block mb-1.5">Status</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {STATUS_OPTIONS.map((s) => (
+                            <motion.button
+                              key={s}
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => toggleStatusFilter(s)}
+                              className={`text-xs px-2 py-1 rounded-lg cursor-pointer transition-colors ${
+                                statusFilter.has(s)
+                                  ? STATUS_BADGES[s] + ' font-semibold ring-1 ring-inset ring-current'
+                                  : 'bg-surface-muted text-ink-muted hover:bg-border-strong'
+                              }`}
+                            >
+                              {STATUS_LABELS[s]}
+                            </motion.button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <span className="text-xs text-ink-faint uppercase tracking-wide block mb-1.5">Priority</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {PRIORITY_OPTIONS.map((pri) => (
+                            <motion.button
+                              key={pri}
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => togglePriorityFilter(pri)}
+                              className={`text-xs px-2 py-1 rounded-lg cursor-pointer transition-colors ${
+                                priorityFilter.has(pri)
+                                  ? PRIORITY_BADGES[pri] + ' font-semibold ring-1 ring-inset ring-current'
+                                  : 'bg-surface-muted text-ink-muted hover:bg-border-strong'
+                              }`}
+                            >
+                              {PRIORITY_LABELS[pri]}
+                            </motion.button>
+                          ))}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
-            <button
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
               onClick={() => { clickSound(); setIsCreatingModalOpen(true); onNewProject?.() }}
               className="px-3 py-2 bg-primary text-ink-inverse text-sm rounded-lg hover:bg-primary-hover transition-colors cursor-pointer font-medium flex items-center gap-2"
             >
               <Plus size={16} />
               New Project
-            </button>
+            </motion.button>
           </div>
         )}
 
         {projects.length === 0 && !isCreatingModalOpen && (
           <div className="mb-6 flex justify-end">
-            <button
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
               onClick={() => { clickSound(); setIsCreatingModalOpen(true); onNewProject?.() }}
               className="px-3 py-2 bg-primary text-ink-inverse text-sm rounded-lg hover:bg-primary-hover transition-colors cursor-pointer font-medium flex items-center gap-2"
             >
               <Plus size={16} />
               New Project
-            </button>
+            </motion.button>
           </div>
         )}
 
@@ -156,7 +363,21 @@ export default function HomePage({
           </div>
         )}
 
-        <div className="space-y-3">
+        {projects.length > 0 && filtered.length === 0 && (
+          <div className="text-center py-24 text-ink-faint">
+            <p className="text-base font-medium text-ink-muted">No projects match your filters</p>
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={clearFilters}
+              className="mt-3 text-sm text-accent-hover hover:underline cursor-pointer"
+            >
+              Clear filters
+            </motion.button>
+          </div>
+        )}
+
+        <div className={viewMode === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3' : 'space-y-3'}>
           <AnimatePresence mode="popLayout">
             {sorted.map((p, i) => {
               const dueInfo = dueDateInfo(p.due_date)
@@ -172,30 +393,38 @@ export default function HomePage({
                   whileTap={{ scale: 0.99 }}
                   onClick={() => { clickSound(); onOpenProject(p) }}
                   onContextMenu={(e) => { e.preventDefault(); setMenu({ project: p, position: { x: e.clientX, y: e.clientY } }) }}
-                  className={`bg-surface rounded-lg border border-border border-l-4 ${PRIORITY_COLORS[p.priority]} p-4 cursor-pointer`}
+                  className={`bg-surface rounded-lg border border-border p-4 cursor-pointer ${viewMode === 'grid' ? 'flex flex-col h-full' : ''}`}
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-medium text-ink">{p.name}</h3>
-                    <div className="flex items-center gap-1.5">
+                  <div className={viewMode === 'grid' ? 'flex flex-col gap-2 mb-2' : 'flex items-center justify-between mb-2'}>
+                    <h3 className="font-heading font-medium text-ink">{p.name}</h3>
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       {dueInfo && <span className={`text-xs ${dueInfo.color}`}>{dueInfo.label}</span>}
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_BADGES[p.status]}`}>
+                        {STATUS_LABELS[p.status]}
+                      </span>
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${PRIORITY_BADGES[p.priority]}`}>
                         {p.priority}
                       </span>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 bg-surface-muted rounded-full h-1.5 overflow-hidden">
-                      <motion.div
-                        className="bg-accent h-full rounded-full"
-                        initial={{ width: 0 }}
-                        animate={{ width: `${progressPercent(p)}%` }}
-                        transition={{ duration: 0.6, ease: 'easeOut' }}
-                      />
+                  <div className={viewMode === 'grid' ? 'mt-auto space-y-2' : ''}>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 bg-surface-muted rounded-full h-1.5 overflow-hidden">
+                        <motion.div
+                          className="bg-accent h-full rounded-full"
+                          initial={{ width: 0 }}
+                          animate={{ width: `${progressPercent(p)}%` }}
+                          transition={{ duration: 0.6, ease: 'easeOut' }}
+                        />
+                      </div>
+                      <span className="text-xs text-ink-faint whitespace-nowrap">
+                        {p.total_points > 0 ? `${p.done_points}/${p.total_points} pts` : 'No points'}
+                      </span>
                     </div>
-                    <span className="text-xs text-ink-faint whitespace-nowrap">
-                      {p.total_points > 0 ? `${p.done_points}/${p.total_points} pts` : 'No cards'}
-                    </span>
+                    <div className="text-xs text-ink-faint">
+                      {p.total_cards > 0 ? `${p.done_cards}/${p.total_cards} tasks` : 'No tasks'}
+                    </div>
                   </div>
                 </motion.div>
               )
@@ -223,16 +452,7 @@ export default function HomePage({
       <ContextMenu
         position={menu?.position ?? null}
         onClose={() => setMenu(null)}
-        items={
-          menu
-            ? [
-                { label: 'Open project', icon: FolderOpen, onClick: () => onOpenProject(menu.project) },
-                'separator',
-                { label: 'Archive project', icon: Archive, onClick: () => handleArchive(menu.project.id) },
-                { label: 'Delete project', icon: Trash2, danger: true, onClick: () => setConfirmDelete(menu.project.id) },
-              ]
-            : []
-        }
+        items={menu ? buildProjectMenuItems(menu.project) : []}
       />
     </div>
   )

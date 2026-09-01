@@ -7,31 +7,20 @@ import MarkdownEditor from './MarkdownEditor'
 import ResizableNotesSidebar from './ResizableNotesSidebar'
 import ConfirmDialog from './ConfirmDialog'
 import ContextMenu, { type ContextMenuPosition } from './ContextMenu'
-
-// Derives a plain-text title from the first non-empty markdown line
-function deriveTitleFromContent(content: string): string {
-  const firstLine = content.split('\n').find((line) => line.trim().length > 0) ?? ''
-  let text = firstLine.trim()
-  text = text.replace(/^#{1,6}\s+/, '')
-  text = text.replace(/^[-*+]\s+/, '')
-  text = text.replace(/^\d+\.\s+/, '')
-  text = text.replace(/^>\s+/, '')
-  text = text.replace(/(\*\*|__)(.*?)\1/g, '$2')
-  text = text.replace(/(\*|_)(.*?)\1/g, '$2')
-  text = text.replace(/`([^`]+)`/g, '$1')
-  text = text.replace(/~~(.*?)~~/g, '$1')
-  text = text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-  return text.trim() || 'Untitled'
-}
+import { deriveTitleFromContent } from '../shared/noteTitle'
 
 export default function NotesPage({
   startCreating: startCreatingProp = false,
   onCreateHandled,
   onNewNote,
+  focusNoteId,
+  onFocusNoteHandled,
 }: {
   startCreating?: boolean
   onCreateHandled?: () => void
   onNewNote?: () => void
+  focusNoteId?: string | null
+  onFocusNoteHandled?: () => void
 }) {
   const [vaultPath, setVaultPath] = useState<string | null>(null)
   const [notes, setNotes] = useState<Note[]>([])
@@ -60,7 +49,21 @@ export default function NotesPage({
       setCreating(true)
       onCreateHandled?.()
     }
+    // Only re-run when the deep-link flag flips — onCreateHandled is a fresh closure every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startCreatingProp])
+
+  // Deep-link support: open a specific note once the list is loaded (e.g. from search)
+  useEffect(() => {
+    if (!focusNoteId || notes.length === 0) return
+    const note = notes.find((n) => n.id === focusNoteId)
+    if (note) {
+      handleOpenNote(note)
+      onFocusNoteHandled?.()
+    }
+    // Only re-run when the deep-link target or list changes — handleOpenNote/onFocusNoteHandled are fresh each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusNoteId, notes])
 
   const loadVaultAndNotes = async () => {
     const vp = await window.api.vault.getPath()
@@ -134,12 +137,14 @@ export default function NotesPage({
       <div className="min-h-screen bg-surface-sunken flex flex-col items-center justify-center gap-4 text-center px-8">
         <p className="text-ink-muted text-lg">Choose a folder to store your notes</p>
         <p className="text-ink-faint text-sm max-w-sm">Notes are saved as markdown files on disk. Pick any folder — Anchor will create a <code className="bg-surface-muted px-1 rounded">notes/</code> and <code className="bg-surface-muted px-1 rounded">projects/</code> subfolder inside it.</p>
-        <button
+        <motion.button
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.97 }}
           onClick={handleChooseVault}
           className="mt-2 px-6 py-3 bg-primary text-ink-inverse rounded-lg text-sm font-medium hover:bg-primary-hover transition-colors cursor-pointer"
         >
           Choose folder
-        </button>
+        </motion.button>
       </div>
     )
   }
@@ -165,13 +170,15 @@ export default function NotesPage({
             {!sidebarCollapsed && (
               <span className="text-xs uppercase tracking-wide text-ink-faint font-medium">Notes</span>
             )}
-            <button
+            <motion.button
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
               onClick={() => { clickSound(); setCreating(true); onNewNote?.() }}
               className="p-1.5 bg-primary text-ink-inverse rounded hover:bg-primary-hover transition-colors cursor-pointer font-medium"
               title="Create new note"
             >
               <Plus size={16} />
-            </button>
+            </motion.button>
           </div>
 
           {/* Notes Content - unified flex container */}
@@ -213,15 +220,17 @@ export default function NotesPage({
                       >
                         <div className="flex items-center gap-2 min-w-0">
                           <FileText size={16} className="shrink-0 text-ink-muted" />
-                          <span className="text-sm text-ink-secondary truncate">{note.title}</span>
+                          <span className="font-heading text-sm text-ink-secondary truncate">{note.title}</span>
                         </div>
-                        <button
+                        <motion.button
+                          whileHover={{ scale: 1.15 }}
+                          whileTap={{ scale: 0.9 }}
                           onClick={(e) => { e.stopPropagation(); handleDelete(note.id) }}
                           className="text-ink-faint/70 hover:text-danger opacity-0 group-hover:opacity-100 transition-all cursor-pointer shrink-0 ml-2"
                           title="Delete note"
                         >
                           <Trash2 size={16} />
-                        </button>
+                        </motion.button>
                       </motion.div>
                     ))}
                   </AnimatePresence>
@@ -265,18 +274,16 @@ export default function NotesPage({
           <div className={`border-t border-border-subtle px-2 py-2 flex gap-1 shrink-0 ${
             sidebarCollapsed ? 'justify-center' : 'justify-start'
           }`}>
-            <button
+            <motion.button
+              whileHover={sidebarCollapsed ? { scale: 1.08 } : { x: 2 }}
+              whileTap={{ scale: 0.95 }}
               onClick={() => { clickSound(); setSidebarCollapsed(!sidebarCollapsed) }}
               title={sidebarCollapsed ? 'Expand notes' : 'Collapse notes'}
-              className="flex items-center justify-center p-2 rounded-lg text-sm transition-colors text-ink-muted hover:bg-surface-sunken hover:text-ink-secondary"
+              className="flex items-center gap-1 p-2 rounded-lg text-sm transition-colors text-ink-muted hover:bg-surface-sunken hover:text-ink-secondary cursor-pointer"
             >
               {sidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-            </button>
-            {!sidebarCollapsed && (
-              <span className="flex items-center px-1 text-sm transition-colors text-ink-muted">
-                {sidebarCollapsed ? 'Expand' : 'Collapse'}
-              </span>
-            )}
+              {!sidebarCollapsed && <span className="px-1">Collapse</span>}
+            </motion.button>
           </div>
         </ResizableNotesSidebar>
 

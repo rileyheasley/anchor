@@ -4,6 +4,8 @@ import { RotateCcw, FolderOpen } from 'lucide-react'
 import type { Project } from '../types'
 import { clickSound } from '../sounds'
 import ContextMenu, { type ContextMenuPosition } from './ContextMenu'
+import { PRIORITY_BADGES, dueDateInfo } from '../utils/priority'
+import { STATUS_BADGES, STATUS_LABELS } from '../utils/status'
 
 export default function ArchiveView({ onOpenProject }: { onOpenProject: (p: Project) => void }) {
   const [projects, setProjects] = useState<Project[]>([])
@@ -29,7 +31,7 @@ export default function ArchiveView({ onOpenProject }: { onOpenProject: (p: Proj
     p.total_points > 0 ? Math.round((p.done_points / p.total_points) * 100) : 0
 
   return (
-    <div className="min-h-screen bg-surface-sunken">
+    <div className="h-full overflow-y-auto bg-surface-sunken">
       <main className="max-w-3xl mx-auto px-6 py-8">
         {!loading && projects.length === 0 && (
           <div className="text-center py-16 text-ink-faint">
@@ -40,7 +42,9 @@ export default function ArchiveView({ onOpenProject }: { onOpenProject: (p: Proj
 
         <div className="space-y-3">
           <AnimatePresence>
-            {projects.map((p) => (
+            {projects.map((p) => {
+              const dueInfo = dueDateInfo(p.due_date)
+              return (
               <motion.div
                 key={p.id}
                 layout
@@ -53,14 +57,26 @@ export default function ArchiveView({ onOpenProject }: { onOpenProject: (p: Proj
                 className="bg-surface rounded-lg border border-border p-4 cursor-pointer hover:shadow-md transition-shadow opacity-75 hover:opacity-100"
               >
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-medium text-ink-secondary">{p.name}</h3>
-                  <button
+                  <h3 className="font-heading font-medium text-ink-secondary">{p.name}</h3>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                     onClick={(e) => { e.stopPropagation(); handleRestore(p.id) }}
                     className="text-xs px-3 py-1 text-accent-hover hover:bg-accent-subtle rounded-full border border-accent/30 cursor-pointer transition-colors flex items-center gap-1"
                   >
                     <RotateCcw size={14} />
                     Restore
-                  </button>
+                  </motion.button>
+                </div>
+
+                <div className="flex items-center gap-1.5 flex-wrap mb-2">
+                  {dueInfo && <span className={`text-xs ${dueInfo.color}`}>{dueInfo.label}</span>}
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_BADGES[p.status]}`}>
+                    {STATUS_LABELS[p.status]}
+                  </span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${PRIORITY_BADGES[p.priority]}`}>
+                    {p.priority}
+                  </span>
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -71,11 +87,15 @@ export default function ArchiveView({ onOpenProject }: { onOpenProject: (p: Proj
                     />
                   </div>
                   <span className="text-xs text-ink-faint whitespace-nowrap">
-                    {p.total_points > 0 ? `${p.done_points}/${p.total_points} pts` : 'No cards'}
+                    {p.total_points > 0 ? `${p.done_points}/${p.total_points} pts` : 'No points'}
                   </span>
                 </div>
+                <div className="text-xs text-ink-faint mt-1">
+                  {p.total_cards > 0 ? `${p.done_cards}/${p.total_cards} tasks` : 'No tasks'}
+                </div>
               </motion.div>
-            ))}
+              )
+            })}
           </AnimatePresence>
         </div>
       </main>

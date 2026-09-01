@@ -1,10 +1,12 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Home, FolderOpen, FileText, Archive, Trash2, ChevronLeft, ChevronRight, Moon, Sun, Monitor, Heart, Settings } from 'lucide-react'
+import { Home, FolderOpen, FileText, Archive, Trash2, ChevronLeft, ChevronRight, Sun, Settings, Search, Eye } from 'lucide-react'
 import DraggableSidebar from './DraggableSidebar'
 import IconNavItem from './IconNavItem'
 import { clickSound } from '../sounds'
 import { useEscapeKey } from '../hooks/useEscapeKey'
+import { useClickOutside } from '../hooks/useClickOutside'
+import { THEME_OPTIONS, COLOURBLIND_THEME_OPTIONS, ALL_THEME_OPTIONS } from '../utils/theme'
 import type { ThemeMode } from '../types'
 
 type View = 'home' | 'projects' | 'notes' | 'archive' | 'recycle'
@@ -15,40 +17,34 @@ interface SidebarProps {
   themeMode: ThemeMode
   onThemeChange: (mode: ThemeMode) => void
   onOpenSettings: () => void
+  onOpenSearch: () => void
 }
-
-const THEME_OPTIONS: { mode: ThemeMode; label: string; icon: typeof Sun }[] = [
-  { mode: 'light', label: 'Light', icon: Sun },
-  { mode: 'dark', label: 'Dark', icon: Moon },
-  { mode: 'pink', label: 'Pastel Pink', icon: Heart },
-  { mode: 'system', label: 'System', icon: Monitor },
-]
 
 export default function Sidebar({ 
   view, 
   onNavigate,
   themeMode,
   onThemeChange,
-  onOpenSettings
+  onOpenSettings,
+  onOpenSearch,
 }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false)
+  const [isColourblindMenuOpen, setIsColourblindMenuOpen] = useState(false)
   const themeMenuRef = useRef<HTMLDivElement>(null)
 
-  useEscapeKey(() => setIsThemeMenuOpen(false), isThemeMenuOpen)
+  useEscapeKey(() => {
+    if (isColourblindMenuOpen) setIsColourblindMenuOpen(false)
+    else setIsThemeMenuOpen(false)
+  }, isThemeMenuOpen)
 
-  useEffect(() => {
-    if (!isThemeMenuOpen) return
-    const handleClickOutside = (e: MouseEvent) => {
-      if (themeMenuRef.current && !themeMenuRef.current.contains(e.target as Node)) {
-        setIsThemeMenuOpen(false)
-      }
-    }
-    window.addEventListener('mousedown', handleClickOutside)
-    return () => window.removeEventListener('mousedown', handleClickOutside)
-  }, [isThemeMenuOpen])
+  useClickOutside(themeMenuRef, () => {
+    setIsThemeMenuOpen(false)
+    setIsColourblindMenuOpen(false)
+  }, isThemeMenuOpen)
 
-  const ActiveThemeIcon = THEME_OPTIONS.find((t) => t.mode === themeMode)?.icon ?? Sun
+  const ActiveThemeIcon = ALL_THEME_OPTIONS.find((t) => t.mode === themeMode)?.icon ?? Sun
+  const isColourblindActive = COLOURBLIND_THEME_OPTIONS.some((t) => t.mode === themeMode)
 
   const navItems = [
     { id: 'home', label: 'Home', icon: Home, view: 'home' as const },
@@ -106,13 +102,15 @@ export default function Sidebar({
       }`}>
         {/* Theme Menu */}
         <div className="relative" ref={themeMenuRef}>
-          <button
+          <motion.button
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.92 }}
             onClick={() => { clickSound(); setIsThemeMenuOpen((open) => !open) }}
             title="Theme"
             className="flex items-center justify-center p-2 rounded-lg text-sm transition-colors text-ink-muted hover:bg-surface-sunken hover:text-ink-secondary"
           >
             <ActiveThemeIcon size={18} />
-          </button>
+          </motion.button>
 
           <AnimatePresence>
             {isThemeMenuOpen && (
@@ -124,9 +122,11 @@ export default function Sidebar({
                 className="absolute bottom-full left-0 mb-2 bg-surface border border-border-strong rounded-lg shadow-lg py-1 min-w-[140px] z-50"
               >
                 {THEME_OPTIONS.map(({ mode, label, icon: Icon }) => (
-                  <button
+                  <motion.button
                     key={mode}
-                    onClick={() => { clickSound(); onThemeChange(mode); setIsThemeMenuOpen(false) }}
+                    whileHover={{ x: 2 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => { clickSound(); onThemeChange(mode); setIsThemeMenuOpen(false); setIsColourblindMenuOpen(false) }}
                     className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left cursor-pointer transition-colors ${
                       themeMode === mode
                         ? 'text-accent-hover font-medium bg-accent-subtle'
@@ -135,30 +135,91 @@ export default function Sidebar({
                   >
                     <Icon size={16} />
                     {label}
-                  </button>
+                  </motion.button>
                 ))}
+
+                <div className="relative">
+                  <motion.button
+                    whileHover={{ x: 2 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setIsColourblindMenuOpen((open) => !open)}
+                    className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left cursor-pointer transition-colors ${
+                      isColourblindActive
+                        ? 'text-accent-hover font-medium bg-accent-subtle'
+                        : 'text-ink-secondary hover:bg-surface-sunken'
+                    }`}
+                  >
+                    <Eye size={16} />
+                    Colourblind
+                    <ChevronRight size={14} className="ml-auto" />
+                  </motion.button>
+
+                  <AnimatePresence>
+                    {isColourblindMenuOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.95, x: 4 }}
+                        animate={{ opacity: 1, scale: 1, x: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, x: 4 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                        className="absolute left-full top-0 ml-1 bg-surface border border-border-strong rounded-lg shadow-lg py-1 min-w-[150px] z-50"
+                      >
+                        {COLOURBLIND_THEME_OPTIONS.map(({ mode, label, icon: Icon }) => (
+                          <motion.button
+                            key={mode}
+                            whileHover={{ x: 2 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => { clickSound(); onThemeChange(mode); setIsThemeMenuOpen(false); setIsColourblindMenuOpen(false) }}
+                            className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left cursor-pointer transition-colors ${
+                              themeMode === mode
+                                ? 'text-accent-hover font-medium bg-accent-subtle'
+                                : 'text-ink-secondary hover:bg-surface-sunken'
+                            }`}
+                          >
+                            <Icon size={16} />
+                            {label}
+                          </motion.button>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
 
+        {/* Search */}
+        <motion.button
+          whileHover={{ scale: 1.08 }}
+          whileTap={{ scale: 0.92 }}
+          onClick={() => { clickSound(); onOpenSearch() }}
+          title="Search"
+          className="flex items-center justify-center p-2 rounded-lg text-sm transition-colors text-ink-muted hover:bg-surface-sunken hover:text-ink-secondary"
+        >
+          <Search size={18} />
+        </motion.button>
+
         {/* Settings */}
-        <button
+        <motion.button
+          whileHover={{ scale: 1.08 }}
+          whileTap={{ scale: 0.92 }}
           onClick={() => { clickSound(); onOpenSettings() }}
           title="Settings"
           className="flex items-center justify-center p-2 rounded-lg text-sm transition-colors text-ink-muted hover:bg-surface-sunken hover:text-ink-secondary"
         >
           <Settings size={18} />
-        </button>
+        </motion.button>
 
         {/* Collapse Toggle */}
-        <button
+        <motion.button
+          whileHover={{ scale: 1.08 }}
+          whileTap={{ scale: 0.92 }}
           onClick={() => { clickSound(); setIsCollapsed(!isCollapsed) }}
           title={isCollapsed ? 'Expand' : 'Collapse'}
           className="flex items-center justify-center p-2 rounded-lg text-sm transition-colors text-ink-muted hover:bg-surface-sunken hover:text-ink-secondary"
         >
           {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-        </button>
+        </motion.button>
       </div>
     </DraggableSidebar>
   )

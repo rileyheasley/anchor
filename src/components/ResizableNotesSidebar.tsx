@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, ReactNode } from 'react'
+import { clickSound } from '../sounds'
 
 interface ResizableNotesSidebarProps {
   children: ReactNode
@@ -53,10 +54,12 @@ export default function ResizableNotesSidebar({
 
       // Auto-collapse when dragging below threshold
       if (newWidth < COLLAPSE_THRESHOLD) {
+        if (!isCollapsedRef.current) clickSound()
         onCollapsedChange(true)
       }
       // Auto-expand when dragging above threshold
       else if (newWidth > COLLAPSE_THRESHOLD && isCollapsedRef.current) {
+        clickSound()
         onCollapsedChange(false)
       }
     }

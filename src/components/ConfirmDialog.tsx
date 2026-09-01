@@ -52,17 +52,21 @@ export default function ConfirmDialog({
             onClick={(e) => e.stopPropagation()}
             className="bg-surface border border-border-strong rounded-lg shadow-lg p-6 max-w-sm w-full mx-4"
           >
-            <h2 className="text-lg font-semibold text-ink mb-2">{title}</h2>
+            <h2 className="font-heading text-lg font-semibold text-ink mb-2">{title}</h2>
             <p className="text-sm text-ink-secondary mb-6">{message}</p>
 
             <div className="flex gap-3 justify-end">
-              <button
+              <motion.button
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
                 onClick={onCancel}
                 className="px-4 py-2 text-sm text-ink-secondary hover:bg-surface-muted rounded-lg cursor-pointer transition-colors border border-border"
               >
                 {cancelText}
-              </button>
-              <button
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
                 onClick={onConfirm}
                 className={`px-4 py-2 text-sm text-ink-inverse rounded-lg cursor-pointer transition-colors font-medium ${
                   isDangerous
@@ -71,7 +75,7 @@ export default function ConfirmDialog({
                 }`}
               >
                 {confirmText}
-              </button>
+              </motion.button>
             </div>
           </motion.div>
         </motion.div>

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { motion, AnimatePresence } from 'motion/react'
 import { X, Trash2 } from 'lucide-react'
 import type { Note } from '../types'
 import { clickSound, deleteSound } from '../sounds'
@@ -14,6 +15,10 @@ interface NoteEditModalProps {
   onSave: (content: string, title: string) => Promise<void>
   onDelete: () => Promise<void>
   isLoading?: boolean
+  deleteTitle?: string
+  confirmTitle?: string
+  confirmMessage?: string
+  confirmButtonText?: string
 }
 
 export default function NoteEditModal({
@@ -23,6 +28,10 @@ export default function NoteEditModal({
   onSave,
   onDelete,
   isLoading = false,
+  deleteTitle = 'Delete note',
+  confirmTitle = 'Delete note?',
+  confirmMessage = 'This note will be moved to the recycle bin. You can restore it later.',
+  confirmButtonText = 'Delete',
 }: NoteEditModalProps) {
   const [title, setTitle] = useState('')
   const [isEditingTitle, setIsEditingTitle] = useState(false)
@@ -41,6 +50,8 @@ export default function NoteEditModal({
       activeNoteIdRef.current = note.id
       loadNoteContent(note.id)
     }
+    // Only re-run when the note identity or open state changes — `note` itself is a fresh object each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [note?.id, isOpen])
 
   useEffect(() => {
@@ -115,16 +126,26 @@ export default function NoteEditModal({
   useEscapeKey(handleClose, isOpen && !confirmDelete)
   useFocusTrap(panelRef, isOpen && !confirmDelete)
 
-  if (!isOpen || !note) return null
-
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={handleClose}>
-      <div
+    <AnimatePresence>
+      {isOpen && note && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={handleClose}
+        >
+      <motion.div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label="Edit note"
         tabIndex={-1}
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
         onClick={(e) => e.stopPropagation()}
         className="bg-surface border border-border-subtle rounded-lg shadow-lg w-full max-w-2xl max-h-[80vh] flex flex-col"
       >
@@ -140,38 +161,44 @@ export default function NoteEditModal({
                 if (e.key === 'Enter') handleTitleSave()
                 if (e.key === 'Escape') {
                   setIsEditingTitle(false)
-                  setTitle(note.title)
+                  if (note) setTitle(note.title)
                 }
               }}
               onBlur={handleTitleSave}
               disabled={isLoading || isSaving}
-              className="flex-1 text-lg font-medium bg-surface-sunken text-ink border border-border-strong rounded-lg px-3 py-1 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-50 mr-2"
+              className="font-heading flex-1 text-lg font-medium bg-surface-sunken text-ink border border-border-strong rounded-lg px-3 py-1 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-50 mr-2"
             />
           ) : (
-            <button
+            <motion.button
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.99 }}
               onClick={() => setIsEditingTitle(true)}
-              className="text-lg font-medium text-ink hover:text-accent-hover transition-colors cursor-pointer text-left flex-1 truncate mr-2"
+              className="font-heading text-lg font-medium text-ink hover:text-accent-hover transition-colors cursor-pointer text-left flex-1 truncate mr-2"
             >
               {title}
-            </button>
+            </motion.button>
           )}
           <div className="flex items-center gap-2 shrink-0">
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               onClick={handleDelete}
               disabled={isLoading || isSaving}
               className="p-1 rounded-lg text-ink-muted hover:text-danger hover:bg-surface-sunken transition-colors disabled:opacity-50 cursor-pointer"
-              title="Delete note"
+              title={deleteTitle}
             >
               <Trash2 size={18} />
-            </button>
-            <button
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               onClick={handleClose}
               disabled={isLoading || isSaving}
               className="p-1 rounded-lg text-ink-muted hover:bg-surface-sunken hover:text-ink transition-colors disabled:opacity-50 cursor-pointer"
               title="Close"
             >
               <X size={20} />
-            </button>
+            </motion.button>
           </div>
         </div>
 
@@ -197,16 +224,18 @@ export default function NoteEditModal({
             <span className="text-xs text-ink-faint">Saving…</span>
           </div>
         )}
-      </div>
+      </motion.div>
 
       <ConfirmDialog
         isOpen={confirmDelete}
-        title="Delete note?"
-        message="This note will be moved to the recycle bin. You can restore it later."
-        confirmText="Delete"
+        title={confirmTitle}
+        message={confirmMessage}
+        confirmText={confirmButtonText}
         onConfirm={confirmDeleteAction}
         onCancel={() => setConfirmDelete(false)}
       />
-    </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }
