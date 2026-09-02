@@ -244,6 +244,7 @@ export default function SettingsModal({
                         onChange={(pack: SoundPackId) => { onSoundPackChange(pack); clickSound() }}
                         icon={Volume2}
                         label="Sound pack"
+                        showLabel={false}
                       />
                       <p className="text-xs text-ink-faint mt-2">
                         {SOUND_PACKS.find((p) => p.id === soundPack)?.description}
