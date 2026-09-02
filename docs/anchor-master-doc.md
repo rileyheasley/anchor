@@ -287,9 +287,9 @@ Not part of the numbered roadmap above (that's feature work) — this is what's 
 ### Before Beta
 
 **Packaging — nothing has been test-packaged yet; all testing so far is `env -u ELECTRON_RUN_AS_NODE electron.exe .` (a dev-mode production build), not a real installer**
-- [ ] `electron-builder.json5`'s `appId`/`productName` are still literally `"YourAppID"`/`"YourAppName"` — `productName` determines the real `userData` folder name, so this isn't cosmetic (roadmap #31)
+- [x] `electron-builder.json5`'s `appId`/`productName` set to real values (`com.rileyheasley.anchor` / `Anchor`) — was `"YourAppID"`/`"YourAppName"`; `productName` determines the real `userData` folder name, so this wasn't cosmetic (roadmap #31)
 - [ ] Add a real app icon (`.ico` + `.icns`) — no `icon` field is set in `electron-builder.json5` yet, logo is SVG-only (roadmap #31)
-- [ ] Bump `package.json` version off `0.0.0` (roadmap #31)
+- [x] `package.json` version bumped off `0.0.0` to `0.1.0` (roadmap #31)
 - [ ] Actually run `npm run build` and install the real output on both Windows and Mac (roadmap #32)
 - [ ] Test the real first-run experience on a genuinely clean machine/VM (no `test-data/`, no prior `userData/config.json`) — never verified end-to-end, only simulated on the dev machine (roadmap #33)
 - [ ] Decide how to communicate the unsigned-binary warning (SmartScreen/Gatekeeper) to testers
