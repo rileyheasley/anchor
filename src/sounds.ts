@@ -90,3 +90,11 @@ export function moveSound() {
   playThock(160, 0.07, 0.16)
   setTimeout(() => playThock(200, 0.08, 0.16), 50)
 }
+
+// A soft downward two-note motif — distinct from the rest of the "thocky" family but
+// deliberately muted (lower volume, no bright high notes) so it reads as "something
+// didn't work" rather than an alarming or punitive tone.
+export function errorSound() {
+  playThock(220, 0.1, 0.14)
+  setTimeout(() => playThock(160, 0.14, 0.14), 70)
+}
