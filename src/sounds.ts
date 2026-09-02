@@ -25,6 +25,10 @@ const audioCtx = () => {
   return _ctx
 }
 
+// Small per-hit randomization so repeated presses of the same action never sound
+// like an exact loop — real materials (switches, wood, glass) never ring identically twice.
+const jitter = (value: number, amount: number) => value * (1 + (Math.random() * 2 - 1) * amount)
+
 // Short burst of white noise, cached and reused — the percussive "knock" transient
 function noiseBuffer(ctx: AudioContext) {
   if (_noiseBuffer) return _noiseBuffer
@@ -35,38 +39,58 @@ function noiseBuffer(ctx: AudioContext) {
   return buffer
 }
 
-// ── Thocky: deep, muffled "thock" — a pitch-dropping low-passed tone body plus a
-// filtered noise transient, modeled after a mechanical keyboard switch bottoming out.
+// ── Thocky: deep, muffled mechanical-keyboard "thock" — a pitch-dropping low-passed
+// tone body (doubled with a slightly detuned unison layer for width, plus a quiet
+// sub-octave layer for weight) topped with a filtered noise transient for the
+// percussive attack. Frequency/cutoff/timing all jitter per hit.
 function playThock(frequency: number, duration: number, volume = 0.2) {
   if (!_soundsEnabled) return
   const ctx = audioCtx()
   const now = ctx.currentTime
-
-  const osc = ctx.createOscillator()
-  osc.type = 'sine'
-  osc.frequency.setValueAtTime(frequency * 1.8, now)
-  osc.frequency.exponentialRampToValueAtTime(frequency, now + 0.035)
+  const freq = jitter(frequency, 0.05)
+  const dur = jitter(duration, 0.12)
+  const cutoff = jitter(900, 0.25)
 
   const bodyFilter = ctx.createBiquadFilter()
   bodyFilter.type = 'lowpass'
-  bodyFilter.frequency.setValueAtTime(900, now)
+  bodyFilter.frequency.setValueAtTime(cutoff, now)
 
   const bodyGain = ctx.createGain()
   bodyGain.gain.setValueAtTime(volume, now)
-  bodyGain.gain.exponentialRampToValueAtTime(0.001, now + duration)
-
-  osc.connect(bodyFilter)
+  bodyGain.gain.exponentialRampToValueAtTime(0.001, now + dur)
   bodyFilter.connect(bodyGain)
   bodyGain.connect(ctx.destination)
-  osc.start(now)
-  osc.stop(now + duration)
+
+  // Unison pair, detuned a few cents apart, for a fuller body than a single sine
+  for (const detune of [-6, 6]) {
+    const osc = ctx.createOscillator()
+    osc.type = 'sine'
+    const f = freq * Math.pow(2, detune / 1200)
+    osc.frequency.setValueAtTime(f * 1.8, now)
+    osc.frequency.exponentialRampToValueAtTime(f, now + 0.035)
+    osc.connect(bodyFilter)
+    osc.start(now)
+    osc.stop(now + dur)
+  }
+
+  // Quiet sub-octave layer for low-end weight
+  const sub = ctx.createOscillator()
+  sub.type = 'sine'
+  sub.frequency.setValueAtTime(freq / 2, now)
+  const subGain = ctx.createGain()
+  subGain.gain.setValueAtTime(volume * 0.35, now)
+  subGain.gain.exponentialRampToValueAtTime(0.001, now + dur * 0.8)
+  sub.connect(subGain)
+  subGain.connect(ctx.destination)
+  sub.start(now)
+  sub.stop(now + dur * 0.8)
 
   const noise = ctx.createBufferSource()
   noise.buffer = noiseBuffer(ctx)
 
   const noiseFilter = ctx.createBiquadFilter()
   noiseFilter.type = 'lowpass'
-  noiseFilter.frequency.setValueAtTime(1800, now)
+  noiseFilter.frequency.setValueAtTime(jitter(1800, 0.2), now)
 
   const noiseGain = ctx.createGain()
   noiseGain.gain.setValueAtTime(volume * 0.5, now)
@@ -79,48 +103,72 @@ function playThock(frequency: number, duration: number, volume = 0.2) {
   noise.stop(now + 0.03)
 }
 
-// ── Retro: bright, square-wave 8-bit blip — no filtering, sharp on/off, evokes
-// old console UI sounds.
+// ── Retro: bright square-wave 8-bit blip with a fast downward pitch-bend on release
+// (the classic chiptune "coin/blip" swoop) and a second, slightly-detuned square
+// layer for grit. Frequency and bend depth jitter per hit.
 function playBlip(frequency: number, duration: number, volume = 0.15) {
   if (!_soundsEnabled) return
   const ctx = audioCtx()
   const now = ctx.currentTime
-
-  const osc = ctx.createOscillator()
-  osc.type = 'square'
-  osc.frequency.setValueAtTime(frequency, now)
+  const freq = jitter(frequency, 0.04)
+  const dur = jitter(duration, 0.15)
+  const bendTo = freq * (1 - jitter(0.35, 0.3))
 
   const gain = ctx.createGain()
   gain.gain.setValueAtTime(volume, now)
-  gain.gain.setValueAtTime(volume, now + duration * 0.6)
-  gain.gain.linearRampToValueAtTime(0.0001, now + duration)
-
-  osc.connect(gain)
+  gain.gain.setValueAtTime(volume, now + dur * 0.55)
+  gain.gain.linearRampToValueAtTime(0.0001, now + dur)
   gain.connect(ctx.destination)
-  osc.start(now)
-  osc.stop(now + duration)
+
+  for (const [detune, mix] of [[0, 1], [9, 0.4]] as const) {
+    const osc = ctx.createOscillator()
+    osc.type = 'square'
+    const f = freq * Math.pow(2, detune / 1200)
+    osc.frequency.setValueAtTime(f, now)
+    osc.frequency.linearRampToValueAtTime(bendTo * Math.pow(2, detune / 1200), now + dur)
+    const oscGain = ctx.createGain()
+    oscGain.gain.value = mix
+    osc.connect(oscGain)
+    oscGain.connect(gain)
+    osc.start(now)
+    osc.stop(now + dur)
+  }
 }
 
-// ── Soft: gentle sine chime with a smooth attack/release — no percussive
-// transient, meant to be unobtrusive.
+// ── Soft: a gentle two-voice chorus of detuned sine tones with slow vibrato and a
+// smooth attack/release — no percussive transient, meant to feel unobtrusive and
+// a little warm rather than robotic. Frequency and vibrato phase jitter per hit.
 function playChime(frequency: number, duration: number, volume = 0.12) {
   if (!_soundsEnabled) return
   const ctx = audioCtx()
   const now = ctx.currentTime
+  const freq = jitter(frequency, 0.03)
+  const dur = jitter(duration, 0.15)
 
-  const osc = ctx.createOscillator()
-  osc.type = 'sine'
-  osc.frequency.setValueAtTime(frequency, now)
+  const masterGain = ctx.createGain()
+  masterGain.gain.setValueAtTime(0.0001, now)
+  masterGain.gain.exponentialRampToValueAtTime(volume, now + 0.035)
+  masterGain.gain.exponentialRampToValueAtTime(0.0001, now + dur)
+  masterGain.connect(ctx.destination)
 
-  const gain = ctx.createGain()
-  gain.gain.setValueAtTime(0.0001, now)
-  gain.gain.exponentialRampToValueAtTime(volume, now + 0.03)
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + duration)
+  const vibrato = ctx.createOscillator()
+  vibrato.type = 'sine'
+  vibrato.frequency.value = jitter(5, 0.3)
+  const vibratoGain = ctx.createGain()
+  vibratoGain.gain.value = freq * 0.006
+  vibrato.connect(vibratoGain)
+  vibrato.start(now)
+  vibrato.stop(now + dur)
 
-  osc.connect(gain)
-  gain.connect(ctx.destination)
-  osc.start(now)
-  osc.stop(now + duration)
+  for (const detune of [-4, 4]) {
+    const osc = ctx.createOscillator()
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(freq * Math.pow(2, detune / 1200), now)
+    vibratoGain.connect(osc.frequency)
+    osc.connect(masterGain)
+    osc.start(now)
+    osc.stop(now + dur)
+  }
 }
 
 type SoundName = 'click' | 'create' | 'delete' | 'complete' | 'move' | 'error'
