@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { X, Keyboard, SlidersHorizontal, Palette, Info, FolderOpen, Volume2 } from 'lucide-react'
-import { clickSound } from '../sounds'
+import { clickSound, SOUND_PACKS, type SoundPackId } from '../sounds'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { getShortcutGroups } from '../shortcuts'
@@ -15,6 +15,8 @@ interface SettingsModalProps {
   onThemeChange: (mode: ThemeMode) => void
   soundsEnabled: boolean
   onSoundsEnabledChange: (enabled: boolean) => void
+  soundPack: SoundPackId
+  onSoundPackChange: (pack: SoundPackId) => void
 }
 
 type Section = 'general' | 'appearance' | 'shortcuts' | 'about'
@@ -53,6 +55,8 @@ export default function SettingsModal({
   onThemeChange,
   soundsEnabled,
   onSoundsEnabledChange,
+  soundPack,
+  onSoundPackChange,
 }: SettingsModalProps) {
   const panelRef = useRef<HTMLDivElement>(null)
   const [section, setSection] = useState<Section>('general')
@@ -230,6 +234,26 @@ export default function SettingsModal({
                     <ToggleSwitch checked={soundsEnabled} onChange={onSoundsEnabledChange} />
                   </div>
                   <p className="text-xs text-ink-faint mt-2">Play a click when you create, move, complete, or delete things.</p>
+
+                  <div className="grid grid-cols-3 gap-2 mt-3">
+                    {SOUND_PACKS.map(({ id, label }) => (
+                      <motion.button
+                        key={id}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        disabled={!soundsEnabled}
+                        onClick={() => { onSoundPackChange(id); clickSound() }}
+                        title={SOUND_PACKS.find((p) => p.id === id)?.description}
+                        className={`px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                          soundPack === id
+                            ? 'bg-accent-subtle text-accent-strong font-medium ring-1 ring-inset ring-current'
+                            : 'bg-surface-muted text-ink-secondary hover:bg-border-strong'
+                        }`}
+                      >
+                        {label}
+                      </motion.button>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}

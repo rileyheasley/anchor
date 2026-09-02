@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { Project, ResolvedTheme, ThemeMode } from './types'
-import { setSoundsEnabled } from './sounds'
+import { setSoundsEnabled, setSoundPack, SOUND_PACKS, type SoundPackId } from './sounds'
 import { ALL_THEME_OPTIONS } from './utils/theme'
 import TitleBar from './components/TitleBar'
 import Sidebar from './components/Sidebar'
@@ -35,6 +35,7 @@ function App() {
   const [themeMode, setThemeMode] = useState<ThemeMode>('light')
   const [systemPrefersDark, setSystemPrefersDark] = useState(false)
   const [soundsEnabled, setSoundsEnabledState] = useState(true)
+  const [soundPack, setSoundPackState] = useState<SoundPackId>('thocky')
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [focusCardId, setFocusCardId] = useState<string | null>(null)
@@ -61,6 +62,15 @@ function App() {
     const enabled = localStorage.getItem('soundsEnabled') !== 'false'
     setSoundsEnabledState(enabled)
     setSoundsEnabled(enabled)
+  }, [])
+
+  // Load sound pack preference from localStorage on mount
+  useEffect(() => {
+    const savedPack = localStorage.getItem('soundPack')
+    const isValid = SOUND_PACKS.some((p) => p.id === savedPack)
+    const pack = isValid ? (savedPack as SoundPackId) : 'thocky'
+    setSoundPackState(pack)
+    setSoundPack(pack)
   }, [])
 
   // Track the OS color scheme so 'system' mode stays in sync while the app is open
@@ -91,6 +101,12 @@ function App() {
     setSoundsEnabledState(enabled)
     setSoundsEnabled(enabled)
     localStorage.setItem('soundsEnabled', String(enabled))
+  }
+
+  const handleSoundPackChange = (pack: SoundPackId) => {
+    setSoundPackState(pack)
+    setSoundPack(pack)
+    localStorage.setItem('soundPack', pack)
   }
 
   const handleNavigate = (v: View) => {
@@ -383,6 +399,8 @@ function App() {
         onThemeChange={handleThemeChange}
         soundsEnabled={soundsEnabled}
         onSoundsEnabledChange={handleSoundsEnabledChange}
+        soundPack={soundPack}
+        onSoundPackChange={handleSoundPackChange}
       />
       <SearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} onSelect={handleSearchSelect} />
     </div>
