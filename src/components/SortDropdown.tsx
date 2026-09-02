@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { ArrowUpDown, ChevronDown } from 'lucide-react'
+import { ArrowUpDown, ChevronDown, type LucideIcon } from 'lucide-react'
 import { clickSound } from '../sounds'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useClickOutside } from '../hooks/useClickOutside'
@@ -9,9 +9,17 @@ interface SortDropdownProps<T extends string> {
   options: { value: T; label: string }[]
   value: T
   onChange: (value: T) => void
+  icon?: LucideIcon
+  label?: string
 }
 
-export default function SortDropdown<T extends string>({ options, value, onChange }: SortDropdownProps<T>) {
+export default function SortDropdown<T extends string>({
+  options,
+  value,
+  onChange,
+  icon: Icon = ArrowUpDown,
+  label = 'Sort',
+}: SortDropdownProps<T>) {
   const [isOpen, setIsOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -26,11 +34,11 @@ export default function SortDropdown<T extends string>({ options, value, onChang
         whileHover={{ scale: 1.03 }}
         whileTap={{ scale: 0.97 }}
         onClick={() => { clickSound(); setIsOpen((open) => !open) }}
-        title="Sort"
+        title={label}
         className="flex items-center gap-1.5 text-xs px-2 py-1.5 rounded-lg border border-border text-ink-faint hover:bg-surface-muted cursor-pointer transition-colors"
       >
-        <ArrowUpDown size={14} />
-        Sort: <span className="text-ink-secondary font-medium">{currentLabel}</span>
+        <Icon size={14} />
+        {label}: <span className="text-ink-secondary font-medium">{currentLabel}</span>
         <ChevronDown size={12} />
       </motion.button>
 

@@ -6,6 +6,7 @@ import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { getShortcutGroups } from '../shortcuts'
 import { THEME_OPTIONS, COLOURBLIND_THEME_OPTIONS } from '../utils/theme'
+import SortDropdown from './SortDropdown'
 import type { ThemeMode } from '../types'
 
 interface SettingsModalProps {
@@ -235,25 +236,20 @@ export default function SettingsModal({
                   </div>
                   <p className="text-xs text-ink-faint mt-2">Play a click when you create, move, complete, or delete things.</p>
 
-                  <div className="grid grid-cols-3 gap-2 mt-3">
-                    {SOUND_PACKS.map(({ id, label }) => (
-                      <motion.button
-                        key={id}
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        disabled={!soundsEnabled}
-                        onClick={() => { onSoundPackChange(id); clickSound() }}
-                        title={SOUND_PACKS.find((p) => p.id === id)?.description}
-                        className={`px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                          soundPack === id
-                            ? 'bg-accent-subtle text-accent-strong font-medium ring-1 ring-inset ring-current'
-                            : 'bg-surface-muted text-ink-secondary hover:bg-border-strong'
-                        }`}
-                      >
-                        {label}
-                      </motion.button>
-                    ))}
-                  </div>
+                  {soundsEnabled && (
+                    <div className="mt-3">
+                      <SortDropdown
+                        options={SOUND_PACKS.map(({ id, label }) => ({ value: id, label }))}
+                        value={soundPack}
+                        onChange={(pack: SoundPackId) => { onSoundPackChange(pack); clickSound() }}
+                        icon={Volume2}
+                        label="Sound pack"
+                      />
+                      <p className="text-xs text-ink-faint mt-2">
+                        {SOUND_PACKS.find((p) => p.id === soundPack)?.description}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
