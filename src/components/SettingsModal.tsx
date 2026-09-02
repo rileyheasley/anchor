@@ -59,6 +59,8 @@ export default function SettingsModal({
   const [vaultPath, setVaultPath] = useState<string | null>(null)
   const [appVersion, setAppVersion] = useState<string | null>(null)
   const [exportState, setExportState] = useState<'idle' | 'exporting' | 'done' | 'error'>('idle')
+  const [updateState, setUpdateState] = useState<'idle' | 'checking' | 'upToDate' | 'available' | 'error'>('idle')
+  const [latestVersion, setLatestVersion] = useState<string | null>(null)
 
   const handleClose = () => { clickSound(); onClose() }
 
@@ -83,6 +85,23 @@ export default function SettingsModal({
   const handleOpenLogFolder = () => {
     clickSound()
     window.api.app.openLogFolder()
+  }
+
+  const handleCheckForUpdates = async () => {
+    clickSound()
+    setUpdateState('checking')
+    try {
+      const result = await window.api.app.checkForUpdates()
+      setLatestVersion(result.latestVersion)
+      setUpdateState(result.hasUpdate ? 'available' : 'upToDate')
+    } catch {
+      setUpdateState('error')
+    }
+  }
+
+  const handleOpenReleasePage = () => {
+    clickSound()
+    window.api.app.openReleasePage()
   }
 
   const handleExportVault = async () => {
@@ -294,6 +313,36 @@ export default function SettingsModal({
                   A local-first project and notes tracker. Everything is stored as markdown files on your own disk — no
                   account, no sync, no cloud.
                 </p>
+                <div className="mt-6">
+                  <motion.button
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={handleCheckForUpdates}
+                    disabled={updateState === 'checking'}
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg bg-surface-muted text-ink-secondary hover:bg-border-strong transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-default"
+                  >
+                    {updateState === 'checking' ? 'Checking…' : 'Check for Updates'}
+                  </motion.button>
+                  {updateState === 'upToDate' && (
+                    <p className="text-xs text-ink-faint mt-2">You're on the latest version.</p>
+                  )}
+                  {updateState === 'available' && (
+                    <div className="mt-2">
+                      <p className="text-xs text-ink-secondary">Version {latestVersion} is available.</p>
+                      <motion.button
+                        whileHover={{ scale: 1.03 }}
+                        whileTap={{ scale: 0.97 }}
+                        onClick={handleOpenReleasePage}
+                        className="mt-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-primary text-white hover:opacity-90 transition-opacity cursor-pointer"
+                      >
+                        Download update
+                      </motion.button>
+                    </div>
+                  )}
+                  {updateState === 'error' && (
+                    <p className="text-xs text-ink-faint mt-2">Couldn't check for updates — check your internet connection.</p>
+                  )}
+                </div>
                 <div className="mt-6">
                   <h3 className="text-xs font-semibold text-ink-faint uppercase tracking-wide mb-3">Diagnostics</h3>
                   <motion.button

@@ -187,6 +187,8 @@ declare global {
         getVersion: () => Promise<string>
         openLogFolder: () => Promise<void>
         exportVault: () => Promise<string | null>
+        checkForUpdates: () => Promise<{ hasUpdate: boolean, currentVersion: string, latestVersion: string }>
+        openReleasePage: () => Promise<void>
       }
       window: {
         minimize: () => Promise<void>

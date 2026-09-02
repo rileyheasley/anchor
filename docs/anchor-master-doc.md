@@ -238,7 +238,7 @@ Numbering is continuous across the sections below (so cross-references elsewhere
 31. **Blocker.** Fix `electron-builder.json5` placeholders (`appId`/`productName`), add a real platform icon (`.ico`/`.icns`), bump `package.json` off `0.0.0` — see Release Checklist
 32. **Blocker.** Test-package for real via `npm run build` and install on both Windows and Mac — never done; all verification so far has been a dev-mode production build, not the actual installer
 33. **Blocker.** Verify true first-run onboarding on a genuinely clean machine/VM (no `test-data/`, no prior `userData/config.json`) — only simulated on the dev machine so far
-34. Security review pass (`webPreferences`/`contextIsolation`/`nodeIntegration`) — currently resting on Electron's secure defaults, never deliberately reviewed
+34. ~~Security review pass (`webPreferences`/`contextIsolation`/`nodeIntegration`)~~ ✅ — defaults now set explicitly, plus a default-deny `setWindowOpenHandler`
 
 ### Before Full Release (v1)
 
@@ -247,7 +247,7 @@ Numbering is continuous across the sections below (so cross-references elsewhere
 37. Recent-vaults quick-switch list — switching currently means re-picking the folder from a dialog every time
 38. Vault relocation — move an existing vault's on-disk location without it being treated as switching to a different vault (deliberately separate from item 29's vault *switching*)
 39. Code signing for Windows/Mac — removes the unsigned-binary warning; costs a certificate
-40. Auto-update mechanism (`electron-updater` or similar) — every update currently means redownload/reinstall
+40. ~~Manual "Check for Updates" button~~ ✅ — About section in Settings checks the latest GitHub release against the running version and links out to it; doesn't auto-download/install (see item 52 for that, deferred until code signing (#39) makes it safe)
 41. Broader automated test coverage — extend item 21 past `electron/db.ts`'s schema/migrations/list-queries to the newer work (vault open/switch, seeding, export), which so far only has manual verification
 
 ### Post-Release
@@ -264,6 +264,7 @@ Longer-horizon ideas — either explicitly deferred elsewhere in this doc (see D
 49. Opt-in crash/error telemetry beyond the local log file — a "nice to have" once manually asking testers for `anchor-errors.log` stops scaling
 50. Templates — pre-made templates (project kickoff, meeting notes, bug report card, etc.) shipped with the app, plus a way for users to save their own project/card/note/canvas as a reusable template
 51. Extension/plugin library infrastructure — an Obsidian-style plugin API so the community (or Riley) can extend Anchor without every feature living in core; needs its own design pass (what surface does a plugin get: new sidebar tabs? custom card fields? IPC access?) before implementation starts
+52. Full auto-update (`electron-updater`, GitHub Releases as the feed) — downloads and installs the new version in-app instead of just linking to it (item 40's manual check-and-link is the beta-safe stopgap); held until code signing (#39) is done, since unsigned installers make an auto-installed update look untrustworthy to Windows SmartScreen/Mac Gatekeeper
 
 ### AI Suggestions
 
@@ -296,7 +297,7 @@ Not part of the numbered roadmap above (that's feature work) — this is what's 
 
 **Data safety / reliability**
 - [x] Error boundary, IPC error logging + toasts, log-folder button, vault export — roadmap #27
-- [ ] A dedicated security review pass (`webPreferences` currently relies on Electron's secure defaults — `contextIsolation` on, no `nodeIntegration` — but this has never had a deliberate review) (roadmap #34)
+- [x] Security review pass done — `contextIsolation`/`nodeIntegration`/`sandbox` now set explicitly in `webPreferences` (were implicit defaults), plus a default-deny `setWindowOpenHandler`; IPC handlers and SQL queries audited, no injection/traversal issues found (roadmap #34)
 
 **Onboarding**
 - [x] "Getting Started" seed, multi-vault switching + legacy migration, vault picker gate, logo fix — roadmap #28–30

@@ -282,6 +282,42 @@ function seedGettingStarted(vaultPath: string) {
   console.log('Seeded Getting Started tutorial project')
 }
 
+const GITHUB_REPO = 'rileyheasley/anchor'
+
+// Compares two "1.2.3"-style version strings. Returns true if `latest` is newer than `current`.
+function isNewerVersion(latest: string, current: string): boolean {
+  const toParts = (v: string) => v.replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0)
+  const [la, lb, lc] = toParts(latest)
+  const [ca, cb, cc] = toParts(current)
+  if (la !== ca) return la > ca
+  if (lb !== cb) return lb > cb
+  return lc > cc
+}
+
+/**
+ * Manual "Check for Updates" — no auto-download/install (that needs code
+ * signing to feel safe; see roadmap). Just tells the user whether the latest
+ * GitHub release is newer than what they're running.
+ */
+async function checkForUpdates(): Promise<{ hasUpdate: boolean, currentVersion: string, latestVersion: string }> {
+  const currentVersion = app.getVersion()
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 10_000)
+  try {
+    const response = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
+      headers: { Accept: 'application/vnd.github+json' },
+      signal: controller.signal,
+    })
+    if (!response.ok) throw new Error(`GitHub returned ${response.status}`)
+    const release = await response.json() as { tag_name?: string }
+    const latestVersion = (release.tag_name ?? '').replace(/^v/i, '')
+    if (!latestVersion) throw new Error('No release found')
+    return { hasUpdate: isNewerVersion(latestVersion, currentVersion), currentVersion, latestVersion }
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
 function getSetting(key: string): string | null {
   const row = queryOne('SELECT value FROM settings WHERE key = ?', [key])
   return row ? (row.value as string) : null
@@ -391,8 +427,15 @@ function createWindow() {
     } : false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
     },
   })
+
+  // The app never opens external links or new windows; deny by default so a
+  // stray target="_blank" or window.open() can't pop an attacker-controlled window.
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
 
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL)
@@ -449,6 +492,10 @@ app.whenReady().then(async () => {
     // ── App info handlers ──
 
     handle('app:getVersion', () => app.getVersion())
+    handle('app:checkForUpdates', () => checkForUpdates())
+    handle('app:openReleasePage', async () => {
+      await shell.openExternal(`https://github.com/${GITHUB_REPO}/releases/latest`)
+    })
     handle('app:openLogFolder', async () => {
       if (!dbPath) throw new Error('Log folder not available yet')
       const logPath = path.join(path.dirname(dbPath), 'anchor-errors.log')

@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld('api', {
     getVersion: () => ipcRenderer.invoke('app:getVersion'),
     openLogFolder: () => ipcRenderer.invoke('app:openLogFolder'),
     exportVault: () => ipcRenderer.invoke('app:exportVault'),
+    checkForUpdates: () => ipcRenderer.invoke('app:checkForUpdates'),
+    openReleasePage: () => ipcRenderer.invoke('app:openReleasePage'),
   },
   window: {
     minimize: () => ipcRenderer.invoke('window:minimize'),
