@@ -223,7 +223,7 @@ Numbering is continuous across the sections below (so cross-references elsewhere
 19. Visual redesign (`redesign` branch) — non-generic-AI surface treatment; direction still undecided
 20. ~~Cross-entity search (projects/cards/notes by name/title)~~ ✅ — titles/names only, doesn't search markdown file contents
 21. ~~Automated tests for the DB layer~~ ✅ (Vitest + `sql.js`, no Electron dependency) — currently schema/migration/list-query coverage only; the rest of `main.ts`'s IPC handlers (create/update/delete, notes, recycle bin, columns/cards) are still untested
-22. Production build — packaging via `electron-builder`, test on Mac + Windows (still needs a platform icon — logo is currently SVG-only) — **not done; see Release Checklist below**
+22. Production build — packaging via `electron-builder`, test on Mac + Windows — platform icon now in place (see #31); actual installer build/install still **not done; see Release Checklist below**
 23. ~~Home page — actionable overview (needs-attention/stale-project nudges, status breakdown, points trend, recent notes, quick actions)~~ ✅
 24. ~~Standalone to-do list on Home, with priority/due date via right-click~~ ✅
 25. ~~Sound/animation audit pass — every modal and floating menu animates, all reorder actions have a sound, hover/tap feedback on utility buttons~~ ✅
@@ -235,7 +235,7 @@ Numbering is continuous across the sections below (so cross-references elsewhere
 
 ### Before Beta
 
-31. **Blocker.** Fix `electron-builder.json5` placeholders (`appId`/`productName`), add a real platform icon (`.ico`/`.icns`), bump `package.json` off `0.0.0` — see Release Checklist
+31. ~~Fix `electron-builder.json5` placeholders (`appId`/`productName`), add a real platform icon (`.ico`/`.icns`), bump `package.json` off `0.0.0`~~ ✅ — app icon built from the anchor/"A" monogram mark (`src/assets/logos/app-icon.svg`) composed on a flat `#1C1A14` square with padding for OS masking; `build/icon.{png,ico,icns}` wired into `electron-builder.json5` for mac/win/linux
 32. **Blocker.** Test-package for real via `npm run build` and install on both Windows and Mac — never done; all verification so far has been a dev-mode production build, not the actual installer
 33. **Blocker.** Verify true first-run onboarding on a genuinely clean machine/VM (no `test-data/`, no prior `userData/config.json`) — only simulated on the dev machine so far
 34. ~~Security review pass (`webPreferences`/`contextIsolation`/`nodeIntegration`)~~ ✅ — defaults now set explicitly, plus a default-deny `setWindowOpenHandler`
@@ -289,7 +289,7 @@ Not part of the numbered roadmap above (that's feature work) — this is what's 
 
 **Packaging — nothing has been test-packaged yet; all testing so far is `env -u ELECTRON_RUN_AS_NODE electron.exe .` (a dev-mode production build), not a real installer**
 - [x] `electron-builder.json5`'s `appId`/`productName` set to real values (`com.rileyheasley.anchor` / `Anchor`) — was `"YourAppID"`/`"YourAppName"`; `productName` determines the real `userData` folder name, so this wasn't cosmetic (roadmap #31)
-- [ ] Add a real app icon (`.ico` + `.icns`) — no `icon` field is set in `electron-builder.json5` yet, logo is SVG-only (roadmap #31)
+- [x] Add a real app icon (`.ico` + `.icns`) — built from `src/assets/logos/app-icon.svg` on a flat `#1C1A14` square, output to `build/icon.{png,ico,icns}` and wired into `electron-builder.json5`'s `mac`/`win`/`linux.icon` fields (roadmap #31)
 - [x] `package.json` version bumped off `0.0.0` to `0.1.0` (roadmap #31)
 - [ ] Actually run `npm run build` and install the real output on both Windows and Mac (roadmap #32)
 - [ ] Test the real first-run experience on a genuinely clean machine/VM (no `test-data/`, no prior `userData/config.json`) — never verified end-to-end, only simulated on the dev machine (roadmap #33)
