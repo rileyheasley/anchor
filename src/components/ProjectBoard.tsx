@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { Plus, Trash2, X, FolderOpen, CheckCircle2, Circle, ArrowRightCircle, Flag } from 'lucide-react'
 import type { Project, KanbanColumn, Card, Note, Priority, ProjectStatus } from '../types'
@@ -22,6 +22,28 @@ const CARD_SORT_LABELS: Record<CardSortMode, string> = {
   points: 'Points',
   name: 'Name',
   created: 'Date created',
+}
+
+function compareCards(sort: CardSortMode): (a: Card, b: Card) => number {
+  switch (sort) {
+    case 'priority':
+      return (a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority] || a.position - b.position
+    case 'dueDate':
+      return (a, b) => {
+        if (!a.due_date && !b.due_date) return a.position - b.position
+        if (!a.due_date) return 1
+        if (!b.due_date) return -1
+        return a.due_date.localeCompare(b.due_date)
+      }
+    case 'points':
+      return (a, b) => (b.points ?? 0) - (a.points ?? 0) || a.position - b.position
+    case 'name':
+      return (a, b) => a.title.localeCompare(b.title)
+    case 'created':
+      return (a, b) => a.created_at.localeCompare(b.created_at)
+    default:
+      return (a, b) => a.position - b.position
+  }
 }
 
 export default function ProjectBoard({ project, onClose, onProjectUpdate, focusCardId, onFocusCardHandled, focusNoteId, onFocusNoteHandled, focusCanvasId, onFocusCanvasHandled }: { project: Project, onClose: () => void, onProjectUpdate?: (updatedProject: Project) => void, focusCardId?: string | null, onFocusCardHandled?: () => void, focusNoteId?: string | null, onFocusNoteHandled?: () => void, focusCanvasId?: string | null, onFocusCanvasHandled?: () => void }) {
@@ -149,34 +171,28 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
     setNoteDirty(false)
   }
 
-  const cardsInColumn = (columnId: string) => {
-    const list = cards.filter((c) => c.column_id === columnId)
-    switch (cardSort) {
-      case 'priority':
-        return list.sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority] || a.position - b.position)
-      case 'dueDate':
-        return list.sort((a, b) => {
-          if (!a.due_date && !b.due_date) return a.position - b.position
-          if (!a.due_date) return 1
-          if (!b.due_date) return -1
-          return a.due_date.localeCompare(b.due_date)
-        })
-      case 'points':
-        return list.sort((a, b) => (b.points ?? 0) - (a.points ?? 0) || a.position - b.position)
-      case 'name':
-        return list.sort((a, b) => a.title.localeCompare(b.title))
-      case 'created':
-        return list.sort((a, b) => a.created_at.localeCompare(b.created_at))
-      default:
-        return list.sort((a, b) => a.position - b.position)
+  // Grouped and sorted once per cards/cardSort change rather than re-filtering+sorting the
+  // whole `cards` array on every render — cardsInColumn() used to do that twice per column,
+  // and re-renders (e.g. drag-hover state) happen far more often than `cards` actually changes.
+  const cardsByColumn = useMemo(() => {
+    const map = new Map<string, Card[]>()
+    for (const c of cards) {
+      const list = map.get(c.column_id)
+      if (list) list.push(c)
+      else map.set(c.column_id, [c])
     }
-  }
+    const comparator = compareCards(cardSort)
+    for (const list of map.values()) list.sort(comparator)
+    return map
+  }, [cards, cardSort])
+
+  const cardsInColumn = (columnId: string) => cardsByColumn.get(columnId) ?? []
 
   const handleCreateCard = async (data: { title: string; points: number | null; priority: Priority; due_date: string | null }) => {
     if (!creatingInColumn) return
     setIsCreatingCard(true)
     try {
-      await window.api.cards.create({
+      const created = await window.api.cards.create({
         project_id: project.id,
         column_id: creatingInColumn,
         title: data.title,
@@ -184,7 +200,7 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
         priority: data.priority,
         due_date: data.due_date ?? undefined,
       })
-      await loadBoard()
+      setCards((prev) => [...prev, created])
     } catch (error) {
       console.error('Failed to create card:', error)
       throw error
@@ -203,9 +219,9 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
     try {
       const targetCards = cardsInColumn(targetColumnId)
       const targetCol = columns.find((c) => c.id === targetColumnId)
-      await window.api.cards.move({ id: cardId, column_id: targetColumnId, position: targetCards.length })
+      const moved = await window.api.cards.move({ id: cardId, column_id: targetColumnId, position: targetCards.length })
       targetCol?.is_done ? completeSound() : moveSound()
-      await loadBoard()
+      setCards((prev) => prev.map((c) => (c.id === cardId ? moved : c)))
       if (selectedCard?.id === cardId) setSelectedCard(prev => prev ? { ...prev, column_id: targetColumnId } : prev)
     } catch (error) { console.error('Failed to move card:', error) }
   }
@@ -248,10 +264,10 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
     try {
       const targetCards = cardsInColumn(targetCard.column_id)
       const targetIndex = targetCards.findIndex((c) => c.id === targetCard.id)
-      await window.api.cards.move({ id: draggingId, column_id: targetCard.column_id, position: targetIndex })
+      const moved = await window.api.cards.move({ id: draggingId, column_id: targetCard.column_id, position: targetIndex })
       const targetCol = columns.find((c) => c.id === targetCard.column_id)
       targetCol?.is_done ? completeSound() : moveSound()
-      await loadBoard()
+      setCards((prev) => prev.map((c) => (c.id === draggingId ? moved : c)))
       if (selectedCard?.id === draggingId) setSelectedCard((prev) => prev ? { ...prev, column_id: targetCard.column_id } : prev)
     } catch (error) { console.error('Failed to move card:', error) }
   }
@@ -259,8 +275,8 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
   const handleUpdatePoints = async (cardId: string, points: number) => {
     clickSound()
     try {
-      await window.api.cards.update({ id: cardId, points })
-      await loadBoard()
+      const updated = await window.api.cards.update({ id: cardId, points })
+      setCards((prev) => prev.map((c) => (c.id === cardId ? updated : c)))
       if (selectedCard?.id === cardId) setSelectedCard(prev => prev ? { ...prev, points } : prev)
     } catch (error) { console.error('Failed to update points:', error) }
   }
@@ -268,8 +284,8 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
   const handleUpdatePriority = async (cardId: string, priority: string) => {
     clickSound()
     try {
-      await window.api.cards.update({ id: cardId, priority: priority as Priority })
-      await loadBoard()
+      const updated = await window.api.cards.update({ id: cardId, priority: priority as Priority })
+      setCards((prev) => prev.map((c) => (c.id === cardId ? updated : c)))
       if (selectedCard?.id === cardId) setSelectedCard(prev => prev ? { ...prev, priority: priority as Card['priority'] } : prev)
     } catch (error) { console.error('Failed to update priority:', error) }
   }
@@ -277,20 +293,20 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
   const handleAddColumn = async () => {
     if (!newColName.trim()) return
     try {
-      await window.api.columns.create({ project_id: project.id, name: newColName, is_done: newColIsDone ? 1 : 0 })
+      const created = await window.api.columns.create({ project_id: project.id, name: newColName, is_done: newColIsDone ? 1 : 0 })
+      setColumns((prev) => [...prev, created])
       setNewColName('')
       setNewColIsDone(false)
       setAddingColumn(false)
       createSound()
-      await loadBoard()
     } catch (error) { console.error('Failed to create column:', error) }
   }
 
   const handleToggleColumnDone = async (col: KanbanColumn) => {
     clickSound()
     try {
-      await window.api.columns.update({ id: col.id, is_done: col.is_done ? 0 : 1 })
-      await loadBoard()
+      const updated = await window.api.columns.update({ id: col.id, is_done: col.is_done ? 0 : 1 })
+      setColumns((prev) => prev.map((c) => (c.id === col.id ? updated : c)))
     } catch (error) { console.error('Failed to update column:', error) }
   }
 
@@ -352,12 +368,31 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
     deleteSound()
     try {
       if (confirmDelete.type === 'column') {
-        await window.api.columns.delete(confirmDelete.id)
+        const columnId = confirmDelete.id
+        await window.api.columns.delete(columnId)
+        // Deleting a column cascades to hard-delete its cards on the backend — mirror that here.
+        if (selectedCard && selectedCard.column_id === columnId) setSelectedCard(null)
+        setColumns((prev) => prev.filter((c) => c.id !== columnId))
+        setCards((prev) => prev.filter((c) => c.column_id !== columnId))
+        setNotePreviews((prev) => {
+          const removedIds = new Set(cards.filter((c) => c.column_id === columnId).map((c) => c.id))
+          if (removedIds.size === 0) return prev
+          const next = { ...prev }
+          for (const id of removedIds) delete next[id]
+          return next
+        })
       } else {
-        if (selectedCard?.id === confirmDelete.id) setSelectedCard(null)
-        await window.api.cards.delete(confirmDelete.id)
+        const cardId = confirmDelete.id
+        if (selectedCard?.id === cardId) setSelectedCard(null)
+        await window.api.cards.delete(cardId)
+        setCards((prev) => prev.filter((c) => c.id !== cardId))
+        setNotePreviews((prev) => {
+          if (!(cardId in prev)) return prev
+          const next = { ...prev }
+          delete next[cardId]
+          return next
+        })
       }
-      await loadBoard()
       // Reload project to update total_points and done_points
       const updatedProject = await window.api.projects.list()
       const currentProject = updatedProject.find(p => p.id === project.id)
@@ -375,7 +410,7 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
     clickSound()
   }
 
-  const handleUpdateProject = async (data: { name?: string; priority?: Priority; status?: ProjectStatus; due_date?: string | null }) => {
+  const handleUpdateProject = async (data: { name?: string; icon?: string | null; priority?: Priority; status?: ProjectStatus; due_date?: string | null }) => {
     setIsUpdatingProject(true)
     try {
       await window.api.projects.update({ id: project.id, ...data })
@@ -487,7 +522,7 @@ export default function ProjectBoard({ project, onClose, onProjectUpdate, focusC
                       return (
                         <motion.button
                           key={card.id}
-                          layout
+                          layout="position"
                           initial={{ opacity: 0, scale: 0.9 }}
                           animate={{ opacity: draggingId === card.id ? 0.4 : 1, scale: 1 }}
                           exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.15 } }}

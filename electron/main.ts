@@ -114,7 +114,7 @@ function writeGlobalConfig(patch: { lastVaultPath?: string }) {
  */
 async function openVault(vaultPath: string) {
   if (db) {
-    saveDatabase()
+    flushDatabaseSave()
     db = null
   }
 
@@ -151,13 +151,40 @@ async function openVault(vaultPath: string) {
     seedGettingStarted(vaultPath)
   }
 
-  saveDatabase()
+  flushDatabaseSave()
   purgeSoftDeleted()
 
   console.log(isNewVault ? 'Vault created and seeded' : 'Vault opened')
 }
 
+// Every card drag, checkbox toggle, or field edit calls saveDatabase() — but a
+// full db.export()+writeFileSync serializes the *entire* database, and doing
+// that synchronously on the main process for every single mutation blocks all
+// other IPC/window handling and scales with total vault size, not the size of
+// the change. Throttle it: mutations mark the db dirty and a write lands at
+// most once per SAVE_INTERVAL_MS, so bursts of edits (e.g. a drag sequence)
+// coalesce into one write. flushDatabaseSave() bypasses the throttle for
+// moments that must not lose data — switching vaults, quitting the app.
+const SAVE_INTERVAL_MS = 400
+let saveTimer: ReturnType<typeof setTimeout> | null = null
+let saveDirty = false
+
 function saveDatabase() {
+  saveDirty = true
+  if (saveTimer) return
+  saveTimer = setTimeout(() => {
+    saveTimer = null
+    flushDatabaseSave()
+  }, SAVE_INTERVAL_MS)
+}
+
+function flushDatabaseSave() {
+  if (saveTimer) {
+    clearTimeout(saveTimer)
+    saveTimer = null
+  }
+  if (!saveDirty) return
+  saveDirty = false
   try {
     if (!db) return
     const data = db.export()
@@ -458,6 +485,12 @@ app.on('window-all-closed', () => {
     app.quit()
     win = null
   }
+})
+
+// Throttled saves (see saveDatabase()) can leave up to SAVE_INTERVAL_MS of
+// writes pending — flush them synchronously before the process actually exits.
+app.on('before-quit', () => {
+  flushDatabaseSave()
 })
 
 app.on('activate', () => {
@@ -1113,15 +1146,16 @@ app.whenReady().then(async () => {
       return listActiveProjects(db!)
     })
 
-    handle('projects:create', async (_event, data: { name: string, priority?: string, status?: string, due_date?: string | null }) => {
+    handle('projects:create', async (_event, data: { name: string, icon?: string | null, priority?: string, status?: string, due_date?: string | null }) => {
       const projectId = crypto.randomUUID()
+      const icon = data.icon || null
       const priority = data.priority || 'none'
       const status = data.status || 'planning'
       const dueDate = data.due_date || null
 
       execute(
-        'INSERT INTO projects (id, name, priority, status, due_date) VALUES (?, ?, ?, ?, ?)',
-        [projectId, data.name, priority, status, dueDate]
+        'INSERT INTO projects (id, name, icon, priority, status, due_date) VALUES (?, ?, ?, ?, ?, ?)',
+        [projectId, data.name, icon, priority, status, dueDate]
       )
 
       const defaultColumns = [
@@ -1140,11 +1174,12 @@ app.whenReady().then(async () => {
       return queryOne('SELECT * FROM projects WHERE id = ?', [projectId])
     })
 
-    handle('projects:update', async (_event, data: { id: string, name?: string, priority?: string, status?: string, due_date?: string | null }) => {
+    handle('projects:update', async (_event, data: { id: string, name?: string, icon?: string | null, priority?: string, status?: string, due_date?: string | null }) => {
       const fields: string[] = []
       const values: unknown[] = []
 
       if (data.name !== undefined) { fields.push('name = ?'); values.push(data.name) }
+      if (data.icon !== undefined) { fields.push('icon = ?'); values.push(data.icon) }
       if (data.priority !== undefined) { fields.push('priority = ?'); values.push(data.priority) }
       if (data.status !== undefined) { fields.push('status = ?'); values.push(data.status) }
       if (data.due_date !== undefined) { fields.push('due_date = ?'); values.push(data.due_date) }

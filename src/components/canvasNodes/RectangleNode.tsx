@@ -1,17 +1,19 @@
+import { memo } from 'react'
 import { NodeResizer, type NodeProps } from '@xyflow/react'
 import NodeHandles from './nodeHandles'
 import ShapeLabel from './ShapeLabel'
 import { NODE_COLORS, NODE_BORDER_COLORS, type NodeColor } from './colors'
+import { useNodeLabelChange } from './labelChangeContext'
 
 export interface ShapeNodeData {
   label: string
   color?: NodeColor
-  onLabelChange?: (id: string, value: string) => void
   [key: string]: unknown
 }
 
-export default function RectangleNode({ id, data, selected }: NodeProps) {
-  const { label, color, onLabelChange } = data as ShapeNodeData
+function RectangleNode({ id, data, selected }: NodeProps) {
+  const { label, color } = data as ShapeNodeData
+  const onLabelChange = useNodeLabelChange()
   return (
     <div
       className="w-full h-full px-4 py-3 rounded-lg flex items-center justify-center text-sm font-heading text-ink"
@@ -22,7 +24,9 @@ export default function RectangleNode({ id, data, selected }: NodeProps) {
     >
       <NodeResizer isVisible={selected} minWidth={80} minHeight={44} lineClassName="!border-accent" handleClassName="!bg-accent !border-none !w-2 !h-2" />
       <NodeHandles />
-      <ShapeLabel label={label} onCommit={(v) => onLabelChange?.(id, v)} />
+      <ShapeLabel label={label} onCommit={(v) => onLabelChange(id, v)} />
     </div>
   )
 }
+
+export default memo(RectangleNode)

@@ -25,7 +25,8 @@
   --color-ink: #1c1a14;
   --color-ink-secondary: #3d3a30;
   --color-ink-muted: #6f6a5c;
-  --color-ink-faint: #a29c8a;
+  --color-ink-faint: #797260;
+  /* was #a29c8a (2.67:1 on surface, fails AA for the real small text this token is used as) */
   --color-ink-inverse: #fdfcf9;
 
   /* Primary action (near-black buttons, focus rings) */
@@ -134,10 +135,12 @@ html[data-theme="pink"] {
   --color-ink: #4a2338;
   --color-ink-secondary: #6b3a52;
   --color-ink-muted: #8f5b73;
-  --color-ink-faint: #bd8ba1;
+  --color-ink-faint: #9f5a79;
+  /* was #bd8ba1 (2.67:1 on surface, fails AA for the real small text this token is used as) */
   --color-ink-inverse: #fff5f8;
 
-  --color-primary: #c2417a;
+  --color-primary: #c13e78;
+  /* was #c2417a (4.54:1 on ink-inverse, right at the AA line — nudged for a safety margin) */
   --color-primary-hover: #a8305f;
 
   --color-code-bg: #3a1f2e;
@@ -150,11 +153,13 @@ html[data-theme="pink"] {
 
   --color-success: #4caf7d;
   --color-success-subtle: #e3f5ec;
-  --color-success-strong: #2f8a5c;
+  --color-success-strong: #297a51;
+  /* was #2f8a5c (3.78:1 on success-subtle, fails AA) */
 
   --color-warning: #e6a339;
   --color-warning-subtle: #fdf1dc;
-  --color-warning-strong: #b4780f;
+  --color-warning-strong: #94630c;
+  /* was #b4780f (3.34:1 on warning-subtle, fails AA) */
   --color-warning-hover: #d99425;
 
   --color-danger: #e5566f;
@@ -185,7 +190,8 @@ html[data-theme="nord"] {
   --color-ink: #eceff4;
   --color-ink-secondary: #d8dee9;
   --color-ink-muted: #b8c0d0;
-  --color-ink-faint: #8d96a8;
+  --color-ink-faint: #969eaf;
+  /* was #8d96a8 (4.20:1 on surface, fails AA for the real small text this token is used as) */
   --color-ink-inverse: #2e3440;
 
   --color-primary: #eceff4;
@@ -197,11 +203,13 @@ html[data-theme="nord"] {
   --color-accent: #88c0d0;
   --color-accent-hover: #8fbcbb;
   --color-accent-subtle: #3b4859;
-  --color-accent-strong: #81a1c1;
+  --color-accent-strong: #a3bad1;
+  /* was #81a1c1 (3.46:1 on accent-subtle, fails AA) */
 
   --color-success: #a3be8c;
   --color-success-subtle: #333f2c;
-  --color-success-strong: #8fa876;
+  --color-success-strong: #98af81;
+  /* was #8fa876 (4.25:1 on success-subtle, fails AA) */
 
   --color-warning: #ebcb8b;
   --color-warning-subtle: #453c24;
@@ -210,12 +218,14 @@ html[data-theme="nord"] {
 
   --color-danger: #bf616a;
   --color-danger-subtle: #3f2426;
-  --color-danger-strong: #a54e56;
+  --color-danger-strong: #c48389;
+  /* was #a54e56 (2.56:1 on danger-subtle, fails AA) */
   --color-danger-hover: #b0555d;
 
   --color-special: #b48ead;
   --color-special-subtle: #3a2e38;
-  --color-special-strong: #9c7796;
+  --color-special-strong: #b092ab;
+  /* was #9c7796 (3.37:1 on special-subtle, fails AA) */
 
   --shadow-sm: 0 1px 2px rgba(136, 192, 208, 0.1);
   --shadow-md: 0 4px 8px rgba(136, 192, 208, 0.08);
@@ -235,7 +245,8 @@ html[data-theme="dracula"] {
   --color-ink: #f8f8f2;
   --color-ink-secondary: #e2e2dc;
   --color-ink-muted: #a8a8bd;
-  --color-ink-faint: #6272a4;
+  --color-ink-faint: #8693b9;
+  /* was #6272a4 (3.03:1 on surface, fails AA for the real small text this token is used as) */
   --color-ink-inverse: #282a36;
 
   --color-primary: #f8f8f2;
@@ -247,7 +258,8 @@ html[data-theme="dracula"] {
   --color-accent: #bd93f9;
   --color-accent-hover: #caa9fa;
   --color-accent-subtle: #3a2f52;
-  --color-accent-strong: #9580e0;
+  --color-accent-strong: #a594e5;
+  /* was #9580e0 (3.77:1 on accent-subtle, fails AA) */
 
   --color-success: #50fa7b;
   --color-success-subtle: #1c3a26;
@@ -260,12 +272,14 @@ html[data-theme="dracula"] {
 
   --color-danger: #ff5555;
   --color-danger-subtle: #3f1f1f;
-  --color-danger-strong: #e04343;
+  --color-danger-strong: #e66a6a;
+  /* was #e04343 (3.54:1 on danger-subtle, fails AA) */
   --color-danger-hover: #ff6e6e;
 
   --color-special: #ff79c6;
   --color-special-subtle: #3d2436;
-  --color-special-strong: #e0629f;
+  --color-special-strong: #e26da6;
+  /* was #e0629f (4.27:1 on special-subtle, fails AA) */
 
   --shadow-sm: 0 1px 2px rgba(189, 147, 249, 0.1);
   --shadow-md: 0 4px 8px rgba(189, 147, 249, 0.08);
@@ -285,7 +299,8 @@ html[data-theme="solarized"] {
   --color-ink: #fdf6e3;
   --color-ink-secondary: #93a1a1;
   --color-ink-muted: #839496;
-  --color-ink-faint: #586e75;
+  --color-ink-faint: #7a939b;
+  /* was #586e75 (2.79:1 on surface, fails AA for the real small text this token is used as) */
   --color-ink-inverse: #002b36;
 
   --color-primary: #fdf6e3;
@@ -297,7 +312,8 @@ html[data-theme="solarized"] {
   --color-accent: #268bd2;
   --color-accent-hover: #2aa1f2;
   --color-accent-subtle: #0d3a4d;
-  --color-accent-strong: #4ba3e3;
+  --color-accent-strong: #53a7e4;
+  /* was #4ba3e3 (4.42:1 on accent-subtle, fails AA) */
 
   --color-success: #859900;
   --color-success-subtle: #263300;
@@ -315,7 +331,8 @@ html[data-theme="solarized"] {
 
   --color-special: #d33682;
   --color-special-subtle: #2f1830;
-  --color-special-strong: #d15a95;
+  --color-special-strong: #d3639b;
+  /* was #d15a95 (4.33:1 on special-subtle, fails AA) */
 
   --shadow-sm: 0 1px 2px rgba(38, 139, 210, 0.1);
   --shadow-md: 0 4px 8px rgba(38, 139, 210, 0.08);
@@ -335,7 +352,8 @@ html[data-theme="sepia"] {
   --color-ink: #3b2f1e;
   --color-ink-secondary: #5c4a30;
   --color-ink-muted: #7d6847;
-  --color-ink-faint: #a3906c;
+  --color-ink-faint: #77674a;
+  /* was #a3906c (2.64:1 on surface, fails AA for the real small text this token is used as) */
   --color-ink-inverse: #f4ecd8;
 
   --color-primary: #6b4423;
@@ -355,7 +373,8 @@ html[data-theme="sepia"] {
 
   --color-warning: #b8860b;
   --color-warning-subtle: #f5e6b8;
-  --color-warning-strong: #8f6708;
+  --color-warning-strong: #845f07;
+  /* was #8f6708 (4.11:1 on warning-subtle, fails AA) */
   --color-warning-hover: #a3760a;
 
   --color-danger: #a0402f;
@@ -385,7 +404,8 @@ html[data-theme="forest"] {
   --color-ink: #26361f;
   --color-ink-secondary: #3d4f33;
   --color-ink-muted: #5f7350;
-  --color-ink-faint: #8a9a7a;
+  --color-ink-faint: #647257;
+  /* was #8a9a7a (2.73:1 on surface, fails AA for the real small text this token is used as) */
   --color-ink-inverse: #f2f5ef;
 
   --color-primary: #3f5c33;
@@ -401,11 +421,13 @@ html[data-theme="forest"] {
 
   --color-success: #4a9d5f;
   --color-success-subtle: #dcf0e0;
-  --color-success-strong: #327a46;
+  --color-success-strong: #307643;
+  /* was #327a46 (4.39:1 on success-subtle, fails AA) */
 
   --color-warning: #c08a2e;
   --color-warning-subtle: #f5e8cc;
-  --color-warning-strong: #94690f;
+  --color-warning-strong: #87600e;
+  /* was #94690f (4.04:1 on warning-subtle, fails AA) */
   --color-warning-hover: #a97722;
 
   --color-danger: #b8503f;
@@ -435,7 +457,8 @@ html[data-theme="ocean"] {
   --color-ink: #e0f2f7;
   --color-ink-secondary: #b8dbe6;
   --color-ink-muted: #86b0c0;
-  --color-ink-faint: #547e8f;
+  --color-ink-faint: #5d8c9f;
+  /* was #547e8f (3.86:1 on surface, fails AA for the real small text this token is used as) */
   --color-ink-inverse: #0a1e2a;
 
   --color-primary: #e0f2f7;
@@ -460,12 +483,14 @@ html[data-theme="ocean"] {
 
   --color-danger: #ef5f6f;
   --color-danger-subtle: #3d1218;
-  --color-danger-strong: #d94357;
+  --color-danger-strong: #df6071;
+  /* was #d94357 (3.77:1 on danger-subtle, fails AA) */
   --color-danger-hover: #e64f61;
 
   --color-special: #7c83f0;
   --color-special-subtle: #1f2050;
-  --color-special-strong: #6067d6;
+  --color-special-strong: #8186de;
+  /* was #6067d6 (3.19:1 on special-subtle, fails AA) */
 
   --shadow-sm: 0 1px 2px rgba(34, 184, 207, 0.1);
   --shadow-md: 0 4px 8px rgba(34, 184, 207, 0.08);

@@ -9,6 +9,7 @@ import CanvasCard from './CanvasCard'
 import CanvasEditModal from './CanvasEditModal'
 import ConfirmDialog from './ConfirmDialog'
 import ContextMenu, { type ContextMenuPosition } from './ContextMenu'
+import IconPicker from './IconPicker'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useClickOutside } from '../hooks/useClickOutside'
 import { PRIORITY_BADGES, PRIORITY_LABELS, dueDateInfo } from '../utils/priority'
@@ -17,7 +18,7 @@ import { getNativeColorScheme } from '../utils/theme'
 
 interface ProjectHeaderProps {
   project: Project
-  onUpdateProject: (data: { name?: string; priority?: Priority; status?: ProjectStatus; due_date?: string | null }) => Promise<void>
+  onUpdateProject: (data: { name?: string; icon?: string | null; priority?: Priority; status?: ProjectStatus; due_date?: string | null }) => Promise<void>
   totalPoints: number
   donePoints: number
   isLoading?: boolean
@@ -63,12 +64,14 @@ export default function ProjectHeader({
   const [displayPriority, setDisplayPriority] = useState<Priority>(project.priority)
   const [displayStatus, setDisplayStatus] = useState<ProjectStatus>(project.status)
   const [displayDueDate, setDisplayDueDate] = useState<string | null>(project.due_date)
+  const [displayIcon, setDisplayIcon] = useState<string | null>(project.icon)
 
   useEffect(() => {
     setDisplayPriority(project.priority)
     setDisplayStatus(project.status)
     setDisplayDueDate(project.due_date)
-  }, [project.priority, project.status, project.due_date])
+    setDisplayIcon(project.icon)
+  }, [project.priority, project.status, project.due_date, project.icon])
 
   // Only re-run when the project identity changes — loadProjectNotes/loadProjectCanvases are fresh closures every render.
   useEffect(() => {
@@ -131,6 +134,16 @@ export default function ProjectHeader({
     } catch (error) {
       console.error('Failed to update project name:', error)
       setEditedName(project.name)
+    }
+  }
+
+  const handleUpdateIcon = async (newIcon: string | null) => {
+    setDisplayIcon(newIcon)
+    try {
+      await onUpdateProject({ icon: newIcon })
+    } catch (error) {
+      console.error('Failed to update icon:', error)
+      setDisplayIcon(project.icon)
     }
   }
 
@@ -429,7 +442,8 @@ export default function ProjectHeader({
   return (
     <div className="border-b border-border-subtle bg-surface px-6 py-4 space-y-3 shrink-0">
       {/* Title */}
-      <div>
+      <div className="flex items-center gap-2">
+        <IconPicker value={displayIcon} onChange={handleUpdateIcon} disabled={isLoading} />
         {isEditingName ? (
           <input
             autoFocus
@@ -445,7 +459,7 @@ export default function ProjectHeader({
             }}
             onBlur={handleUpdateName}
             disabled={isLoading}
-            className="font-heading text-2xl font-bold bg-surface-sunken text-ink border border-border-strong rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-50"
+            className="font-heading text-2xl font-bold bg-surface-sunken text-ink border border-border-strong rounded-lg px-3 py-2 w-full flex-1 min-w-0 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-50"
           />
         ) : (
           <motion.button
@@ -455,7 +469,7 @@ export default function ProjectHeader({
               clickSound()
               setIsEditingName(true)
             }}
-            className="font-heading text-2xl font-bold text-ink hover:text-accent-hover transition-colors cursor-pointer text-left w-full break-words"
+            className="font-heading text-2xl font-bold text-ink hover:text-accent-hover transition-colors cursor-pointer text-left flex-1 min-w-0 break-words"
           >
             {project.name}
           </motion.button>

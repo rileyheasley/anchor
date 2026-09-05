@@ -15,6 +15,8 @@ import TextNode from './canvasNodes/TextNode'
 import { NODE_COLORS, NODE_COLOR_NAMES, DEFAULT_SHAPE_SIZE, type NodeColor } from './canvasNodes/colors'
 import type { ShapeNodeData } from './canvasNodes/RectangleNode'
 import CanvasEdge, { type CanvasEdgeData } from './canvasEdges/CanvasEdge'
+import { NodeLabelChangeContext } from './canvasNodes/labelChangeContext'
+import { EdgeLabelChangeContext } from './canvasEdges/labelChangeContext'
 import { clickSound } from '../sounds'
 
 const nodeTypes = { rectangle: RectangleNode, diamond: DiamondNode, text: TextNode }
@@ -144,12 +146,22 @@ function CanvasEditorInner({
   const isDraggingRef = useRef(false)
   const [historyTick, setHistoryTick] = useState(0) // forces a re-render so toolbar undo/redo buttons reflect stack state
 
+  // Mirrored into refs so pushHistory can read the latest nodes/edges without taking a
+  // dependency on them — keeping its identity (and handleLabelChange's, below) stable across
+  // renders. That stability matters: it's shared with node/edge components via context rather
+  // than injected into their `data`, specifically so a mid-drag nodes/edges state change (which
+  // happens every frame) doesn't ripple into every node re-rendering.
+  const nodesRef = useRef(nodes)
+  const edgesRef = useRef(edges)
+  useEffect(() => { nodesRef.current = nodes }, [nodes])
+  useEffect(() => { edgesRef.current = edges }, [edges])
+
   const pushHistory = useCallback(() => {
-    historyPast.current.push({ nodes, edges })
+    historyPast.current.push({ nodes: nodesRef.current, edges: edgesRef.current })
     if (historyPast.current.length > HISTORY_LIMIT) historyPast.current.shift()
     historyFuture.current = []
     setHistoryTick((t) => t + 1)
-  }, [nodes, edges])
+  }, [])
 
   const undo = useCallback(() => {
     const prev = historyPast.current.pop()
@@ -200,16 +212,6 @@ function CanvasEditorInner({
     pushHistory()
     setEdges((eds) => eds.map((e) => (e.id === id ? { ...e, data: { ...e.data, label: value } } : e)))
   }, [pushHistory, setEdges])
-
-  const nodesWithHandlers = useMemo(
-    () => nodes.map((n) => ({ ...n, data: { ...n.data, onLabelChange: handleLabelChange } as ShapeNodeData })),
-    [nodes, handleLabelChange]
-  )
-
-  const edgesWithHandlers = useMemo(
-    () => edges.map((e) => ({ ...e, data: { ...e.data, onLabelChange: handleEdgeLabelChange } as CanvasEdgeData })),
-    [edges, handleEdgeLabelChange]
-  )
 
   const emitChange = useCallback(() => {
     const json = JSON.stringify({ nodes, edges, viewport: viewportRef.current })
@@ -391,28 +393,32 @@ function CanvasEditorInner({
       </div>
 
       <div className="flex-1">
-        <ReactFlow
-          nodes={nodesWithHandlers}
-          edges={edgesWithHandlers}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onMoveEnd={onMoveEnd}
-          onSelectionChange={onSelectionChange}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          connectionMode={ConnectionMode.Loose}
-          defaultViewport={viewportRef.current}
-          fitView={initial.nodes.length === 0}
-          deleteKeyCode={['Backspace', 'Delete']}
-          selectionOnDrag
-          panOnDrag={[1, 2]}
-          proOptions={{ hideAttribution: true }}
-        >
-          <Background />
-          <Controls />
-          <MiniMap pannable zoomable className="!bg-surface" />
-        </ReactFlow>
+        <NodeLabelChangeContext.Provider value={handleLabelChange}>
+          <EdgeLabelChangeContext.Provider value={handleEdgeLabelChange}>
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={onConnect}
+              onMoveEnd={onMoveEnd}
+              onSelectionChange={onSelectionChange}
+              nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
+              connectionMode={ConnectionMode.Loose}
+              defaultViewport={viewportRef.current}
+              fitView={initial.nodes.length === 0}
+              deleteKeyCode={['Backspace', 'Delete']}
+              selectionOnDrag
+              panOnDrag={[1, 2]}
+              proOptions={{ hideAttribution: true }}
+            >
+              <Background />
+              <Controls />
+              <MiniMap pannable zoomable className="!bg-surface" />
+            </ReactFlow>
+          </EdgeLabelChangeContext.Provider>
+        </NodeLabelChangeContext.Provider>
       </div>
     </div>
   )

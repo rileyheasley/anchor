@@ -8,11 +8,12 @@ import { useFocusTrap } from '../hooks/useFocusTrap'
 import { STATUS_OPTIONS, STATUS_LABELS, STATUS_BADGES } from '../utils/status'
 import { PRIORITY_OPTIONS, PRIORITY_BADGES, PRIORITY_LABELS } from '../utils/priority'
 import { getNativeColorScheme } from '../utils/theme'
+import IconPicker from './IconPicker'
 
 interface ProjectCreationModalProps {
   isOpen: boolean
   onClose: () => void
-  onCreate: (data: { name: string; priority: Priority; status: ProjectStatus; due_date: string | null }) => Promise<void>
+  onCreate: (data: { name: string; icon: string | null; priority: Priority; status: ProjectStatus; due_date: string | null }) => Promise<void>
   isLoading?: boolean
 }
 
@@ -23,6 +24,7 @@ export default function ProjectCreationModal({
   isLoading = false,
 }: ProjectCreationModalProps) {
   const [name, setName] = useState('')
+  const [icon, setIcon] = useState<string | null>(null)
   const [priority, setPriority] = useState<Priority>('none')
   const [status, setStatus] = useState<ProjectStatus>('planning')
   const [dueDate, setDueDate] = useState<string>('')
@@ -37,12 +39,14 @@ export default function ProjectCreationModal({
     try {
       await onCreate({
         name: name.trim(),
+        icon,
         priority,
         status,
         due_date: dueDate || null,
       })
       createSound()
       setName('')
+      setIcon(null)
       setPriority('none')
       setStatus('planning')
       setDueDate('')
@@ -56,6 +60,7 @@ export default function ProjectCreationModal({
   const handleClose = () => {
     clickSound()
     setName('')
+    setIcon(null)
     setPriority('none')
     setStatus('planning')
     setDueDate('')
@@ -114,22 +119,28 @@ export default function ProjectCreationModal({
 
         {/* Content */}
         <div className="flex-1 p-6 overflow-y-auto space-y-4">
-          {/* Project Name */}
-          <div>
-            <label className="text-xs text-ink-faint uppercase tracking-wide block mb-2">Project Name</label>
-            <input
-              autoFocus
-              type="text"
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value)
-                setError(null)
-              }}
-              onKeyDown={handleKeyDown}
-              placeholder="Enter project name..."
-              disabled={isLoading}
-              className="w-full px-3 py-2 bg-surface-sunken text-ink border border-border-strong rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-50 placeholder-ink-faint"
-            />
+          {/* Icon + Project Name */}
+          <div className="flex items-end gap-2">
+            <div>
+              <label className="text-xs text-ink-faint uppercase tracking-wide block mb-2">Icon</label>
+              <IconPicker value={icon} onChange={setIcon} disabled={isLoading} />
+            </div>
+            <div className="flex-1">
+              <label className="text-xs text-ink-faint uppercase tracking-wide block mb-2">Project Name</label>
+              <input
+                autoFocus
+                type="text"
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value)
+                  setError(null)
+                }}
+                onKeyDown={handleKeyDown}
+                placeholder="Enter project name..."
+                disabled={isLoading}
+                className="w-full px-3 py-2 bg-surface-sunken text-ink border border-border-strong rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-50 placeholder-ink-faint"
+              />
+            </div>
           </div>
 
           {/* Priority */}

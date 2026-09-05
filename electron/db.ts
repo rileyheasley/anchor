@@ -22,6 +22,7 @@ export function createSchema(db: Database) {
   db.run(`CREATE TABLE IF NOT EXISTS projects (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
+    icon TEXT,
     priority TEXT NOT NULL DEFAULT 'none' CHECK (priority IN ('none', 'low', 'medium', 'high')),
     status TEXT NOT NULL DEFAULT 'planning' CHECK (status IN ('planning', 'in_progress', 'on_hold', 'done')),
     due_date TEXT,
@@ -155,6 +156,10 @@ export function migrateSchema(db: Database) {
   if (!hasStatus) {
     db.run("ALTER TABLE projects ADD COLUMN status TEXT NOT NULL DEFAULT 'planning'")
   }
+  const hasIcon = projectColumns.some((col) => col.name === 'icon')
+  if (!hasIcon) {
+    db.run('ALTER TABLE projects ADD COLUMN icon TEXT')
+  }
 
   const cardColumns = queryAll(db, 'PRAGMA table_info(cards)')
   const hasNoteFilename = cardColumns.some((col) => col.name === 'note_filename')
@@ -165,7 +170,7 @@ export function migrateSchema(db: Database) {
 }
 
 const PROJECT_LIST_COLUMNS = `
-  p.id, p.name, p.priority, p.status, p.due_date, p.archived,
+  p.id, p.name, p.icon, p.priority, p.status, p.due_date, p.archived,
   p.created_at, p.updated_at,
   COALESCE(SUM(CASE WHEN kc.is_done = 1 THEN c.points ELSE 0 END), 0) AS done_points,
   COALESCE(SUM(c.points), 0) AS total_points,

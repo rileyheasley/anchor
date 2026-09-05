@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import type { Project, ResolvedTheme, ThemeMode } from './types'
 import { setSoundsEnabled, setSoundPack, SOUND_PACKS, type SoundPackId } from './sounds'
 import { ALL_THEME_OPTIONS } from './utils/theme'
@@ -6,14 +6,19 @@ import TitleBar from './components/TitleBar'
 import Sidebar from './components/Sidebar'
 import OverviewHome from './components/OverviewHome'
 import HomePage from './components/HomePage'
-import ProjectBoard from './components/ProjectBoard'
-import NotesPage from './components/NotesPage'
-import CanvasesPage from './components/CanvasesPage'
 import RecycleBin from './components/RecycleBin'
 import ArchiveView from './components/ArchiveView'
 import SettingsModal from './components/SettingsModal'
 import SearchModal, { type SearchSelection } from './components/SearchModal'
 import VaultSetupScreen from './components/VaultSetupScreen'
+
+// Code-split: these three pull in the heaviest dependencies (Tiptap for rich text, and
+// @xyflow/react + dagre for the canvas), inflating the initial bundle even though only one
+// view is ever visible at a time. Splitting them keeps startup parse/mount cost down; the
+// Suspense fallback below only shows for the near-instant local-disk load of the chunk.
+const ProjectBoard = lazy(() => import('./components/ProjectBoard'))
+const NotesPage = lazy(() => import('./components/NotesPage'))
+const CanvasesPage = lazy(() => import('./components/CanvasesPage'))
 
 type View = 'home' | 'projects' | 'notes' | 'canvases' | 'archive' | 'recycle'
 
@@ -389,7 +394,9 @@ function App() {
           onOpenSearch={() => setIsSearchOpen(true)}
         />
         <div className="flex-1 overflow-hidden">
-          {content()}
+          <Suspense fallback={<div className="w-full h-full bg-surface-sunken" />}>
+            {content()}
+          </Suspense>
         </div>
       </div>
       <SettingsModal

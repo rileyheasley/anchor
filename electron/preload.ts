@@ -17,8 +17,8 @@ contextBridge.exposeInMainWorld('api', {
   },
   projects: {
     list: () => ipcRenderer.invoke('projects:list'),
-    create: (data: { name: string, priority?: string, status?: string, due_date?: string | null }) => ipcRenderer.invoke('projects:create', data),
-    update: (data: { id: string, name?: string, priority?: string, status?: string, due_date?: string | null }) => ipcRenderer.invoke('projects:update', data),
+    create: (data: { name: string, icon?: string | null, priority?: string, status?: string, due_date?: string | null }) => ipcRenderer.invoke('projects:create', data),
+    update: (data: { id: string, name?: string, icon?: string | null, priority?: string, status?: string, due_date?: string | null }) => ipcRenderer.invoke('projects:update', data),
     archive: (id: string) => ipcRenderer.invoke('projects:archive', id),
     delete: (id: string) => ipcRenderer.invoke('projects:delete', id),
   },

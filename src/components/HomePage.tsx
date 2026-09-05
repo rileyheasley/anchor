@@ -119,7 +119,7 @@ export default function HomePage({
     localStorage.setItem('projectViewMode', mode)
   }
 
-  const handleCreate = async (data: { name: string; priority: Priority; status: ProjectStatus; due_date: string | null }) => {
+  const handleCreate = async (data: { name: string; icon: string | null; priority: Priority; status: ProjectStatus; due_date: string | null }) => {
     setIsCreating(true)
     try {
       await window.api.projects.create(data)
@@ -396,7 +396,10 @@ export default function HomePage({
                   className={`bg-surface rounded-lg border border-border p-4 cursor-pointer ${viewMode === 'grid' ? 'flex flex-col h-full' : ''}`}
                 >
                   <div className={viewMode === 'grid' ? 'flex flex-col gap-2 mb-2' : 'flex items-center justify-between mb-2'}>
-                    <h3 className="font-heading font-medium text-ink">{p.name}</h3>
+                    <h3 className="font-heading font-medium text-ink flex items-center gap-1.5">
+                      {p.icon && <span className="text-base leading-none">{p.icon}</span>}
+                      {p.name}
+                    </h3>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {dueInfo && <span className={`text-xs ${dueInfo.color}`}>{dueInfo.label}</span>}
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_BADGES[p.status]}`}>

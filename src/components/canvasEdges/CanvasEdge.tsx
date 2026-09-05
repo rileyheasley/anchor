@@ -1,20 +1,21 @@
-import { useState, useRef, useEffect } from 'react'
+import { memo, useState, useRef, useEffect } from 'react'
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, getStraightPath, type EdgeProps } from '@xyflow/react'
+import { useEdgeLabelChange } from './labelChangeContext'
 
 export interface CanvasEdgeData {
   label?: string
   curved?: boolean
-  onLabelChange?: (id: string, value: string) => void
   [key: string]: unknown
 }
 
 // Custom edge so connectors can carry an editable label (double-click to add/change text) and
 // switch between curved/straight per-edge via `data.curved`, set at creation time from the
 // toolbar's connector-style toggle.
-export default function CanvasEdge({
+function CanvasEdge({
   id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, style, markerEnd, selected, data,
 }: EdgeProps) {
-  const { label, curved = true, onLabelChange } = (data ?? {}) as CanvasEdgeData
+  const { label, curved = true } = (data ?? {}) as CanvasEdgeData
+  const onLabelChange = useEdgeLabelChange()
   const [path, labelX, labelY] = (curved ? getBezierPath : getStraightPath)({
     sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition,
   })
@@ -30,7 +31,7 @@ export default function CanvasEdge({
 
   const commit = () => {
     setEditing(false)
-    if (value !== (label ?? '')) onLabelChange?.(id, value)
+    if (value !== (label ?? '')) onLabelChange(id, value)
   }
 
   return (
@@ -72,3 +73,5 @@ export default function CanvasEdge({
     </>
   )
 }
+
+export default memo(CanvasEdge)

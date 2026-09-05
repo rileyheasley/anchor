@@ -6,6 +6,7 @@ export type ThemeMode = ResolvedTheme | 'system'
 export interface Project {
   id: string
   name: string
+  icon: string | null
   priority: Priority
   status: ProjectStatus
   due_date: string | null
