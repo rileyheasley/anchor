@@ -239,7 +239,7 @@ Numbering is continuous across the sections below (so cross-references elsewhere
 ### Before Beta
 
 31. ~~Fix `electron-builder.json5` placeholders (`appId`/`productName`), add a real platform icon (`.ico`/`.icns`), bump `package.json` off `0.0.0`~~ ✅ — app icon built from the anchor/"A" monogram mark (`src/assets/logos/app-icon.svg`) composed on a flat `#1C1A14` square with padding for OS masking; `build/icon.{png,ico,icns}` wired into `electron-builder.json5` for mac/win/linux
-32. **Blocker.** Test-package for real via `npm run build` and install on both Windows and Mac — never done; all verification so far has been a dev-mode production build, not the actual installer
+32. ~~Test-package for real via `npm run build` and install on both Windows and Mac~~ ✅ — Windows NSIS installer (`Anchor-Windows-0.1.0-Setup.exe`) built and installed successfully (per-user install, `perMachine: false`); Mac `.dmg` still to be built/tested (needs a Mac to run `electron-builder`)
 33. **Blocker.** Verify true first-run onboarding on a genuinely clean machine/VM (no `test-data/`, no prior `userData/config.json`) — only simulated on the dev machine so far
 34. ~~Security review pass (`webPreferences`/`contextIsolation`/`nodeIntegration`)~~ ✅ — defaults now set explicitly, plus a default-deny `setWindowOpenHandler`
 
@@ -296,8 +296,8 @@ Not part of the numbered roadmap above (that's feature work) — this is what's 
 - [x] `electron-builder.json5`'s `appId`/`productName` set to real values (`com.rileyheasley.anchor` / `Anchor`) — was `"YourAppID"`/`"YourAppName"`; `productName` determines the real `userData` folder name, so this wasn't cosmetic (roadmap #31)
 - [x] Add a real app icon (`.ico` + `.icns`) — built from `src/assets/logos/app-icon.svg` on a flat `#1C1A14` square, output to `build/icon.{png,ico,icns}` and wired into `electron-builder.json5`'s `mac`/`win`/`linux.icon` fields (roadmap #31)
 - [x] `package.json` version bumped off `0.0.0` to `0.1.0` (roadmap #31)
-- [ ] Actually run `npm run build` and install the real output on both Windows and Mac (roadmap #32)
-- [ ] Test the real first-run experience on a genuinely clean machine/VM (no `test-data/`, no prior `userData/config.json`) — never verified end-to-end, only simulated on the dev machine (roadmap #33)
+- [x] Actually run `npm run build` and install the real output on Windows (roadmap #32) — Mac `.dmg` still to build/install on a Mac
+- [ ] Test the real first-run experience on a genuinely clean machine/VM (no `test-data/`, no prior `userData/config.json`) — the Windows install reused dev's existing `%APPDATA%\Anchor\config.json`/vault, so it wasn't a true first-run test; planned next on a clean Mac (roadmap #33)
 - [ ] Decide how to communicate the unsigned-binary warning (SmartScreen/Gatekeeper) to testers
 
 **Data safety / reliability**
