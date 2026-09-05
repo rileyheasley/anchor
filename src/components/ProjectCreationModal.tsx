@@ -7,8 +7,8 @@ import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { STATUS_OPTIONS, STATUS_LABELS, STATUS_BADGES } from '../utils/status'
 import { PRIORITY_OPTIONS, PRIORITY_BADGES, PRIORITY_LABELS } from '../utils/priority'
-import { getNativeColorScheme } from '../utils/theme'
 import IconPicker from './IconPicker'
+import DatePicker from './DatePicker'
 
 interface ProjectCreationModalProps {
   isOpen: boolean
@@ -152,7 +152,7 @@ export default function ProjectCreationModal({
                   key={p}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => setPriority(p)}
+                  onClick={() => { clickSound(); setPriority(p) }}
                   disabled={isLoading}
                   className={`text-xs px-3 py-1.5 rounded-lg cursor-pointer transition-colors disabled:opacity-50 ${
                     priority === p
@@ -175,7 +175,7 @@ export default function ProjectCreationModal({
                   key={s}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => setStatus(s)}
+                  onClick={() => { clickSound(); setStatus(s) }}
                   disabled={isLoading}
                   className={`text-xs px-3 py-1.5 rounded-lg cursor-pointer transition-colors disabled:opacity-50 ${
                     status === s
@@ -192,15 +192,7 @@ export default function ProjectCreationModal({
           {/* Due Date */}
           <div>
             <label className="text-xs text-ink-faint uppercase tracking-wide block mb-2">Due Date (optional)</label>
-            <input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={isLoading}
-              className="w-full px-3 py-2 bg-surface-sunken text-ink border border-border-strong rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-50"
-              style={{ colorScheme: getNativeColorScheme() }}
-            />
+            <DatePicker value={dueDate || null} onChange={(v) => setDueDate(v ?? '')} disabled={isLoading} />
           </div>
 
           {/* Error Message */}

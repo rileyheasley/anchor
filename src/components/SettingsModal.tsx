@@ -20,11 +20,11 @@ interface SettingsModalProps {
   onSoundPackChange: (pack: SoundPackId) => void
 }
 
-type Section = 'general' | 'appearance' | 'shortcuts' | 'about'
+type Section = 'general' | 'customisation' | 'shortcuts' | 'about'
 
 const SECTIONS: { id: Section; label: string; icon: typeof SlidersHorizontal }[] = [
   { id: 'general', label: 'General', icon: SlidersHorizontal },
-  { id: 'appearance', label: 'Appearance', icon: Palette },
+  { id: 'customisation', label: 'Customisation', icon: Palette },
   { id: 'shortcuts', label: 'Keyboard Shortcuts', icon: Keyboard },
   { id: 'about', label: 'About', icon: Info },
 ]
@@ -224,38 +224,10 @@ export default function SettingsModal({
                       : 'Bundles your notes, canvases, and project data into one zip file you can save anywhere.'}
                   </p>
                 </div>
-
-                <div>
-                  <h3 className="text-xs font-semibold text-ink-faint uppercase tracking-wide mb-3">Sound</h3>
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-2 text-sm text-ink-secondary">
-                      <Volume2 size={16} className="text-ink-faint shrink-0" />
-                      Sound effects
-                    </div>
-                    <ToggleSwitch checked={soundsEnabled} onChange={onSoundsEnabledChange} />
-                  </div>
-                  <p className="text-xs text-ink-faint mt-2">Play a click when you create, move, complete, or delete things.</p>
-
-                  {soundsEnabled && (
-                    <div className="mt-3">
-                      <SortDropdown
-                        options={SOUND_PACKS.map(({ id, label }) => ({ value: id, label }))}
-                        value={soundPack}
-                        onChange={(pack: SoundPackId) => { onSoundPackChange(pack); clickSound() }}
-                        icon={Volume2}
-                        label="Sound pack"
-                        showLabel={false}
-                      />
-                      <p className="text-xs text-ink-faint mt-2">
-                        {SOUND_PACKS.find((p) => p.id === soundPack)?.description}
-                      </p>
-                    </div>
-                  )}
-                </div>
               </div>
             )}
 
-            {section === 'appearance' && (
+            {section === 'customisation' && (
               <div>
                 <h3 className="text-xs font-semibold text-ink-faint uppercase tracking-wide mb-3">Theme</h3>
                 <div className="grid grid-cols-2 gap-2">
@@ -296,6 +268,32 @@ export default function SettingsModal({
                     </motion.button>
                   ))}
                 </div>
+
+                <h3 className="text-xs font-semibold text-ink-faint uppercase tracking-wide mb-3 mt-5">Sound</h3>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2 text-sm text-ink-secondary">
+                    <Volume2 size={16} className="text-ink-faint shrink-0" />
+                    Sound effects
+                  </div>
+                  <ToggleSwitch checked={soundsEnabled} onChange={onSoundsEnabledChange} />
+                </div>
+                <p className="text-xs text-ink-faint mt-2">Play a click when you create, move, complete, or delete things.</p>
+
+                {soundsEnabled && (
+                  <div className="mt-3">
+                    <SortDropdown
+                      options={SOUND_PACKS.map(({ id, label }) => ({ value: id, label }))}
+                      value={soundPack}
+                      onChange={(pack: SoundPackId) => { onSoundPackChange(pack); clickSound() }}
+                      icon={Volume2}
+                      label="Sound pack"
+                      showLabel={false}
+                    />
+                    <p className="text-xs text-ink-faint mt-2">
+                      {SOUND_PACKS.find((p) => p.id === soundPack)?.description}
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 

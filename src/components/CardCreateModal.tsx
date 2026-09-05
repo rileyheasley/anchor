@@ -6,7 +6,7 @@ import { clickSound, createSound } from '../sounds'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { PRIORITY_OPTIONS, PRIORITY_BADGES, PRIORITY_LABELS } from '../utils/priority'
-import { getNativeColorScheme } from '../utils/theme'
+import DatePicker from './DatePicker'
 
 interface CardCreateModalProps {
   isOpen: boolean
@@ -175,15 +175,7 @@ export default function CardCreateModal({
           {/* Due Date */}
           <div>
             <label className="text-xs text-ink-faint uppercase tracking-wide block mb-2">Due Date (optional)</label>
-            <input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={isLoading}
-              className="w-full px-3 py-2 bg-surface-sunken text-ink border border-border-strong rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-50"
-              style={{ colorScheme: getNativeColorScheme() }}
-            />
+            <DatePicker value={dueDate || null} onChange={(v) => setDueDate(v ?? '')} disabled={isLoading} />
           </div>
 
           {/* Error Message */}

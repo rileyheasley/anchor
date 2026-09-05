@@ -10,11 +10,11 @@ import CanvasEditModal from './CanvasEditModal'
 import ConfirmDialog from './ConfirmDialog'
 import ContextMenu, { type ContextMenuPosition } from './ContextMenu'
 import IconPicker from './IconPicker'
+import DatePicker from './DatePicker'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useClickOutside } from '../hooks/useClickOutside'
 import { PRIORITY_BADGES, PRIORITY_LABELS, dueDateInfo } from '../utils/priority'
 import { STATUS_OPTIONS, STATUS_BADGES, STATUS_LABELS } from '../utils/status'
-import { getNativeColorScheme } from '../utils/theme'
 
 interface ProjectHeaderProps {
   project: Project
@@ -429,15 +429,6 @@ export default function ProjectHeader({
   const progressPercent = totalPoints > 0 ? Math.round((donePoints / totalPoints) * 100) : 0
   const dueInfo = dueDateInfo(displayDueDate)
 
-  const [colorScheme, setColorScheme] = useState<'light' | 'dark'>(() => getNativeColorScheme())
-
-  useEffect(() => {
-    const update = () => setColorScheme(getNativeColorScheme())
-    update()
-    const observer = new MutationObserver(update)
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
-    return () => observer.disconnect()
-  }, [])
 
   return (
     <div className="border-b border-border-subtle bg-surface px-6 py-4 space-y-3 shrink-0">
@@ -568,15 +559,8 @@ export default function ProjectHeader({
           </div>
 
           {/* Due date */}
-          <div className="flex items-center gap-1.5 bg-surface-muted rounded-lg px-2 py-1">
-            <input
-              type="date"
-              value={displayDueDate ?? ''}
-              onChange={(e) => handleUpdateDueDate(e.target.value || null)}
-              disabled={isLoading}
-              className="bg-transparent text-ink text-xs focus:outline-none disabled:opacity-50 cursor-pointer"
-              style={{ colorScheme }}
-            />
+          <div className="flex items-center gap-1.5 bg-surface-muted rounded-lg px-2.5 py-1.5">
+            <DatePicker value={displayDueDate} onChange={handleUpdateDueDate} disabled={isLoading} variant="inline" placeholder="Due date" />
             {dueInfo && <span className={`text-xs font-medium whitespace-nowrap ${dueInfo.color}`}>{dueInfo.label}</span>}
           </div>
         </div>
