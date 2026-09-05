@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Home, FolderOpen, FileText, Workflow, Archive, Trash2, ChevronLeft, ChevronRight, Sun, Settings, Search, Eye } from 'lucide-react'
+import { Home, FolderOpen, FileText, Workflow, Store, Archive, Trash2, ChevronLeft, ChevronRight, Sun, Settings, Search, Eye } from 'lucide-react'
 import DraggableSidebar from './DraggableSidebar'
 import IconNavItem from './IconNavItem'
 import { clickSound } from '../sounds'
@@ -9,7 +9,7 @@ import { useClickOutside } from '../hooks/useClickOutside'
 import { THEME_OPTIONS, COLOURBLIND_THEME_OPTIONS, ALL_THEME_OPTIONS } from '../utils/theme'
 import type { ThemeMode } from '../types'
 
-type View = 'home' | 'projects' | 'notes' | 'canvases' | 'archive' | 'recycle'
+type View = 'home' | 'projects' | 'notes' | 'canvases' | 'marketplace' | 'archive' | 'recycle'
 
 interface SidebarProps {
   view: View
@@ -51,6 +51,7 @@ export default function Sidebar({
     { id: 'projects', label: 'Projects', icon: FolderOpen, view: 'projects' as const },
     { id: 'notes', label: 'Notes', icon: FileText, view: 'notes' as const },
     { id: 'canvases', label: 'Canvas', icon: Workflow, view: 'canvases' as const },
+    { id: 'marketplace', label: 'Marketplace', icon: Store, view: 'marketplace' as const },
   ]
 
   const bottomItems = [

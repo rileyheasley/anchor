@@ -19,8 +19,9 @@ import VaultSetupScreen from './components/VaultSetupScreen'
 const ProjectBoard = lazy(() => import('./components/ProjectBoard'))
 const NotesPage = lazy(() => import('./components/NotesPage'))
 const CanvasesPage = lazy(() => import('./components/CanvasesPage'))
+const MarketplacePage = lazy(() => import('./components/MarketplacePage'))
 
-type View = 'home' | 'projects' | 'notes' | 'canvases' | 'archive' | 'recycle'
+type View = 'home' | 'projects' | 'notes' | 'canvases' | 'marketplace' | 'archive' | 'recycle'
 
 interface NavState {
   view: View
@@ -363,6 +364,7 @@ function App() {
         />
       )
     }
+    if (view === 'marketplace') return <MarketplacePage />
     if (view === 'recycle') return <RecycleBin />
     if (view === 'archive') return <ArchiveView onOpenProject={navigateToProject} />
     return null
