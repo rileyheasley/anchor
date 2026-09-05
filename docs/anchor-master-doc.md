@@ -240,7 +240,7 @@ Numbering is continuous across the sections below (so cross-references elsewhere
 
 31. ~~Fix `electron-builder.json5` placeholders (`appId`/`productName`), add a real platform icon (`.ico`/`.icns`), bump `package.json` off `0.0.0`~~ ✅ — app icon built from the anchor/"A" monogram mark (`src/assets/logos/app-icon.svg`) composed on a flat `#1C1A14` square with padding for OS masking; `build/icon.{png,ico,icns}` wired into `electron-builder.json5` for mac/win/linux
 32. ~~Test-package for real via `npm run build` and install on both Windows and Mac~~ ✅ — Windows NSIS installer (`Anchor-Windows-0.1.0-Setup.exe`) built and installed successfully (per-user install, `perMachine: false`); Mac `.dmg` still to be built/tested (needs a Mac to run `electron-builder`)
-33. **Blocker.** Verify true first-run onboarding on a genuinely clean machine/VM (no `test-data/`, no prior `userData/config.json`) — only simulated on the dev machine so far
+33. ~~Verify true first-run onboarding on a genuinely clean machine/VM (no `test-data/`, no prior `userData/config.json`)~~ ✅ — verified on a clean Mac install, first-run onboarding worked correctly
 34. ~~Security review pass (`webPreferences`/`contextIsolation`/`nodeIntegration`)~~ ✅ — defaults now set explicitly, plus a default-deny `setWindowOpenHandler`
 
 ### Before Full Release (v1)
@@ -296,9 +296,9 @@ Not part of the numbered roadmap above (that's feature work) — this is what's 
 - [x] `electron-builder.json5`'s `appId`/`productName` set to real values (`com.rileyheasley.anchor` / `Anchor`) — was `"YourAppID"`/`"YourAppName"`; `productName` determines the real `userData` folder name, so this wasn't cosmetic (roadmap #31)
 - [x] Add a real app icon (`.ico` + `.icns`) — built from `src/assets/logos/app-icon.svg` on a flat `#1C1A14` square, output to `build/icon.{png,ico,icns}` and wired into `electron-builder.json5`'s `mac`/`win`/`linux.icon` fields (roadmap #31)
 - [x] `package.json` version bumped off `0.0.0` to `0.1.0` (roadmap #31)
-- [x] Actually run `npm run build` and install the real output on Windows (roadmap #32) — Mac `.dmg` still to build/install on a Mac
-- [ ] Test the real first-run experience on a genuinely clean machine/VM (no `test-data/`, no prior `userData/config.json`) — the Windows install reused dev's existing `%APPDATA%\Anchor\config.json`/vault, so it wasn't a true first-run test; planned next on a clean Mac (roadmap #33)
-- [ ] Decide how to communicate the unsigned-binary warning (SmartScreen/Gatekeeper) to testers
+- [x] Actually run `npm run build` and install the real output on both Windows and Mac (roadmap #32)
+- [x] Test the real first-run experience on a genuinely clean machine/VM (no `test-data/`, no prior `userData/config.json`) — verified on a clean Mac install (roadmap #33)
+- [x] Decide how to communicate the unsigned-binary warning (SmartScreen/Gatekeeper) to testers — verbal/direct heads-up to testers, no written doc needed
 
 **Data safety / reliability**
 - [x] Error boundary, IPC error logging + toasts, log-folder button, vault export — roadmap #27
@@ -306,11 +306,11 @@ Not part of the numbered roadmap above (that's feature work) — this is what's 
 
 **Onboarding**
 - [x] "Getting Started" seed, multi-vault switching + legacy migration, vault picker gate, logo fix — roadmap #28–30
-- [ ] Verify the legacy-migration gap noted in Data Model → Vaults doesn't apply (check whether any real packaged build was ever handed out with real data)
-- [ ] Canvas edge-connector work (in progress when this doc was last touched) — confirm it's functionally finished and got the same sound/motion audit pass the rest of the app already has
+- [x] Verify the legacy-migration gap noted in Data Model → Vaults doesn't apply — moot: this build (roadmap #32) is the first real packaged installer ever produced, so no prior packaged install with real data exists
+- [x] Canvas edge-connector work — functionally finished; confirmed it has no sound feedback yet, but Riley's decided that's acceptable for beta (not a blocker)
 
 **Housekeeping**
-- [ ] Commit the multi-vault + logo-fix session's changes if not already done
+- [x] Commit the multi-vault + logo-fix session's changes if not already done — confirmed already committed
 - [ ] Write a short doc/message for testers: how to install past the unsigned warning, where their data lives, back-up reminder, where to send bugs/the log file
 - [ ] Pick a feedback channel for beta testers
 
