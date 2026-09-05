@@ -13,6 +13,7 @@ import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useClickOutside } from '../hooks/useClickOutside'
 import { PRIORITY_BADGES, PRIORITY_LABELS, dueDateInfo } from '../utils/priority'
 import { STATUS_OPTIONS, STATUS_BADGES, STATUS_LABELS } from '../utils/status'
+import { getNativeColorScheme } from '../utils/theme'
 
 interface ProjectHeaderProps {
   project: Project
@@ -415,12 +416,10 @@ export default function ProjectHeader({
   const progressPercent = totalPoints > 0 ? Math.round((donePoints / totalPoints) * 100) : 0
   const dueInfo = dueDateInfo(displayDueDate)
 
-  const [colorScheme, setColorScheme] = useState<'light' | 'dark'>(
-    () => (document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light')
-  )
+  const [colorScheme, setColorScheme] = useState<'light' | 'dark'>(() => getNativeColorScheme())
 
   useEffect(() => {
-    const update = () => setColorScheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light')
+    const update = () => setColorScheme(getNativeColorScheme())
     update()
     const observer = new MutationObserver(update)
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })

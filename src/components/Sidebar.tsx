@@ -162,7 +162,7 @@ export default function Sidebar({
                         animate={{ opacity: 1, scale: 1, x: 0 }}
                         exit={{ opacity: 0, scale: 0.95, x: 4 }}
                         transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                        className="absolute left-full top-0 ml-1 bg-surface border border-border-strong rounded-lg shadow-lg py-1 min-w-[150px] z-50"
+                        className="absolute left-full bottom-0 ml-1 bg-surface border border-border-strong rounded-lg shadow-lg py-1 min-w-[150px] z-50"
                       >
                         {COLOURBLIND_THEME_OPTIONS.map(({ mode, label, icon: Icon }) => (
                           <motion.button

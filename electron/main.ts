@@ -421,10 +421,16 @@ function createWindow() {
     minWidth: 960,
     minHeight: 600,
     titleBarStyle: 'hidden',
+    // Height is 1px shorter than TitleBar.tsx's 40px bar so the overlay (which paints
+    // an opaque rectangle behind the caption buttons, full height) doesn't cover the
+    // bar's bottom border — leaving that 1px row visible all the way across.
     titleBarOverlay: process.platform === 'win32' ? {
       ...TITLEBAR_OVERLAY.light,
-      height: 40,
+      height: 39,
     } : false,
+    // macOS ignores this (dock icon comes from the app bundle); it's needed on
+    // Windows/Linux so the taskbar shows the anchor mark instead of Electron's default.
+    icon: process.platform === 'darwin' ? undefined : path.join(process.env.VITE_PUBLIC, 'app-icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
       contextIsolation: true,
@@ -486,7 +492,7 @@ app.whenReady().then(async () => {
     handle('window:isMaximized', () => win?.isMaximized() ?? false)
     handle('window:setTitleBarTheme', (_event, theme: keyof typeof TITLEBAR_OVERLAY) => {
       if (process.platform !== 'win32') return
-      win?.setTitleBarOverlay({ ...(TITLEBAR_OVERLAY[theme] ?? TITLEBAR_OVERLAY.light), height: 40 })
+      win?.setTitleBarOverlay({ ...(TITLEBAR_OVERLAY[theme] ?? TITLEBAR_OVERLAY.light), height: 39 })
     })
 
     // ── App info handlers ──

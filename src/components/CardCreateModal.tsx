@@ -6,6 +6,7 @@ import { clickSound, createSound } from '../sounds'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { PRIORITY_OPTIONS, PRIORITY_BADGES, PRIORITY_LABELS } from '../utils/priority'
+import { getNativeColorScheme } from '../utils/theme'
 
 interface CardCreateModalProps {
   isOpen: boolean
@@ -181,6 +182,7 @@ export default function CardCreateModal({
               onKeyDown={handleKeyDown}
               disabled={isLoading}
               className="w-full px-3 py-2 bg-surface-sunken text-ink border border-border-strong rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-50"
+              style={{ colorScheme: getNativeColorScheme() }}
             />
           </div>
 

@@ -7,6 +7,7 @@ import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { STATUS_OPTIONS, STATUS_LABELS, STATUS_BADGES } from '../utils/status'
 import { PRIORITY_OPTIONS, PRIORITY_BADGES, PRIORITY_LABELS } from '../utils/priority'
+import { getNativeColorScheme } from '../utils/theme'
 
 interface ProjectCreationModalProps {
   isOpen: boolean
@@ -187,6 +188,7 @@ export default function ProjectCreationModal({
               onKeyDown={handleKeyDown}
               disabled={isLoading}
               className="w-full px-3 py-2 bg-surface-sunken text-ink border border-border-strong rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-50"
+              style={{ colorScheme: getNativeColorScheme() }}
             />
           </div>
 

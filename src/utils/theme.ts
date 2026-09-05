@@ -1,5 +1,20 @@
 import { Sun, Moon, Heart, Monitor, Snowflake, Ghost, Terminal, BookOpen, Leaf, Waves, Contrast, Eye } from 'lucide-react'
-import type { ThemeMode } from '../types'
+import type { ResolvedTheme, ThemeMode } from '../types'
+
+// Themes whose surface colour is dark. Used to tell native browser/OS controls
+// (e.g. the <input type="date"> calendar glyph) to render in their light-on-dark
+// variant via `color-scheme`, since that isn't covered by our CSS colour tokens.
+const DARK_SURFACE_THEMES: ReadonlySet<ResolvedTheme> = new Set([
+  'dark', 'nord', 'dracula', 'solarized', 'ocean', 'deuteranopia', 'protanopia', 'tritanopia',
+])
+
+export function isDarkSurfaceTheme(theme: string | null): boolean {
+  return theme !== null && DARK_SURFACE_THEMES.has(theme as ResolvedTheme)
+}
+
+export function getNativeColorScheme(theme: string | null = document.documentElement.getAttribute('data-theme')): 'light' | 'dark' {
+  return isDarkSurfaceTheme(theme) ? 'dark' : 'light'
+}
 
 export const THEME_OPTIONS: { mode: ThemeMode; label: string; icon: typeof Sun }[] = [
   { mode: 'light', label: 'Light', icon: Sun },
